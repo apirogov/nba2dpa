@@ -1,0 +1,6 @@
+-Ivendor/cxxopts/include
+-Ivendor/args
+-Ivendor/spot-build/include
+-Ivendor/Catch/include
+-Ivendor/spdlog/include
+-Isrc/
