@@ -22,18 +22,18 @@ namespace nbautils {
 // references to all of its elements for quick access.
 
 class RelOrder {
- public:
+public:
   typedef unsigned ord_t;
   typedef std::list<ord_t>::iterator ordref;
 
- private:
+private:
   std::list<ord_t> order;
   bool normalized;
   ord_t maxused;
 
-  void normalize();  // renumber
+  void normalize(); // renumber
 
- public:
+public:
   // create space for n order elements
   RelOrder(int n);
   // kill element referenced, give fresh order element
@@ -43,4 +43,4 @@ class RelOrder {
   std::vector<ord_t> to_ranks(std::vector<ordref> const &refs);
 };
 
-}  // namespace nbautils
+} // namespace nbautils

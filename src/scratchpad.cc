@@ -1,16 +1,24 @@
+#include <fstream>
 #include <iostream>
 #include <string>
 using namespace std;
 
-#include <spdlog/spdlog.h>
+// #include <spdlog/spdlog.h>
+#include "cpphoafparser/consumer/hoa_consumer_print.hh"
+#include "cpphoafparser/parser/hoa_parser.hh"
+#include "io.hh"
+#include "ps.hh"
+#include "scc.hh"
+#include "types.hh"
+#include "debug.hh"
 #include <args.hxx>
-#include "dpa.hh"
-#include "nba.hh"
+using namespace cpphoafparser;
 
 auto parse_args(int argc, char *argv[]) {
   args::ArgumentParser parser("This is a test program.", "");
   args::HelpFlag help(parser, "help", "Display this help menu", {'h', "help"});
-  args::Positional<string> input(parser, "INPUTFILE", "File containing the NBA");
+  args::Positional<string> input(parser, "INPUTFILE",
+                                 "File containing the NBA");
   try {
     parser.ParseCLI(argc, argv);
   } catch (args::Help) {
@@ -25,42 +33,41 @@ auto parse_args(int argc, char *argv[]) {
   }
 
   if (!input) {
-    cerr << "Please provide an input file!" << endl;
-    exit(1);
+    return string("");
   }
 
   return args::get(input);
 }
 
 int main(int argc, char *argv[]) {
-  static auto logger = spdlog::stdout_color_mt("times_logger");
-
   auto file = parse_args(argc, argv);
 
-  logger->debug("Reading automaton from {}", file);
-
-  auto aut = nbautils::spot_nba_from_file(file);
-  // in principle here we could do some trimming using spots default stuff
-
-  auto nba = nbautils::NBA(aut);
-
-  auto dpa = nbautils::DPA(nba);
-
-  // auto sccs = spot::scc_info(aut);
-
-  // print NBA again
-  for (auto s : nba.states) {
-    cout << s;
-    if (nba.acc.find(s) != nba.acc.end()) cout << "*";
-    cout << endl;
-    for (auto i = 0; i < nba.num_syms; i++) {
-      if (nba.adj[s][i].empty()) continue;
-      cout << "\t" << i << " -> ";
-      for (auto t : nba.adj[s][i]) cout << t << ", ";
-      cout << endl;
-    }
+  auto pnba = nbautils::parse_ba(file);
+  if (!pnba.second.success) {
+    cerr << "no valid NBA parsed!" << endl;
+	exit(1);
   }
 
-  // auto ps = vector<nbautils::NBA::state_t>{0, 5};
-  // for (auto q : nba.powersucc(ps, 0)) cout << q << endl;
+	printMeta(pnba.second);
+	auto& ba = *pnba.first;
+    cout << "Input BA has " << ba.adj.size() << " states" << endl;
+	auto scci = nbautils::get_scc_info(ba, true);
+    printSCCI(*scci);
+	cout << "trimming BA.." << endl;
+	cout << "removed " << trim_ba(ba, *scci) << " states" << endl;
+	printBA(ba, *scci);
+    printSCCI(*scci);
+
+
+  auto ps = nbautils::powerset_product(ba);
+  auto pscci = nbautils::get_scc_info(*ps, true);
+  // printPS(ps, pscci, true);
+  // printPS(ps);
+  cout << "PS size: " << ps->adj.size() << " with " <<
+	  pscci->sccrep.size() << " SCCs" << endl;
+  // printSCCI(pscci);
+
+  cout << "trimming PS.." << endl;
+	cout << "removed " << trim_ba(*ps, *pscci) << " states" << endl;
+  // printPS(ps, pscci, true);
 }

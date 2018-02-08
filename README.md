@@ -7,15 +7,6 @@ First initialize the directories of dependencies:
 git submodule update --init --recursive --remote
 ```
 
-To build spot, ensure you have flex and bison installed and a modern g++/clang toolchain.
-```
-cd vendor/spot
-autoreconf -vfi
-./configure --disable-python --disable-shared --enable-static --prefix=$(realpath ..)/spot-build
-make
-make install
-```
-
 ## Building nbautils
 
 When all dependencies are satisfied, building is easy:

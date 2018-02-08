@@ -39,4 +39,4 @@ CTestTestfile.cmake
 CMakeCache.txt
 CMakeFiles/
 
-vendor/spot-build/
+vendor/cpphoafparser

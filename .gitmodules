@@ -4,10 +4,6 @@
 [submodule "vendor/Catch"]
 	path = vendor/Catch
 	url = https://github.com/catchorg/Catch2.git
-[submodule "vendor/spot"]
-	path = vendor/spot
-	url = https://gitlab.lrde.epita.fr/spot/spot.git
-	branch = master
 [submodule "vendor/args"]
 	path = vendor/args
 	url = https://github.com/Taywee/args
