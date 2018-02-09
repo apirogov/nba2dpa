@@ -71,12 +71,14 @@ add_custom_target(
 
 include_directories(src)
 
-set(nbautils_SOURCE src/relorder.hh src/relorder.cc
+set(nbautils_SOURCE src/memusage.h src/memusage.c
+                   src/bench.hh src/bench.cc
+                   src/debug.hh src/debug.cc
+                   src/relorder.hh src/relorder.cc
                    src/types.hh src/triebimap.hh
                    src/io.hh src/io.cc
                    src/ps.hh src/ps.cc
                    src/scc.hh src/scc.cc
-                   src/debug.hh src/debug.cc
                    src/level.hh src/level.cc
                    src/det.hh src/det.cc
                    )

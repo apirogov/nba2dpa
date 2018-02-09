@@ -37,9 +37,9 @@ private:
   }
 
 public:
-  BA::ptr aut = make_shared<BA>(BA());
+  bool success = false;
   std::map<state_t, std::map<sym_t, std::set<state_t>>> adj;
-  ParsedMeta meta;
+  BA::uptr aut = make_unique<BA>(BA());
 
   virtual bool parserResolvesAliases() override { return true; }
 
@@ -57,8 +57,8 @@ public:
                         label_expr::ptr labelExpr) override {}
 
   virtual void setAPs(const std::vector<std::string> &aps) override {
-    meta.aps = aps;
-    aut->num_syms = 1 << aps.size();
+    aut->meta.aps = aps;
+    aut->meta.num_syms = 1<<aps.size();
   }
 
   virtual void setAcceptanceCondition(unsigned int numberOfSets,
@@ -74,7 +74,7 @@ public:
   provideAcceptanceName(const std::string &name,
                         const std::vector<IntOrString> &extraInfo) override {}
 
-  virtual void setName(const std::string &name) override { meta.name = name; }
+  virtual void setName(const std::string &name) override { aut->meta.name = name; }
 
   virtual void setTool(const std::string &name,
                        std::shared_ptr<std::string> version) override {}
@@ -102,9 +102,9 @@ public:
                   std::shared_ptr<int_list> accSignature) override {
     if (accSignature)
       throw std::runtime_error("State-based NBA can not have edge acceptance!");
-    if (!aut->num_syms)
+    if (!aut->meta.num_syms)
       throw std::runtime_error("Edge list, but no atomic propositions!");
-    if (conjSuccessors.size() != aut->num_syms)
+    if (conjSuccessors.size() != aut->meta.num_syms)
       throw std::runtime_error("Edge list length not equal 2^AP!");
     throw std::runtime_error("Implicit edges are not supported!");
   }
@@ -115,11 +115,11 @@ public:
                    std::shared_ptr<int_list> accSignature) override {
     if (accSignature)
       throw std::runtime_error("State-based NBA can not have edge acceptance!");
-    if (!aut->num_syms)
+    if (!aut->meta.num_syms)
       throw std::runtime_error("Edge list, but no atomic propositions!");
 
     // store successors in set for now - keeps them unique and sorted
-    for (auto sym = 0; sym < aut->num_syms; sym++) {
+    for (auto sym = 0; sym < aut->meta.num_syms; sym++) {
       if (eval_expr(labelExpr, sym))
         copy(begin(conjSuccessors), end(conjSuccessors),
              inserter(adj[stateId][sym], end(adj[stateId][sym])));
@@ -139,7 +139,7 @@ public:
              back_inserter(aut->adj[state][sym.first]));
       }
     }
-    meta.success = true;
+    success = true;
   }
 
   virtual void notifyAbort() override {}
@@ -152,7 +152,7 @@ public:
 
 namespace nbautils {
 
-pair<BA::ptr,ParsedMeta> parse_ba(string const &filename) {
+BA::uptr parse_ba(string const &filename) {
   spd::get("log")->debug("parse_ba({}) ",filename);
 
   bool givenfile = !filename.empty();
@@ -163,11 +163,11 @@ pair<BA::ptr,ParsedMeta> parse_ba(string const &filename) {
     HOAConsumer::ptr consumer(new NBAConsumer());
     auto nc = std::static_pointer_cast<NBAConsumer>(consumer);
     HOAParser::parse(givenfile ? fin : cin, consumer);
-    return make_pair(nc->aut,nc->meta);
+    return move(nc->aut);
   } catch (std::exception &e) {
 	spd::get("log")->error(e.what());
     // std::cerr << e.what() << std::endl;
-    return make_pair(nullptr,ParsedMeta());
+    return nullptr;
   }
 }
 }

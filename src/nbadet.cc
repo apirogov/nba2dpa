@@ -16,14 +16,18 @@ namespace spd = spdlog;
 #include "io.hh"
 #include "scc.hh"
 #include "ps.hh"
-#include "level.hh"
+#include "det.hh"
 
+#include "bench.hh"
 #include "memusage.h"
+
 #include "debug.hh"
 
 using namespace nbautils;
 
 struct Args {
+	typedef std::unique_ptr<Args> uptr;
+
 	string file;
 	int verbose;
 	bool trim;
@@ -36,7 +40,7 @@ struct Args {
 	bool topo;
 };
 
-shared_ptr<Args> parse_args(int argc, char *argv[]) {
+Args::uptr parse_args(int argc, char *argv[]) {
   args::ArgumentParser parser("nbadet - determinize nondeterministic Büchi automata", "");
   args::HelpFlag help(parser, "help", "Display this help menu", {'h', "help"});
 
@@ -95,7 +99,7 @@ shared_ptr<Args> parse_args(int argc, char *argv[]) {
      exit(1);
   }
 
-  auto args = make_shared<Args>(Args());
+  auto args = make_unique<Args>(Args());
   if (input)
 	args->file = args::get(input);
   args->verbose = args::get(verbose);
@@ -108,15 +112,15 @@ shared_ptr<Args> parse_args(int argc, char *argv[]) {
 
   args->topo = topo;
 
-  return args;
+  return move(args);
 }
 
-LevelConfig::ptr levelconfig_from_args(Args const& args) {
-  auto lc = make_shared<LevelConfig>(LevelConfig());
+LevelConfig::uptr levelconfig_from_args(Args const& args) {
+  auto lc = make_unique<LevelConfig>(LevelConfig());
   lc->update = args.lvupdate;
   lc->sep_rej = args.seprej;
   lc->sep_acc = args.sepacc;
-  return lc;
+  return move(lc);
 }
 
 
@@ -136,12 +140,11 @@ int main(int argc, char *argv[]) {
     spd::set_level(spd::level::debug);
 
   //now parse input automaton
-  auto pnba = nbautils::parse_ba(args->file);
-  if (!pnba.second.success) {
+  BA::uptr aut = nbautils::parse_ba(args->file);
+  if (!aut) {
 	log->error("failed parsing NBA from {}!", args->file);
 	exit(1);
   }
-  auto &aut = pnba.first;
   log->info("number of states in A: {}", aut->adj.size());
 
   // sanity check size of the input
@@ -149,7 +152,7 @@ int main(int argc, char *argv[]) {
 	 spd::get("log")->error("NBA is way too large, I refuse.");
 	 exit(1);
   }
-  if (pnba.second.aps.size() > max_nba_syms) {
+  if (aut->meta.aps.size() > max_nba_syms) {
 	 spd::get("log")->error("Alphabet is way too large, I refuse.");
 	 exit(1);
   }
@@ -159,7 +162,7 @@ int main(int argc, char *argv[]) {
   auto starttime = get_time();
 
   //calculate SCCs of NBA if needed
-  SCCInfo::ptr auti = nullptr;
+  SCCInfo::uptr auti = nullptr;
   if (args->trim || args->sepacc || args->seprej) {
 	auti = get_scc_info(*aut, true);
     log->info("number of SCCs in A: {}", auti->sccrep.size());
@@ -174,8 +177,8 @@ int main(int argc, char *argv[]) {
   }
 
   // calculate 2^A to guide and optimize determinization
-  BAPS::ptr ps = nullptr;
-  SCCInfo::ptr psi = nullptr;
+  BAPS::uptr ps = nullptr;
+  SCCInfo::uptr psi = nullptr;
   if (args->topo) {
 	  ps = powerset_construction(*aut);
 	  psi = get_scc_info(*ps, false);
@@ -186,8 +189,8 @@ int main(int argc, char *argv[]) {
   }
 
   // calculate A x 2^A as context information
-  BAPS::ptr ctx = nullptr;
-  SCCInfo::ptr ctxi = nullptr;
+  BAPP::uptr ctx = nullptr;
+  SCCInfo::uptr ctxi = nullptr;
   if (args->context) {
 	  ctx = powerset_product(*aut);
 	  ctxi = get_scc_info(*ctx, true);
@@ -198,17 +201,14 @@ int main(int argc, char *argv[]) {
   // configure level update:
   auto lc = levelconfig_from_args(*args);
   // set reference to underlying NBA
-  lc->aut = aut;
-  lc->auti = auti;
+  lc->aut = aut.get();
+  lc->auti = auti.get();
   // set reference to context NBA
-  lc->ctx = ctx;
-  lc->ctxi = ctxi;
+  lc->ctx = ctx.get();
+  lc->ctxi = ctxi.get();
 
-  // vector<Level::state_t> qs = {aut->init,4};
-  // Level ini = make_level(*luconf, qs);
-  // cout << ini.powerset.to_string() << endl;
+  // PA::uptr pa = determinize(*lc);
 
-  //TODO: generate output automaton
   //TODO: apply postprocessing
   //TODO: output in HOA format
 

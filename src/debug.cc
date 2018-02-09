@@ -5,24 +5,8 @@
 using namespace std;
 using namespace nbautils;
 
-timepoint_t get_time() { return std::chrono::high_resolution_clock::now(); }
-
-double duration_to_sec(duration_t const& tp) {
-  return std::chrono::duration_cast<std::chrono::duration<double>>(tp).count();
-}
-
-double get_secs_since(timepoint_t const& tp) {
-  return duration_to_sec(get_time()-tp);
-}
-
 namespace nbautils {
 
-void printMeta(ParsedMeta const& meta) {
-  cout << "Name: " << meta.name << ", APs: ";
-  for (auto ap : meta.aps)
-    cout << ap << " ";
-  cout << endl;
-}
 void printSCCI(nbautils::SCCInfo const& scci) {
   cout << "total number of SCCs: " << scci.sccrep.size() << endl;
   cout << scci.accepting.size() << " accepting SCCs: " << endl;
@@ -45,6 +29,10 @@ void printAcc(bool b) { cout << "*"; }
 void printAcc(priority_t p) { cout << "{"<<p<<"}"; }
 
 void printBA(nbautils::BA const& aut, nbautils::SCCInfo const& scci = SCCInfo()) {
+  cout << "Name: " << aut.meta.name << ", APs: ";
+  for (auto ap : aut.meta.aps)
+    cout << ap << " ";
+  cout << endl;
   cout << "BA with " << aut.adj.size() << " states:" << endl;
   for (auto &it : aut.adj) {
     auto s = it.first;
@@ -58,8 +46,8 @@ void printBA(nbautils::BA const& aut, nbautils::SCCInfo const& scci = SCCInfo())
     }
 	cout << endl;
 
-    for (auto i = 0; i < aut.num_syms; i++) {
-      auto sucs = succ(aut, s, i);
+    for (auto i = 0; i < aut.meta.num_syms; i++) {
+      auto sucs = aut.succ(s, i);
       if (sucs.empty())
         continue;
       cout << "\t" << i << " -> ";

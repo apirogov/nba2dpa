@@ -4,18 +4,24 @@
 #include <bitset>
 
 #include "types.hh"
+#include "scc.hh"
+#include "ps.hh"
 #include "relorder.hh"
 
 namespace nbautils {
+  using namespace nbautils;
+
+using priority_t = small_state_t;
 
 enum LevelUpdateMode { MUELLERSCHUPP, SAFRA, num };
 
 struct LevelConfig {
-	typedef std::shared_ptr<LevelConfig> ptr;
+	typedef std::unique_ptr<LevelConfig> uptr;
+	typedef std::shared_ptr<LevelConfig> sptr;
 
 	//mandatory
-	BA::ptr aut = nullptr;
-	SCCInfo::ptr auti = nullptr;
+	BA* aut = nullptr;
+	SCCInfo* auti = nullptr;
 
 	//with defaults
 	bool sep_rej = false;
@@ -24,8 +30,8 @@ struct LevelConfig {
 
 	//optional context information to refine separation
 	//if remains nullptr, means that no context is used
-	BAPS::ptr ctx = nullptr;
-	SCCInfo::ptr ctxi = nullptr;
+	BAPP* ctx = nullptr;
+	SCCInfo* ctxi = nullptr;
 };
 
 // encodes a set of states as a tuple of disjoint subsets
@@ -44,6 +50,8 @@ struct Level {
   // sorted, calculated in the end for == with other levels
   hash_t powerset; // = union of accs tups and nccs
   priority_t prio = 0;
+
+  bool operator<(Level const& other) const;
 };
 
 Level make_level(LevelConfig const& lvc, std::vector<Level::state_t> const& qs);

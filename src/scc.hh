@@ -1,19 +1,40 @@
 #pragma once
 
 #include "types.hh"
-#include "debug.hh"
+#include "bench.hh"
+
 #include <stack>
-#include <set>
-#include <utility>
-#include <iostream>
-#include <algorithm>
 #include <vector>
 #include <queue>
+#include <unordered_set>
+#include <set>
+#include <utility>
+#include <algorithm>
 
 #include <spdlog/spdlog.h>
 namespace spd = spdlog;
 
 namespace nbautils {
+using namespace std;
+
+using scc_t = state_t;
+using scc_flag = unordered_set<scc_t>;
+
+struct SCCInfo {
+  typedef std::shared_ptr<SCCInfo> sptr;
+  typedef std::unique_ptr<SCCInfo> uptr;
+
+  map<state_t,scc_t> scc;   // tags each state with scc num
+  set<state_t> unreachable; // tags a state as unreachable from initial state
+
+  std::map<scc_t,state_t> sccrep;      // representative state
+  scc_flag accepting; // tags an scc as fully accepting
+  scc_flag rejecting; // tags an scc as fully rejecting
+  scc_flag trivial;   // tags an scc as trivial (single state, no loop)
+  std::map<scc_t,bool> dead;      // tags an scc as dead (means that all reachable states are
+                     // rejecting)
+};
+
 
 /*
 template<typename L,typename T>
@@ -41,8 +62,8 @@ std::vector<state_t> scc_states(SWA<L,T> const& aut, SCCInfo const& scci, scc_t 
 }
 */
 
-template<typename L,typename T>
-std::vector<state_t> succ_sccs(SWA<L,T> const& aut, SCCInfo const& scci, scc_t const& num) {
+template<typename L,typename T,typename S>
+std::vector<state_t> succ_sccs(SWA<L,T,S> const& aut, SCCInfo const& scci, scc_t const& num) {
   std::queue<state_t> bfsq;
   std::set<state_t> visited;
   std::set<nbautils::scc_t> sucsccs;
@@ -55,15 +76,12 @@ std::vector<state_t> succ_sccs(SWA<L,T> const& aut, SCCInfo const& scci, scc_t c
       continue; // have visited this one
     visited.emplace(st);
 
-    for (auto i = 0; i < aut.num_syms; i++) {
-      auto sucs = succ(aut,st,i);
-      for (auto& sucst : sucs) {
-        auto sucscc = scci.scc.at(sucst);
-      if (sucscc==num)
-        bfsq.push(sucst);
-      else
-        sucsccs.emplace(sucscc);
-      }
+    for (auto& sucst : aut.succ(st)) {
+      auto sucscc = scci.scc.at(sucst);
+    if (sucscc==num)
+      bfsq.push(sucst);
+    else
+      sucsccs.emplace(sucscc);
     }
   }
   std::vector<nbautils::scc_t> ret;
@@ -71,8 +89,8 @@ std::vector<state_t> succ_sccs(SWA<L,T> const& aut, SCCInfo const& scci, scc_t c
   return ret;
 }
 
-template<typename L,typename T>
-void mark_dead_sccs(SWA<L,T> const& aut, SCCInfo& scci, scc_t num) {
+template<typename L,typename T,typename S>
+void mark_dead_sccs(SWA<L,T,S> const& aut, SCCInfo& scci, scc_t num) {
   if (scci.dead.find(num) != end(scci.dead)) //done already
     return;
 
@@ -95,12 +113,12 @@ void mark_dead_sccs(SWA<L,T> const& aut, SCCInfo& scci, scc_t num) {
 
 
 //https://en.wikipedia.org/wiki/Path-based_strong_component_algorithm with extensions
-template<typename L,typename T>
-SCCInfo::ptr get_scc_info(SWA<L,T> const& aut, bool analyse_acc = true) {
+template<typename L,typename T,typename S>
+SCCInfo::uptr get_scc_info(SWA<L,T,S> const& aut, bool analyse_acc = true) {
   spd::get("log")->debug("get_scc_info(aut,{})",analyse_acc);
   auto starttime = get_time();
 
-  auto sccip = std::make_shared<SCCInfo>(SCCInfo());
+  auto sccip = std::make_unique<SCCInfo>(SCCInfo());
   auto &scci = *sccip;
 
   std::stack<state_t> call; // dfs call stack
@@ -120,18 +138,7 @@ SCCInfo::ptr get_scc_info(SWA<L,T> const& aut, bool analyse_acc = true) {
       reps.push(v); //SCC representative candidate (for now)
       open.push(v); //this node is "pending" (not completely discovered from here)
 
-      for (auto i = 0; i < aut.num_syms; i++) {
-        auto const& vesit = aut.adj.find(v);
-        if (vesit == end(aut.adj))
-          continue;
-        auto const& ves = vesit->second;
-        auto const& vsucsit = ves.find(i);
-        if (vsucsit == end(ves))
-          continue;
-        auto const& vsucs = vsucsit->second;
-
-        for (auto w : vsucs) { // process edges with any label
-
+      for (auto w : aut.succ(v)) { // process edges with any label
           if (order.find(w) == order.end()) {
             call.push(w); //recursively explore nodes that have not been visited yet
           } else if (scci.scc.find(w) == scci.scc.end()) {
@@ -140,8 +147,6 @@ SCCInfo::ptr get_scc_info(SWA<L,T> const& aut, bool analyse_acc = true) {
             while (order[reps.top()] > order[w])
               reps.pop();
           }
-
-        }
       }
 
     } else { // returned from recursive calls
@@ -175,7 +180,6 @@ SCCInfo::ptr get_scc_info(SWA<L,T> const& aut, bool analyse_acc = true) {
 
         // now lets get the extra information we want
         if (analyse_acc) {
-
           // mark completed SCC as accepting/rejecting
           if (accscc)
             scci.accepting.emplace(scc_num);
@@ -185,11 +189,9 @@ SCCInfo::ptr get_scc_info(SWA<L,T> const& aut, bool analyse_acc = true) {
           // trivial scc with no self-loop?
           bool trivacc = scc_sz == 1;
           bool noselfloop = true;
-          for (auto i = 0; i < aut.num_syms; i++) {
-            auto const vsucs = succ(aut, v, i);
-            if (find(begin(vsucs),end(vsucs), tmp)!=end(vsucs))
+          auto vsucs = aut.succ(v);
+          if (find(begin(vsucs),end(vsucs), tmp)!=end(vsucs))
               noselfloop = false;
-          }
           if (trivacc && noselfloop)
             scci.trivial.emplace(scc_num);
         }
@@ -215,13 +217,13 @@ SCCInfo::ptr get_scc_info(SWA<L,T> const& aut, bool analyse_acc = true) {
   spd::get("log")->debug("get_scc_info completed ({:.4f} s)"
 		  , get_secs_since(starttime));
 
-  return sccip;
+  return move(sccip);
 }
 
 // use SCC info to purge unreachable and dead states from automaton and scc info
-template <typename L, typename T>
-size_t trim_ba(SWA<L,T>& ba, SCCInfo& scci) {
-  std::set<state_t> erase;
+template <typename L, typename T,typename S>
+size_t trim_ba(SWA<L,T,S>& ba, SCCInfo& scci) {
+  set<state_t> erase;
 
   //collect unreachable
   for (auto &it : scci.unreachable) {
@@ -249,11 +251,11 @@ size_t trim_ba(SWA<L,T>& ba, SCCInfo& scci) {
   }
   scci.dead.clear();
 
-  std::vector<state_t> erasevec;
+  vector<state_t> erasevec;
   copy(begin(erase),end(erase),back_inserter(erasevec));
   erase.clear();
 
-  kill_states(ba, erasevec);
+  ba.remove_states(erasevec);
   return erasevec.size();
 }
 

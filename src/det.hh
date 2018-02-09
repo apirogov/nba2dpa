@@ -1,6 +1,8 @@
 #pragma once
 
 #include "types.hh"
+#include "scc.hh"
+#include "level.hh"
 #include <memory>
 #include <set>
 #include <vector>
@@ -8,6 +10,9 @@
 
 namespace nbautils {
 
-PA::ptr determinize(BA const& aut, SCCInfo const& scci);
+using pa_tag_store = naive_bimap<Level,state_t>;
+using PA = SWA<priority_t,Level,pa_tag_store>;
+
+PA::uptr determinize(LevelConfig const& lu);
 
 }

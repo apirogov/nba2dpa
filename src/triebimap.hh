@@ -23,7 +23,7 @@ template <typename K, typename V> class trie_bimap {
 
   // traverse trie to given node and return it. when create=false and it does
   // not exist, return null pointer
-  trie_bimap_node<K, V> *traverse(std::vector<K> const &ks, bool create = false) {
+  trie_bimap_node<K, V>* traverse(std::vector<K> const &ks, bool create = false) {
     auto *curr = &root;
     for (int i = ks.size() - 1; i >= 0; i--) {
       if (curr->suc.find(ks[i]) == curr->suc.end()) {
@@ -39,7 +39,7 @@ template <typename K, typename V> class trie_bimap {
   }
 
 public:
-  size_t size() { return revmap.size(); }
+  size_t size() const { return revmap.size(); }
 
   // puts a set,value pair
   void put(std::vector<K> const &ks, V val) {

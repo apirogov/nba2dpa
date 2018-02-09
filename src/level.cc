@@ -8,6 +8,11 @@ using namespace nbautils;
 
 namespace nbautils {
 
+bool Level::operator<(Level const& other) const {
+  //TODO define an ordering
+  return true;
+}
+
 Level::hash_t add_powerset_hash(BA const& ba, Level const& lv) {
   Level::hash_t ret(0);
 
@@ -45,6 +50,7 @@ Level make_level(LevelConfig const& lvc, std::vector<Level::state_t> const& qs) 
   return l;
 }
 
+//TODO: complete this
 Level succ_level(LevelConfig const& lvc, Level l, sym_t x) {
   RelOrder rord(2*l.tups.size());
 
