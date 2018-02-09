@@ -1,13 +1,13 @@
-#include "types.hh"
 #include "det.hh"
+#include "types.hh"
 
 namespace nbautils {
 
-//BFS-based determinization with supplied level update config
+// BFS-based determinization with supplied level update config
 PA::uptr determinize(LevelConfig const& lc) {
   spd::get("log")->debug("determinize(aut)");
   auto starttime = get_time();
-  auto &aut = *lc.aut;
+  auto& aut = *lc.aut;
 
   auto pap = std::make_unique<PA>(PA());
   auto& pa = *pap;
@@ -19,10 +19,10 @@ PA::uptr determinize(LevelConfig const& lc) {
   pa.meta.num_syms = aut.meta.num_syms;
   // initial state is 0
   pa.init = 0;
-  pa.acc[pa.init] = 0; //priority does not matter
+  pa.acc[pa.init] = 0;  // priority does not matter
 
   // q_0 tag
-  auto pinit = make_level(lc,std::vector<small_state_t>{(small_state_t)aut.init});
+  auto pinit = make_level(lc, std::vector<small_state_t>{(small_state_t)aut.init});
   tag->put(pinit, pa.init);
 
   // explore powerset by bfs
@@ -31,8 +31,7 @@ PA::uptr determinize(LevelConfig const& lc) {
   while (!bfsq.empty()) {
     auto const st = bfsq.front();
     bfsq.pop();
-    if (pa.has_state(st))
-      continue; // have visited this one
+    if (pa.has_state(st)) continue;  // have visited this one
 
     // get inner states of current ps state
     auto curlevel = tag->get(st);
@@ -40,16 +39,15 @@ PA::uptr determinize(LevelConfig const& lc) {
     for (auto i = 0; i < pa.meta.num_syms; i++) {
       auto suclevel = succ_level(lc, curlevel, i);
       state_t sucst = tag->put_or_get(suclevel, tag->size());
-      if (!pa.has_acc(sucst)) //assign priority
+      if (!pa.has_acc(sucst))  // assign priority
         pa.acc[sucst] = suclevel.prio;
       pa.adj[st][i].push_back(sucst);
       bfsq.push(sucst);
     }
   }
 
-  spd::get("log")->debug("determinize completed ({:.4f} s)"
-		  , get_secs_since(starttime));
+  spd::get("log")->debug("determinize completed ({:.4f} s)", get_secs_since(starttime));
   return move(pap);
 }
 
-}
+}  // namespace nbautils

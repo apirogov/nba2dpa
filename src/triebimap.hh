@@ -6,7 +6,8 @@
 
 namespace nbautils {
 
-template <typename K, typename V> struct trie_bimap_node {
+template <typename K, typename V>
+struct trie_bimap_node {
   typedef std::unique_ptr<trie_bimap_node<K, V>> node_ptr;
   trie_bimap_node *parent = nullptr;
   K key = 0;
@@ -17,13 +18,14 @@ template <typename K, typename V> struct trie_bimap_node {
 
 // TODO: add access to leaves? other operations?
 // TODO: abstract bimap interface with lookups, insertion and removal
-template <typename K, typename V> class trie_bimap {
+template <typename K, typename V>
+class trie_bimap {
   trie_bimap_node<K, V> root;
   std::map<V, trie_bimap_node<K, V> *> revmap;
 
   // traverse trie to given node and return it. when create=false and it does
   // not exist, return null pointer
-  trie_bimap_node<K, V>* traverse(std::vector<K> const &ks, bool create = false) {
+  trie_bimap_node<K, V> *traverse(std::vector<K> const &ks, bool create = false) {
     auto *curr = &root;
     for (int i = ks.size() - 1; i >= 0; i--) {
       if (curr->suc.find(ks[i]) == curr->suc.end()) {
@@ -38,14 +40,13 @@ template <typename K, typename V> class trie_bimap {
     return curr;
   }
 
-public:
+ public:
   size_t size() const { return revmap.size(); }
 
   // puts a set,value pair
   void put(std::vector<K> const &ks, V val) {
     auto curr = traverse(ks, true);
-    if (curr->value)
-      revmap.erase(revmap.find(*(curr->value)));
+    if (curr->value) revmap.erase(revmap.find(*(curr->value)));
     curr->value = std::make_unique<V>(val);
     revmap[val] = curr;
   }
@@ -61,8 +62,7 @@ public:
 
   bool has(std::vector<K> const &ks) {
     auto *curr = traverse(ks, false);
-    if (!curr || !curr->value)
-      return false;
+    if (!curr || !curr->value) return false;
     return true;
   }
 
@@ -83,4 +83,4 @@ public:
     return ret;
   }
 };
-}
+}  // namespace nbautils

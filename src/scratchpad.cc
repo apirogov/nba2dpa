@@ -3,19 +3,17 @@
 #include <string>
 using namespace std;
 
-#include "types.hh"
-#include "io.hh"
-#include "scc.hh"
-#include "ps.hh"
-#include "debug.hh"
-
 #include <args.hxx>
+#include "debug.hh"
+#include "io.hh"
+#include "ps.hh"
+#include "scc.hh"
+#include "types.hh"
 
 auto parse_args(int argc, char *argv[]) {
   args::ArgumentParser parser("This is a test program.", "");
   args::HelpFlag help(parser, "help", "Display this help menu", {'h', "help"});
-  args::Positional<string> input(parser, "INPUTFILE",
-                                 "File containing the NBA");
+  args::Positional<string> input(parser, "INPUTFILE", "File containing the NBA");
   try {
     parser.ParseCLI(argc, argv);
   } catch (args::Help) {
@@ -42,7 +40,6 @@ int main(int argc, char *argv[]) {
   auto pnba = nbautils::parse_ba(file);
   if (!pnba) {
     cerr << "no valid NBA parsed!" << endl;
-	exit(1);
+    exit(1);
   }
-
 }

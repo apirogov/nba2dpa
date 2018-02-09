@@ -1,7 +1,7 @@
 #pragma once
 
-#include "types.hh"
 #include <utility>
+#include "types.hh"
 
 namespace nbautils {
 
@@ -9,4 +9,4 @@ namespace nbautils {
 BA::uptr parse_ba(std::string const& filename);
 
 // TODO: HOA printer
-}
+}  // namespace nbautils

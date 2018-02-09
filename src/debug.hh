@@ -1,27 +1,27 @@
 #pragma once
 
-#include "types.hh"
 #include "io.hh"
-#include "scc.hh"
-#include "ps.hh"
 #include "level.hh"
+#include "ps.hh"
+#include "scc.hh"
+#include "types.hh"
 
 namespace nbautils {
 
 void printSCCI(nbautils::SCCInfo const& scci);
 void printBA(nbautils::BA const& aut, nbautils::SCCInfo const& scci);
 
-template<typename L>
-void printPS(nbautils::PS<L>& aut,nbautils::SCCInfo &scci, bool pointed=false) {
+template <typename L>
+void printPS(nbautils::PS<L>& aut, nbautils::SCCInfo& scci, bool pointed = false) {
   using namespace std;
-  for (auto &it : aut.adj) {
+  for (auto& it : aut.adj) {
     auto s = it.first;
     cout << s;
-      auto pacc = aut.acc.find(s);
-      string acc = "";
-      if (pacc!=end(aut.acc)) {
-        cout << "(" << pacc->second << ")";
-      }
+    auto pacc = aut.acc.find(s);
+    string acc = "";
+    if (pacc != end(aut.acc)) {
+      cout << "(" << pacc->second << ")";
+    }
     cout << " - ";
 
     auto tag = aut.tag->get(s);
@@ -32,26 +32,22 @@ void printPS(nbautils::PS<L>& aut,nbautils::SCCInfo &scci, bool pointed=false) {
     } else {
       cout << "{";
     }
-    for (nbautils::state_t si : tag)
-      cout << si << ",";
+    for (nbautils::state_t si : tag) cout << si << ",";
     cout << "}";
-    if (pointed)
-      cout << ")";
+    if (pointed) cout << ")";
 
-	if (scci.unreachable.find(s)==end(scci.unreachable))
-		cout << " -- SCC: " << scci.scc[s];
+    if (scci.unreachable.find(s) == end(scci.unreachable))
+      cout << " -- SCC: " << scci.scc[s];
 
-	cout << endl;
+    cout << endl;
 
     for (auto i = 0; i < aut.num_syms; i++) {
-      if (aut.adj[s][i].empty())
-        continue;
+      if (aut.adj[s][i].empty()) continue;
       cout << "\t" << i << " -> ";
-      for (auto t : aut.adj[s][i])
-        cout << t << ", ";
+      for (auto t : aut.adj[s][i]) cout << t << ", ";
       cout << endl;
     }
   }
 }
 
-}
+}  // namespace nbautils

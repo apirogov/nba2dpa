@@ -1,15 +1,15 @@
 #include "level.hh"
-#include "relorder.hh"
+#include <algorithm>
 #include <bitset>
 #include <iostream>
-#include <algorithm>
+#include "relorder.hh"
 using namespace std;
 using namespace nbautils;
 
 namespace nbautils {
 
 bool Level::operator<(Level const& other) const {
-  //TODO define an ordering
+  // TODO define an ordering
   return true;
 }
 
@@ -17,17 +17,15 @@ Level::hash_t add_powerset_hash(BA const& ba, Level const& lv) {
   Level::hash_t ret(0);
 
   set<Level::state_t> pset;
-  for (auto &tup : lv.tups)
-    copy(begin(tup),end(tup), inserter(pset, end(pset)));
+  for (auto& tup : lv.tups) copy(begin(tup), end(tup), inserter(pset, end(pset)));
 
-  //traverse states in order, check which are present and set bits
-  int num=0;
+  // traverse states in order, check which are present and set bits
+  int num = 0;
   auto pit = pset.begin();
   for (auto const& it : ba.adj) {
     if (it.first == *pit) {
       ret.set(num);
-      if (++pit == end(pset))
-        break;
+      if (++pit == end(pset)) break;
     }
     num++;
   }
@@ -50,13 +48,12 @@ Level make_level(LevelConfig const& lvc, std::vector<Level::state_t> const& qs) 
   return l;
 }
 
-//TODO: complete this
+// TODO: complete this
 Level succ_level(LevelConfig const& lvc, Level l, sym_t x) {
-  RelOrder rord(2*l.tups.size());
+  RelOrder rord(2 * l.tups.size());
 
   auto nsccs = l.tups.back();
-  if (lvc.sep_rej)
-    l.tups.pop_back();
+  if (lvc.sep_rej) l.tups.pop_back();
 
   auto asccs = l.tups.back();
   auto aord = l.tupo.back();
@@ -70,12 +67,13 @@ Level succ_level(LevelConfig const& lvc, Level l, sym_t x) {
   // calculate successor sets, prioritize left
   set<Level::state_t> used_sucs;
   vector<vector<Level::state_t>> suctups;
-  for (auto &tup : l.tups) {
+  for (auto& tup : l.tups) {
     auto suc = powersucc(*lvc.aut, tup, x);
     vector<Level::state_t> tmp;
-    set_difference(begin(suc),end(suc),begin(used_sucs),end(used_sucs),back_inserter(tmp));
+    set_difference(begin(suc), end(suc), begin(used_sucs), end(used_sucs),
+                   back_inserter(tmp));
     suctups.push_back(tmp);
-    copy(begin(tmp),end(tmp),inserter(used_sucs, end(used_sucs)));
+    copy(begin(tmp), end(tmp), inserter(used_sucs, end(used_sucs)));
   }
 
   Level suclvl;
@@ -85,4 +83,4 @@ Level succ_level(LevelConfig const& lvc, Level l, sym_t x) {
   return suclvl;
 }
 
-}
+}  // namespace nbautils
