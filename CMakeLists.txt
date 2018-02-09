@@ -10,8 +10,13 @@ set(nbautils-build_tests OFF CACHE BOOL "Whether to build tests")
 # Enable C++14
 set (CMAKE_CXX_STANDARD 14)
 
+##################################
 # Find thread
 find_package(Threads REQUIRED)
+
+# Find boost
+find_package(Boost 1.40 REQUIRED)
+include_directories(${Boost_INCLUDE_DIR})
 
 # Catch for testing
 set(Catch_INCLUDE_DIR vendor/Catch/single_include)
@@ -25,49 +30,34 @@ set(args_SOURCE_DIR vendor/args)
 include_directories(${args_SOURCE_DIR})
 
 # cpphoafparser
-set(cpphoafparser_SOURCE_DIR vendor/cpphoafparser)
-include_directories(${cpphoafparser_SOURCE_DIR}/include)
+#the following is used to prevent re-downloading on clean build, adapted from:
+#https://github.com/anton-sergeev/cmake_externalproject/blob/b3ef26fe616ac98a3b3eeb86a6b33add0765cacf/CMakeLists.txt
+set(EXTERNALS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor)
+set(CPPHOAF_VERSION "0.99.2")
+set(CPPHOAF_TARBALL_URL http://automata.tools/hoa/cpphoafparser/down/cpphoafparser-${CPPHOAF_VERSION}.tgz)
+set(CPPHOAF_TARBALL ${CMAKE_CURRENT_SOURCE_DIR}/tarballs/cpphoafparser-${CPPHOAF_VERSION}.tgz)
+set(CPPHOAF_DIR ${EXTERNALS_DIR}/cpphoafparser)
+if(NOT EXISTS "${CPPHOAF_TARBALL}")
+  file(DOWNLOAD ${CPPHOAF_TARBALL_URL} ${CPPHOAF_TARBALL})
+endif()
+add_custom_target(cpphoaf-download DEPENDS ${CPPHOAF_TARBALL})
 
-##################################
-# spot
-#include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
-#ExternalProject_Add(project_spot
-#URL http://www.lrde.epita.fr/dload/spot/spot-2.5.tar.gz
-#PREFIX ${CMAKE_CURRENT_BINARY_DIR}/vendor/spot-2.5
-#CONFIGURE_COMMAND "<SOURCE_DIR>/configure" --disable-python --disable-shared --enable-static --prefix=${CMAKE_CURRENT_BINARY_DIR}/vendor/spot-2.5
-#BUILD_COMMAND make
-#INSTALL_COMMAND make install
-#)
-
-#ExternalProject_Get_Property(project_spot install_dir)
-
-#include_directories(${install_dir}/include)
-#add_library(spot STATIC IMPORTED)
-#set_property(TARGET spot PROPERTY IMPORTED_LOCATION ${install_dir}/lib/libspot.a)
-#add_library(bddx STATIC IMPORTED)
-#set_property(TARGET bddx PROPERTY IMPORTED_LOCATION ${install_dir}/lib/libbddx.a)
-
-#add_dependencies(spot project_spot)
-#add_dependencies(bddx project_spot)
-
-#set(spot_DIST_DIR vendor/spot-build)
-#include_directories(${spot_DIST_DIR}/include)
-#add_library(spot STATIC IMPORTED) #add imported target
-#set_property(TARGET spot
-#             PROPERTY IMPORTED_LOCATION ${spot_DIST_DIR}/lib/libspot.a)
-## spot brings a version of bddx it requires
-#add_library(bddx STATIC IMPORTED)
-#set_property(TARGET bddx
-#             PROPERTY IMPORTED_LOCATION ${spot_DIST_DIR}/lib/libbddx.a)
-
-##################################
-add_custom_target(
-        clangformat
-        COMMAND /usr/bin/clang-format
-        -style=file
-        -i
-        src/*
+include(ExternalProject)
+ExternalProject_Add(cpphoafparser
+DEPENDS cpphoaf-download
+URL ${CPPHOAF_TARBALL}
+URL_MD5 "9a36d26d42603782bdfbcd01c081bc75"
+CMAKE_ARGS ""
+PREFIX ${CPPHOAF_DIR}
+UPDATE_COMMAND cmake -E copy_directory ${EXTERNALS_DIR}/cpphoafparser-${CPPHOAF_VERSION}-overlay/. ${CPPHOAF_DIR}
+CONFIGURE_COMMAND ""
+BUILD_COMMAND ""
+INSTALL_COMMAND ""
+#TEST_COMMAND ""
 )
+ExternalProject_Get_Property(cpphoafparser source_dir)
+include_directories(${source_dir}/include)
+##################################
 
 include_directories(src)
 
@@ -84,16 +74,14 @@ set(nbautils_SOURCE src/memusage.h src/memusage.c
                    )
 
 add_library(nbautils-lib STATIC ${nbautils_SOURCE})
-#add_executable(nbautils ${nbautils_SOURCE})
 target_link_libraries(nbautils-lib ${CMAKE_THREAD_LIBS_INIT})
-#target_link_libraries(nbautils-lib spot)
+add_dependencies(nbautils-lib cpphoafparser)
 
-add_executable(scratchpad src/scratchpad.cc ${nbautils_SOURCE})
-target_link_libraries(scratchpad ${CMAKE_THREAD_LIBS_INIT})
+add_executable(scratchpad src/scratchpad.cc)
+target_link_libraries(scratchpad nbautils-lib ${CMAKE_THREAD_LIBS_INIT})
 
-add_executable(nbadet src/nbadet.cc ${nbautils_SOURCE})
-target_link_libraries(nbadet ${CMAKE_THREAD_LIBS_INIT})
-#target_link_libraries(scratchpad spot bddx)
+add_executable(nbadet src/nbadet.cc)
+target_link_libraries(nbadet nbautils-lib ${CMAKE_THREAD_LIBS_INIT})
 
 if (nbautils-build_tests)
     enable_testing()
@@ -101,7 +89,20 @@ if (nbautils-build_tests)
     add_executable(nbautils-test test/nbautils_test.cc test/test_main.cc)
     target_include_directories(nbautils-test PUBLIC ${Catch_INCLUDE_DIR})
     target_link_libraries(nbautils-test nbautils-lib)
-    #target_link_libraries(nbautils-test spot)
 
-    add_test(nbautils_test nbautils-test)
+    # to add binaries to "make test" suite
+    macro (create_test target)
+      add_test (NAME ${target} COMMAND $<TARGET_FILE:${target}>)
+    endmacro (create_test)
+
+    create_test(nbautils-test)
 endif()
+
+add_custom_target(
+        clangformat
+        COMMAND /usr/bin/clang-format
+        -style=file
+        -i
+        src/*
+)
+

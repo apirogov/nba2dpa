@@ -150,5 +150,4 @@ TEST_CASE("Generic trie-backed bimap", "[gen_trie_bimap]")
 	}
 
     //TODO: implement and test erase
-
 }
