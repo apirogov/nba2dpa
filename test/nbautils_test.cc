@@ -96,16 +96,9 @@ TEST_CASE("Testing the setmap structure (adding and removing)", "[setmap]")
 	}
 }
 
-TEST_CASE("Generic trie-backed bimap", "[gen_trie_bimap]")
-{
-  auto from = [](string const& s){return vector<char>(s.begin(), s.end());};
-  auto to = [](vector<char> const& cs){return string(cs.begin(), cs.end());};
-
-  // auto sbmp(new generic_trie_bimap<string, char, int>(from,to));
-  auto sbmp(new naive_bimap<string,int>());
-  auto &sbm = *sbmp;
-
-	SECTION("Check generic empty bimap", "[gen_trie_bimap:1]") {
+template<typename Impl>
+void test_bimap_interface(bimap<string,int,Impl>& sbm) {
+	SECTION("sanity-check empty bimap", "[bimap:1]") {
 		REQUIRE(sbm.size()==0);
 		REQUIRE(!sbm.has("hello"));
 		REQUIRE(!sbm.has(2));
@@ -115,7 +108,7 @@ TEST_CASE("Generic trie-backed bimap", "[gen_trie_bimap]")
 	sbm.put("abd", 2);
 	sbm.put("ax", 3);
 
-	SECTION("put / get / has of generic trie bimap", "[gen_trie_bimap:2]") {
+	SECTION("put / get / has of bimap", "[bimap:2]") {
 		REQUIRE(sbm.size()==3);
 		REQUIRE(sbm.has("abc"));
 		REQUIRE(sbm.has("abd"));
@@ -132,7 +125,7 @@ TEST_CASE("Generic trie-backed bimap", "[gen_trie_bimap]")
 	}
 
 	sbm.put("abc", 4);
-	SECTION("Overwriting an element in gen bimap", "[gen_trie_bimap:3]") {
+	SECTION("Overwriting an element in bimap", "[bimap:3]") {
 		REQUIRE(sbm.size()==3);
 		REQUIRE(!sbm.has(1));
 		REQUIRE(sbm.has(4));
@@ -140,7 +133,7 @@ TEST_CASE("Generic trie-backed bimap", "[gen_trie_bimap]")
 		REQUIRE(sbm.get("abc")==4);
 	}
 
-	SECTION("put_or_get function in gen bimap", "[gen_trie_bimap:4]") {
+	SECTION("put_or_get in bimap", "[bimap:4]") {
 		REQUIRE(sbm.put_or_get("abc",5) == 4);
 		REQUIRE(sbm.put_or_get("abe",5) == 5);
 		REQUIRE(sbm.size()==4);;
@@ -149,5 +142,20 @@ TEST_CASE("Generic trie-backed bimap", "[gen_trie_bimap]")
 		REQUIRE(sbm.get("abe")==5);
 	}
 
-    //TODO: implement and test erase
+    //TODO: test erase
+
+}
+
+TEST_CASE("Test naive bimap interface", "[bimap-interface-naive]")
+{
+  auto sbmp(new naive_bimap<string,int>());
+  test_bimap_interface(*sbmp);
+}
+
+TEST_CASE("Test trie bimap interface", "[bimap-interface-trie]")
+{
+  auto from = [](string const& s){return vector<char>(s.begin(), s.end());};
+  auto to = [](vector<char> const& cs){return string(cs.begin(), cs.end());};
+  auto sbmp2(new generic_trie_bimap<string, char, int>(from,to));
+  test_bimap_interface(*sbmp2);
 }

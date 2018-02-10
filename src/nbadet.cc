@@ -3,10 +3,6 @@
 #include <string>
 using namespace std;
 
-#include "cpphoafparser/consumer/hoa_consumer_print.hh"
-#include "cpphoafparser/parser/hoa_parser.hh"
-using namespace cpphoafparser;
-
 #include <spdlog/spdlog.h>
 namespace spd = spdlog;
 
@@ -114,7 +110,7 @@ Args::uptr parse_args(int argc, char *argv[]) {
   args->verbose = args::get(verbose);
   args->trim = trim;
 
-  args->lvupdate == args::get(update);
+  args->lvupdate = static_cast<LevelUpdateMode>(args::get(update));
   args->sepacc = sepacc;
   args->seprej = seprej;
   args->context = context;

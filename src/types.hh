@@ -15,13 +15,15 @@
 namespace nbautils {
 using namespace std;
 
+struct Unit {};
+
 // type for "small" automata (as the input should be)
 using small_state_t = uint8_t;
 constexpr size_t max_nba_states = 1 << (8 * sizeof(small_state_t));
 
 // type for alphabet (<=8 aps with all <=2^8=256 combinations)
 using sym_t = uint8_t;
-constexpr size_t max_nba_syms = 1 << (8 * sizeof(sym_t));
+constexpr int max_nba_syms = 1 << (8 * sizeof(sym_t));
 
 // type for "big" automata
 using state_t = uint32_t;
@@ -32,7 +34,7 @@ struct SWAMeta {
   // atomic props
   vector<string> aps;
 
-  size_t num_syms = 0;
+  int num_syms = 0;
 };
 
 // acceptance-labelled KS with tagged nodes
@@ -55,13 +57,19 @@ struct SWA {
 
   bool has_state(state_t const& s) const { return adj.find(s) != end(adj); }
 
+  bool state_has_outsym(state_t const& s, sym_t const& x) const {
+    auto const& edges = adj.at(s);
+    return edges.find(x) != end(edges);
+  }
+
   bool has_acc(state_t const& s) const { return acc.find(s) != end(acc); }
 
-  vector<state_t> succ(state_t const& p, sym_t const& x) const {
-    if (!has_state(p)) return {};
-    auto const& edges = adj.at(p);
-    if (edges.find(x) == end(edges)) return {};
-    return edges.at(x);
+  vector<state_t> const& succ(state_t const& p, sym_t const& x) const {
+    // if (!has_state(p)) return {};
+    // auto const& edges = adj.at(p);
+    // if (edges.find(x) == end(edges)) return {};
+    // return edges.at(x);
+    return adj.at(p).at(x);
   }
 
   vector<sym_t> outsyms(state_t const& p) const {
@@ -158,12 +166,16 @@ vector<small_state_t> powersucc(SWA<L, T> const& ks, std::vector<S> const& ps,
                                 sym_t const& x) {
   std::set<state_t> suc;
   for (auto const& p : ps) {
-    auto qs = ks.succ(p, x);
+    if (!ks.has_state(p))
+      continue;
+    if (!ks.state_has_outsym(p,x))
+      continue;
+    auto const& qs = ks.succ(p, x);
     std::copy(qs.begin(), qs.end(), std::inserter(suc, suc.end()));
   }
   return vector<S>(suc.begin(), suc.end());
 }
 
-using BA = SWA<bool, bool>;
+using BA = SWA<Unit, Unit>;
 
 }  // namespace nbautils

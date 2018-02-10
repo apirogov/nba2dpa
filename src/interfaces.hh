@@ -18,7 +18,7 @@ struct bimap {
   bool has(V const& v) { return static_cast<Impl*>(this)->has(v); }
   V get(K const& k) { return static_cast<Impl*>(this)->get(k); }
   K get(V const& v) { return static_cast<Impl*>(this)->get(v); }
-  V put_or_get(K const& k, V const& v) { static_cast<Impl*>(this)->put_or_get(k, v); }
+  V put_or_get(K const& k, V const& v) { return static_cast<Impl*>(this)->put_or_get(k, v); }
   void put(K const& k, V const& v) { static_cast<Impl*>(this)->put(k, v); }
   void erase(V const& v) const { static_cast<Impl*>(this)->erase(v); }
 };

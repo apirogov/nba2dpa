@@ -1,6 +1,8 @@
 -std=c++14
+-Wall
+-Wextra
 -Ivendor/Catch/include
 -Ivendor/spdlog/include
 -Ivendor/args
--Ivendor/cpphoafparser/include
+-Ivendor/cpphoafparser/src/cpphoafparser/include
 -Isrc/

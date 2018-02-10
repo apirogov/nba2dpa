@@ -22,7 +22,7 @@ void printSCCI(nbautils::SCCInfo const& scci) {
   cout << scci.unreachable.size() << " unreachable states." << endl;
 }
 
-void printAcc(bool b) { cout << "*"; }
+void printAcc(Unit) { cout << "*"; }
 void printAcc(priority_t p) { cout << "{" << p << "}"; }
 
 void printBA(nbautils::BA const& aut, nbautils::SCCInfo const& scci = SCCInfo()) {

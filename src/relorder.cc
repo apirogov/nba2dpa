@@ -32,7 +32,7 @@ vector<RelOrder::ordref> RelOrder::from_ranks(vector<RelOrder::ord_t> const &ran
   // shuffle them according to given order
   vector<ordref> ret;
   for (auto rank : ranks) {
-    if (rank < 0 || rank >= order.size())
+    if (/* rank < 0 || (rank is unsigned) */ rank >= order.size())
       return vector<ordref>();  // invalid rank for created size
     ret.push_back(ptrs[rank]);
   }

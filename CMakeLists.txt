@@ -10,6 +10,15 @@ set(nbautils-build_tests OFF CACHE BOOL "Whether to build tests")
 # Enable C++14
 set (CMAKE_CXX_STANDARD 14)
 
+set(CMAKE_CXX_FLAGS "-Wall -Wextra")
+set(CMAKE_CXX_FLAGS_DEBUG "-g")
+#set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+
+#if(NOT CMAKE_BUILD_TYPE)
+#  set(CMAKE_BUILD_TYPE Release)
+#endif()
+
+
 ##################################
 # Find thread
 find_package(Threads REQUIRED)
