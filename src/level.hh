@@ -20,8 +20,8 @@ struct LevelConfig {
   typedef std::shared_ptr<LevelConfig> sptr;
 
   // mandatory
-  BA* aut = nullptr;
-  SCCInfo* auti = nullptr;
+  BA const* aut = nullptr;
+  SCCInfo const* auti = nullptr;
 
   // with defaults
   bool sep_rej = false;
@@ -30,8 +30,8 @@ struct LevelConfig {
 
   // optional context information to refine separation
   // if remains nullptr, means that no context is used
-  BAPP* ctx = nullptr;
-  SCCInfo* ctxi = nullptr;
+  BAPP const* ctx = nullptr;
+  SCCInfo const* ctxi = nullptr;
 };
 
 // encodes a set of states as a tuple of disjoint subsets

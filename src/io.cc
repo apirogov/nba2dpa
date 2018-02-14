@@ -64,7 +64,6 @@ class NBAConsumer : public HOAConsumer {
 
   virtual void setAPs(const std::vector<std::string> &aps) override {
     aut->meta.aps = aps;
-    aut->meta.num_syms = 1 << aps.size();
   }
 
   virtual void setAcceptanceCondition(unsigned int numSets,
@@ -128,11 +127,11 @@ class NBAConsumer : public HOAConsumer {
                                 std::shared_ptr<int_list> accSignature) override {
     if (accSignature)
       throw std::runtime_error("State-based NBA can not have edge acceptance!");
-    if (!aut->meta.num_syms)
+    if (!aut->num_syms())
       throw std::runtime_error("Edge list, but no atomic propositions!");
 
     // store successors in set for now - keeps them unique and sorted
-    for (auto sym = 0; sym < aut->meta.num_syms; sym++) {
+    for (auto sym = 0; sym < (int)aut->num_syms(); sym++) {
       if (eval_expr(labelExpr, sym))
         copy(begin(conjSuccessors), end(conjSuccessors),
              inserter(adj[stateId][sym], end(adj[stateId][sym])));

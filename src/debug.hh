@@ -41,7 +41,7 @@ void printPS(nbautils::PS<L>& aut, nbautils::SCCInfo& scci, bool pointed = false
 
     cout << endl;
 
-    for (auto i = 0; i < aut.num_syms; i++) {
+    for (auto i = 0; i < aut.num_syms(); i++) {
       if (aut.adj[s][i].empty()) continue;
       cout << "\t" << i << " -> ";
       for (auto t : aut.adj[s][i]) cout << t << ", ";

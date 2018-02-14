@@ -8,19 +8,21 @@
 namespace nbautils {
 using namespace std;
 
+//bimap interface, as required for graph node tagging
 template <typename K, typename V, class Impl>
 struct bimap {
   typedef unique_ptr<bimap<K, V, Impl>> ptr;
 
-  size_t size() const { return static_cast<Impl const*>(this)->size(); }
+  Impl* impl() { return static_cast<Impl*>(this); }
 
-  bool has(K const& k) { return static_cast<Impl*>(this)->has(k); }
-  bool has(V const& v) { return static_cast<Impl*>(this)->has(v); }
-  V get(K const& k) { return static_cast<Impl*>(this)->get(k); }
-  K get(V const& v) { return static_cast<Impl*>(this)->get(v); }
-  V put_or_get(K const& k, V const& v) { return static_cast<Impl*>(this)->put_or_get(k, v); }
-  void put(K const& k, V const& v) { static_cast<Impl*>(this)->put(k, v); }
-  void erase(V const& v) const { static_cast<Impl*>(this)->erase(v); }
+  size_t size() { return impl()->size(); }
+  bool has(K const& k) { return impl()->has(k); }
+  bool has(V const& v) { return impl()->has(v); }
+  V get(K const& k) { return impl()->get(k); }
+  K get(V const& v) { return impl()->get(v); }
+  V put_or_get(K const& k, V const& v) { return impl()->put_or_get(k, v); }
+  void put(K const& k, V const& v) { impl()->put(k, v); }
+  void erase(V const& v) { impl()->erase(v); }
 };
 
 template <typename T, typename K, typename V>

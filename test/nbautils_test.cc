@@ -3,6 +3,8 @@
 #include <catch.hpp>
 // #include <spdlog/spdlog.h>
 
+#include "types.hh"
+#include "io.hh"
 #include "relorder.hh"
 #include "triebimap.hh"
 #include "interfaces.hh"
@@ -10,10 +12,47 @@
 using namespace std;
 using namespace nbautils;
 
-TEST_CASE("Testing the relative order structure", "[relorder]")
-{
-    // spdlog::set_level(spdlog::level::debug);
+#include <spdlog/spdlog.h>
+namespace spd = spdlog;
 
+//TODO: find better way to include logger in code?
+auto logger = spd::stdout_logger_mt("log");
+
+TEST_CASE("Parsing an NBA", "[parse_ba]") {
+  auto pba = parse_ba("non_existing.file");
+  REQUIRE(!pba);
+
+  pba = parse_ba("test.hoa");
+  auto &ba = *pba;
+  REQUIRE(ba.meta.name == "Test NBA");
+  REQUIRE(ba.aps() == vector<string>{"x"});
+  REQUIRE(ba.states() == vector<state_t>{0,1,2,3,4,5,6,7,8,9,10,11,12});
+  REQUIRE(ba.num_states() == 13);
+  REQUIRE(ba.num_syms() == 2);
+  REQUIRE(!ba.has_acc(0));
+  REQUIRE(ba.get_acc(10) == Unit());
+  REQUIRE(ba.succ_raw(8,0)==vector<state_t>{9});
+  REQUIRE(ba.succ_raw(8,1)==vector<state_t>{7});
+}
+
+TEST_CASE("Testing the SWA interface", "[swa]") {
+  //TODO: constructor enforces creation of initial
+  //TODO: aps are not allowed to be modified
+  BA ba;
+  ba.meta.aps = {"x"};
+  ba.add_state(0);
+  ba.init = 0;
+  ba.add_state(1);
+  ba.set_acc(1, Unit());
+
+  REQUIRE(ba.num_states() == 2);
+  REQUIRE(!ba.has_acc(0));
+  REQUIRE(ba.has_acc(1));
+  REQUIRE(ba.get_acc(1) == Unit());
+  //TODO test other methods
+}
+
+TEST_CASE("Testing the relative order structure", "[relorder]") {
 	RelOrder order = RelOrder(5);
 	vector<RelOrder::ord_t> testord{4,0,2,1,3};
 	auto virtord = order.from_ranks(testord);
@@ -159,3 +198,4 @@ TEST_CASE("Test trie bimap interface", "[bimap-interface-trie]")
   auto sbmp2(new generic_trie_bimap<string, char, int>(from,to));
   test_bimap_interface(*sbmp2);
 }
+//TODO: add boost bimap as possibility

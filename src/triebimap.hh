@@ -13,7 +13,7 @@ struct trie_bimap_node {
   K key = 0;
   std::unique_ptr<V> value = nullptr;
 
-  std::map<K, trie_bimap_node<K, V>> suc;
+  std::map<K, std::unique_ptr<trie_bimap_node<K, V>>> suc;
 };
 
 // TODO: add access to leaves? other operations?
@@ -30,12 +30,13 @@ class trie_bimap {
     for (int i = ks.size() - 1; i >= 0; i--) {
       if (curr->suc.find(ks[i]) == curr->suc.end()) {
         if (create) {
-          curr->suc[ks[i]].parent = curr;
-          curr->suc[ks[i]].key = ks[i];
+          curr->suc[ks[i]] = std::make_unique<trie_bimap_node<K,V>>(trie_bimap_node<K,V>());
+          curr->suc[ks[i]]->parent = curr;
+          curr->suc[ks[i]]->key = ks[i];
         } else
           return nullptr;
       }
-      curr = &curr->suc[ks[i]];
+      curr = curr->suc[ks[i]].get();
     }
     return curr;
   }

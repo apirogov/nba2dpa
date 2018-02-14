@@ -211,7 +211,8 @@ int main(int argc, char *argv[]) {
   lc->ctx = ctx.get();
   lc->ctxi = ctxi.get();
 
-  // PA::uptr pa = determinize(*lc);
+  PA::uptr pa = determinize(*lc);
+  log->info("number of states in resulting automaton: {}", pa->num_states());
 
   // TODO: apply postprocessing
   // TODO: output in HOA format

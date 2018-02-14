@@ -1,4 +1,5 @@
 #include "level.hh"
+#include <iostream>
 #include <algorithm>
 #include <bitset>
 #include <iostream>
@@ -9,8 +10,10 @@ using namespace nbautils;
 namespace nbautils {
 
 bool Level::operator<(Level const& other) const {
-  // TODO define an ordering
-  return true;
+  if (tups == other.tups)
+    return tupo < other.tupo;
+  return tups < other.tups;
+
 }
 
 Level::hash_t add_powerset_hash(BA const& ba, Level const& lv) {
@@ -35,36 +38,44 @@ Level::hash_t add_powerset_hash(BA const& ba, Level const& lv) {
 
 Level make_level(LevelConfig const& lvc, std::vector<Level::state_t> const& qs) {
   Level l;
+
   l.tups.push_back(qs);
   l.tupo.push_back(0);
+
   if (lvc.sep_acc) {
     l.tups.push_back({});
     l.tupo.push_back(1);
   }
+
   if (lvc.sep_rej) {
     l.tups.push_back({});
   }
+
   l.powerset = add_powerset_hash(*lvc.aut, l);
+
   return l;
 }
 
 // TODO: complete this
 Level succ_level(LevelConfig const& lvc, Level l, sym_t x) {
+  // cerr << "succ level" << endl;
   RelOrder rord(2 * l.tups.size());
+
+  auto tupranks = rord.from_ranks(l.tupo);
 
   auto nsccs = l.tups.back();
   if (lvc.sep_rej) l.tups.pop_back();
 
   auto asccs = l.tups.back();
-  auto aord = l.tupo.back();
+  auto aord = tupranks.back();
   if (lvc.sep_acc) {
     l.tups.pop_back();
-    l.tupo.pop_back();
+    tupranks.pop_back();
   }
 
-  auto suctupo = rord.from_ranks(l.tupo);
 
   // calculate successor sets, prioritize left
+  // TODO: split by F/not F
   set<Level::state_t> used_sucs;
   vector<vector<Level::state_t>> suctups;
   for (auto& tup : l.tups) {
@@ -76,10 +87,16 @@ Level succ_level(LevelConfig const& lvc, Level l, sym_t x) {
     copy(begin(tmp), end(tmp), inserter(used_sucs, end(used_sucs)));
   }
 
+  //pash rank of accepting component states, if any
+  if (lvc.sep_acc) {
+    tupranks.push_back(aord);
+  }
+
   Level suclvl;
   suclvl.tups = suctups;
-  suclvl.tupo = rord.to_ranks(suctupo);
+  suclvl.tupo = rord.to_ranks(tupranks);
   suclvl.powerset = add_powerset_hash(*lvc.aut, suclvl);
+  // cerr << "end succ level" << endl;
   return suclvl;
 }
 

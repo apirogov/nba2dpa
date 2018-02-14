@@ -7,6 +7,7 @@ namespace nbautils {
 PA::uptr determinize(LevelConfig const& lc) {
   spd::get("log")->debug("determinize(aut)");
   auto starttime = get_time();
+
   auto& aut = *lc.aut;
 
   auto pap = std::make_unique<PA>(PA());
@@ -15,8 +16,8 @@ PA::uptr determinize(LevelConfig const& lc) {
   pa.tag = std::make_unique<pa_tag_store>(pa_tag_store());
   auto& tag = pa.tag;
 
-  // same letters
-  pa.meta.num_syms = aut.meta.num_syms;
+  // same letters etc
+  pa.meta = aut.meta;
   // initial state is 0
   pa.init = 0;
   pa.acc[pa.init] = 0;  // priority does not matter
@@ -36,10 +37,10 @@ PA::uptr determinize(LevelConfig const& lc) {
     // get inner states of current ps state
     auto curlevel = tag->get(st);
 
-    for (auto i = 0; i < pa.meta.num_syms; i++) {
+    for (auto i = 0; i < (int)pa.num_syms(); i++) {
       auto suclevel = succ_level(lc, curlevel, i);
       state_t sucst = tag->put_or_get(suclevel, tag->size());
-      if (!pa.has_acc(sucst))  // assign priority
+      if (!pa.has_acc(sucst))  // assign priority according to resulting level
         pa.acc[sucst] = suclevel.prio;
       pa.adj[st][i].push_back(sucst);
       bfsq.push(sucst);

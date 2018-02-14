@@ -10,7 +10,7 @@ set(nbautils-build_tests OFF CACHE BOOL "Whether to build tests")
 # Enable C++14
 set (CMAKE_CXX_STANDARD 14)
 
-set(CMAKE_CXX_FLAGS "-Wall -Wextra")
+set(CMAKE_CXX_FLAGS "-Wall -Wextra -O2")
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
 #set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
@@ -24,8 +24,8 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g")
 find_package(Threads REQUIRED)
 
 # Find boost
-find_package(Boost 1.40 REQUIRED)
-include_directories(${Boost_INCLUDE_DIR})
+#find_package(Boost 1.40 REQUIRED)
+#include_directories(${Boost_INCLUDE_DIR})
 
 # Catch for testing
 set(Catch_INCLUDE_DIR vendor/Catch/single_include)
@@ -76,8 +76,8 @@ set(nbautils_SOURCE src/memusage.h src/memusage.c
                    src/relorder.hh src/relorder.cc
                    src/types.hh src/triebimap.hh
                    src/io.hh src/io.cc
-                   src/ps.hh src/ps.cc
-                   src/scc.hh src/scc.cc
+                   src/ps.hh #src/ps.cc
+                   src/scc.hh #src/scc.cc
                    src/level.hh src/level.cc
                    src/det.hh src/det.cc
                    )
@@ -86,7 +86,7 @@ add_library(nbautils-lib STATIC ${nbautils_SOURCE})
 target_link_libraries(nbautils-lib ${CMAKE_THREAD_LIBS_INIT})
 add_dependencies(nbautils-lib cpphoafparser)
 
-add_executable(scratchpad src/scratchpad.cc)
+add_executable(scratchpad EXCLUDE_FROM_ALL src/scratchpad.cc)
 target_link_libraries(scratchpad nbautils-lib ${CMAKE_THREAD_LIBS_INIT})
 
 add_executable(nbadet src/nbadet.cc)
@@ -101,7 +101,7 @@ if (nbautils-build_tests)
 
     # to add binaries to "make test" suite
     macro (create_test target)
-      add_test (NAME ${target} COMMAND $<TARGET_FILE:${target}>)
+      add_test (NAME ${target} COMMAND $<TARGET_FILE:${target}> WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/test)
     endmacro (create_test)
 
     create_test(nbautils-test)

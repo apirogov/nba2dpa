@@ -1,0 +1,39 @@
+HOA: v1
+name: "Test NBA"
+States: 13
+Start: 0
+AP: 1 "x"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc
+--BODY--
+State: 0
+[!0] 0
+[!0] 1
+[!0] 3
+State: 1
+[!0] 2
+State: 2
+[!0] 1
+State: 3
+[!0] 10
+[0] 4
+[0] 7
+State: 4 {0}
+[!0] 5
+State: 5 {0}
+[0] 4
+[!0] 6
+State: 6
+State: 7
+[!0] 8
+State: 8 {0}
+[0] 7
+[!0] 9
+State: 9 {0}
+State: 10 {0}
+[t] 10
+State: 11
+[t] 12
+State: 12
+--END--

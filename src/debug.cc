@@ -41,7 +41,7 @@ void printBA(nbautils::BA const& aut, nbautils::SCCInfo const& scci = SCCInfo())
     }
     cout << endl;
 
-    for (auto i = 0; i < aut.meta.num_syms; i++) {
+    for (auto i = 0; i < (int)aut.num_syms(); i++) {
       auto sucs = aut.succ(s, i);
       if (sucs.empty()) continue;
       cout << "\t" << i << " -> ";
