@@ -101,7 +101,7 @@ if (nbautils-build_tests)
 
     # to add binaries to "make test" suite
     macro (create_test target)
-      add_test (NAME ${target} COMMAND $<TARGET_FILE:${target}> WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/test)
+      add_test (NAME ${target} COMMAND $<TARGET_FILE:${target}>)
     endmacro (create_test)
 
     create_test(nbautils-test)

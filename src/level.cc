@@ -109,7 +109,8 @@ inline priority_t rank_to_prio(RelOrder::ord_t r, bool good) {
   return 2*(r+1)-(good ? 0 : 1);
 }
 
-Level Level::succ(LevelConfig const& lvc, sym_t x, bool debug) const {
+Level Level::succ(LevelConfig const& lvc, sym_t x) const {
+  bool const& debug = lvc.debug;
   Level tmplv;
   if (debug) {
     cout << "begin succ of: " << to_string() << endl;
@@ -131,7 +132,7 @@ Level Level::succ(LevelConfig const& lvc, sym_t x, bool debug) const {
   if (debug) {
     tmplv.tupo = tupo; tmplv.tups = suctups;
     copy(begin(sascc), end(sascc), back_inserter(tmplv.tups));
-    cout << "after powersucc:" << tmplv.to_string() << endl;
+    cout << "after powersucc: " << tmplv.to_string() << endl;
   }
 
   // ----------------------------------------------------------------
@@ -157,6 +158,10 @@ Level Level::succ(LevelConfig const& lvc, sym_t x, bool debug) const {
 
   // what is in good accepting scc stays there, rest goes back into root
   if (lvc.sep_acc) {
+    if (suctups.empty()) { //ensure that there is a safra root (edge case!)
+      suctups.push_back({});
+    }
+
     for (int i=1; i>=0; i--) {
       //get unused successors
       vector<Level::state_t> tmp = leftreduce(sascc[i]);
@@ -179,7 +184,7 @@ Level Level::succ(LevelConfig const& lvc, sym_t x, bool debug) const {
     if (debug) {
       tmplv.tupo = tupo; tmplv.tups = suctups;
       copy(begin(sascc), end(sascc), back_inserter(tmplv.tups));
-      cout << "reduced ASCCs:" << endl;
+      cout << "reduced ASCCs:" << tmplv.to_string() << endl;
     }
   }
 
@@ -187,6 +192,12 @@ Level Level::succ(LevelConfig const& lvc, sym_t x, bool debug) const {
   // perform partial safra tree update
 
   Level suclvl;
+
+  auto oldtupo = tupo;
+  if (lvc.sep_acc && tupo.size()==1) { //edge case if safra tree was dead
+    oldtupo = {1, 0};
+  }
+
   int n = tups.size(); //number of sets in tuple
   int realn = suctups.size(); //number of sets in actual safra tree
 
@@ -206,8 +217,8 @@ Level Level::succ(LevelConfig const& lvc, sym_t x, bool debug) const {
     copy(sep,        end(tmp), back_inserter(suclvl.tups[2*i+1]));
 
     //pass token -> old one to right, new one to left
-    suclvl.tupo[2*i] = tupo.size()+i;
-    suclvl.tupo[2*i+1] = tupo[i];
+    suclvl.tupo[2*i] = oldtupo.size()+i;
+    suclvl.tupo[2*i+1] = oldtupo[i];
   }
 
   if (debug) {
@@ -366,13 +377,12 @@ Level Level::succ(LevelConfig const& lvc, sym_t x, bool debug) const {
           for (auto j=l[i]+1; j<i; j++) {
             move(begin(suclvl.tups[j]),
                 end(suclvl.tups[j]),
-                back_inserter(suclvl.tups[j]));
+                back_inserter(suclvl.tups[i]));
             suclvl.tups[j].clear();
             rord.kill(tupranks[j]);
           }
+          sort(begin(suclvl.tups[i]), end(suclvl.tups[i]));
         }
-        //this one is also non-empty now
-        rightmost_ne_child[p[i]] = i;
       } else { //dead node, kill rank
         if (debug)
           cout << i << " dead ";

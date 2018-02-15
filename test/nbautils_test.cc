@@ -1,4 +1,5 @@
 #include <vector>
+#include <queue>
 
 #include <catch.hpp>
 // #include <spdlog/spdlog.h>
@@ -41,7 +42,7 @@ TEST_CASE("Parsing an NBA", "[parse_ba]") {
 }
 
 TEST_CASE("Level update", "[lvl_upd]") {
-  auto pba = parse_ba(filedir+"test.hoa");
+  auto pba = parse_ba(filedir+"test2.hoa");
   auto &ba = *pba;
   auto scci = get_scc_info(ba,true);
   auto &bai = *scci;
@@ -52,27 +53,46 @@ TEST_CASE("Level update", "[lvl_upd]") {
   LevelConfig lvc;
   lvc.aut = &ba;
   lvc.auti = &bai;
-  lvc.sep_rej = true;
-  lvc.sep_acc = true;
+  lvc.sep_rej = false;
+  lvc.sep_acc = false;
 
-  Level ini(lvc,{(Level::state_t)ba.init});
-  cout << ini.to_string() << endl;
+  queue<sym_t> w;
+  w.push(0); w.push(1);
+  Level cur;
 
-  REQUIRE(ini.tups.size() == 1+(lvc.sep_acc ? 2 : 0));
-  REQUIRE(ini.tups[0][0] == (Level::state_t)ba.init);
-  REQUIRE(ini.tupo.at(0) == 0);
-  REQUIRE(ini.powerset[0] == 1);
-  REQUIRE(ini.powerset[1] == 0);
-  REQUIRE(ini.prio == 0);
-
-  Level nxt = ini.succ(lvc, 0);
-  cout << nxt.to_string() << endl;
-  nxt = nxt.succ(lvc, 0);
-  cout << nxt.to_string() << endl;
-  nxt = nxt.succ(lvc, 0);
-  cout << nxt.to_string() << endl;
-  nxt = nxt.succ(lvc, 0);
-  cout << nxt.to_string() << endl;
+  bool debug = false;
+  auto step = [&](){
+    auto s = w.front();
+    w.pop();
+    w.push(s);
+    cur = cur.succ(lvc, s);
+    cout << cur.to_string() << endl;
+  };
+  auto runw = [&](){
+    Level ini(lvc,{(Level::state_t)ba.init});
+    cout << ini.to_string() << endl;
+    cur = ini;
+    for (int i=0; i<8; i++)
+      step();
+    cout << "----" << endl;
+  };
+  auto run_multi = [&]() {
+    runw();
+    lvc.sep_rej = true;
+    runw();
+    lvc.sep_acc = true;
+    runw();
+    lvc.sep_rej = false;
+    runw();
+    lvc.sep_acc = false;
+  };
+  cout << "---- MUELLERSCHUPP ----" << endl;
+  lvc.update = LevelUpdateMode::MUELLERSCHUPP;
+  run_multi();
+  cout << "---- SAFRA ----" << endl;
+  lvc.update = LevelUpdateMode::SAFRA;
+  // debug = true;
+  run_multi();
 }
 
 TEST_CASE("Testing the SWA interface", "[swa]") {

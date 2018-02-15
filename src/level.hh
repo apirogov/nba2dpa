@@ -20,6 +20,8 @@ struct LevelConfig {
   typedef std::unique_ptr<LevelConfig> uptr;
   typedef std::shared_ptr<LevelConfig> sptr;
 
+  bool debug = false;
+
   // mandatory
   BA const* aut = nullptr;
   SCCInfo const* auti = nullptr;
@@ -54,7 +56,7 @@ struct Level {
 
   Level();
   Level(LevelConfig const& lvc, std::vector<Level::state_t> const& qs);
-  Level succ(LevelConfig const& lvc, sym_t x, bool debug=false) const;
+  Level succ(LevelConfig const& lvc, sym_t x) const;
 
   bool operator<(Level const& other) const;
   vector<state_t> states() const;
