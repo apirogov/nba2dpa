@@ -31,8 +31,6 @@ class RelOrder {
   bool normalized;
   ord_t maxused;
 
-  void normalize();  // renumber
-
  public:
   // create space for n order elements
   RelOrder(int n);
@@ -41,6 +39,7 @@ class RelOrder {
 
   std::vector<ordref> from_ranks(std::vector<ord_t> const &ranks);
   std::vector<ord_t> to_ranks(std::vector<ordref> const &refs);
+  void normalize();  // renumber
 };
 
 }  // namespace nbautils

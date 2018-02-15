@@ -23,7 +23,7 @@ PA::uptr determinize(LevelConfig const& lc) {
   pa.acc[pa.init] = 0;  // priority does not matter
 
   // q_0 tag
-  auto pinit = make_level(lc, std::vector<small_state_t>{(small_state_t)aut.init});
+  auto pinit = Level(lc, std::vector<small_state_t>{(small_state_t)aut.init});
   tag->put(pinit, pa.init);
 
   // explore powerset by bfs
@@ -38,7 +38,9 @@ PA::uptr determinize(LevelConfig const& lc) {
     auto curlevel = tag->get(st);
 
     for (auto i = 0; i < (int)pa.num_syms(); i++) {
-      auto suclevel = succ_level(lc, curlevel, i);
+      auto suclevel = curlevel.succ(lc, i);
+      if (suclevel.powerset == 0) //emptyset
+        continue;
       state_t sucst = tag->put_or_get(suclevel, tag->size());
       if (!pa.has_acc(sucst))  // assign priority according to resulting level
         pa.acc[sucst] = suclevel.prio;

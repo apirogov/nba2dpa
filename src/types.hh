@@ -142,10 +142,12 @@ struct SWA {
   void remove_states(vector<state_t> const& tokill) {
     // TODO: refuse to kill initial
     for (auto const& it : tokill) {
-      adj.erase(adj.find(it));  // kill state + edges
+      if (map_has_key(adj,it))
+        adj.erase(adj.find(it));  // kill state + edges
     }
     for (auto const& it : tokill) {
-      acc.erase(acc.find(it));  // kill acc. mark
+      if (map_has_key(acc,it))
+        acc.erase(acc.find(it));  // kill acc. mark
     }
 
     // kill states from edge targets

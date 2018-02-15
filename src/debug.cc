@@ -1,6 +1,5 @@
 #include "debug.hh"
 #include <iostream>
-#include "types.hh"
 
 using namespace std;
 using namespace nbautils;

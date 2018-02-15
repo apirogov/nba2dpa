@@ -4,6 +4,7 @@
 #include "types.hh"
 
 #include <algorithm>
+#include <iostream>
 #include <queue>
 #include <set>
 #include <stack>
@@ -214,12 +215,9 @@ size_t trim_ba(SWA<L, T, S>& ba, SCCInfo& scci) {
   set<state_t> erase;
 
   // collect unreachable
-  for (auto& it : scci.unreachable) {
-    erase.emplace(it);
-  }
-  scci.unreachable.clear();
+  move(begin(scci.unreachable), end(scci.unreachable), inserter(erase,end(erase)));
 
-  // collect dead
+  // collect dead states
   for (auto& it : ba.adj) {
     if (scci.scc.find(it.first) != end(scci.scc)) {  // has assigned scc
       auto scit = scci.scc.at(it.first);
@@ -229,6 +227,7 @@ size_t trim_ba(SWA<L, T, S>& ba, SCCInfo& scci) {
       }
     }
   }
+  // unmark these states
   for (auto& kv : scci.dead) {
     if (kv.second) {
       scci.accepting.erase(kv.first);
@@ -240,8 +239,7 @@ size_t trim_ba(SWA<L, T, S>& ba, SCCInfo& scci) {
   scci.dead.clear();
 
   vector<state_t> erasevec;
-  copy(begin(erase), end(erase), back_inserter(erasevec));
-  erase.clear();
+  move(begin(erase), end(erase), back_inserter(erasevec));
 
   ba.remove_states(erasevec);
   return erasevec.size();

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <bitset>
+#include <string>
 #include <vector>
 
 #include "ps.hh"
@@ -11,7 +12,7 @@
 namespace nbautils {
 using namespace nbautils;
 
-using priority_t = small_state_t;
+using priority_t = unsigned int;
 
 enum LevelUpdateMode { MUELLERSCHUPP, SAFRA, num };
 
@@ -51,11 +52,14 @@ struct Level {
   hash_t powerset;  // = union of accs tups and nccs
   priority_t prio = 0;
 
+  Level();
+  Level(LevelConfig const& lvc, std::vector<Level::state_t> const& qs);
+  Level succ(LevelConfig const& lvc, sym_t x, bool debug=false) const;
+
   bool operator<(Level const& other) const;
+  vector<state_t> states() const;
+  string to_string() const;
 };
 
-Level make_level(LevelConfig const& lvc, std::vector<Level::state_t> const& qs);
-
-Level succ_level(LevelConfig const& lvc, Level l, sym_t x);
 
 }  // namespace nbautils

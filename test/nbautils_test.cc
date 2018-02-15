@@ -4,8 +4,11 @@
 // #include <spdlog/spdlog.h>
 
 #include "types.hh"
+#include "debug.hh"
 #include "io.hh"
+#include "scc.hh"
 #include "relorder.hh"
+#include "level.hh"
 #include "triebimap.hh"
 #include "interfaces.hh"
 
@@ -15,6 +18,8 @@ using namespace nbautils;
 #include <spdlog/spdlog.h>
 namespace spd = spdlog;
 
+string const filedir = "test/";
+
 //TODO: find better way to include logger in code?
 auto logger = spd::stdout_logger_mt("log");
 
@@ -22,7 +27,7 @@ TEST_CASE("Parsing an NBA", "[parse_ba]") {
   auto pba = parse_ba("non_existing.file");
   REQUIRE(!pba);
 
-  pba = parse_ba("test.hoa");
+  pba = parse_ba(filedir+"test.hoa");
   auto &ba = *pba;
   REQUIRE(ba.meta.name == "Test NBA");
   REQUIRE(ba.aps() == vector<string>{"x"});
@@ -33,6 +38,41 @@ TEST_CASE("Parsing an NBA", "[parse_ba]") {
   REQUIRE(ba.get_acc(10) == Unit());
   REQUIRE(ba.succ_raw(8,0)==vector<state_t>{9});
   REQUIRE(ba.succ_raw(8,1)==vector<state_t>{7});
+}
+
+TEST_CASE("Level update", "[lvl_upd]") {
+  auto pba = parse_ba(filedir+"test.hoa");
+  auto &ba = *pba;
+  auto scci = get_scc_info(ba,true);
+  auto &bai = *scci;
+  // printBA(ba,bai);
+  // printSCCI(bai);
+  // trim_ba(ba,bai);
+
+  LevelConfig lvc;
+  lvc.aut = &ba;
+  lvc.auti = &bai;
+  lvc.sep_rej = true;
+  lvc.sep_acc = true;
+
+  Level ini(lvc,{(Level::state_t)ba.init});
+  cout << ini.to_string() << endl;
+
+  REQUIRE(ini.tups.size() == 1+(lvc.sep_acc ? 2 : 0));
+  REQUIRE(ini.tups[0][0] == (Level::state_t)ba.init);
+  REQUIRE(ini.tupo.at(0) == 0);
+  REQUIRE(ini.powerset[0] == 1);
+  REQUIRE(ini.powerset[1] == 0);
+  REQUIRE(ini.prio == 0);
+
+  Level nxt = ini.succ(lvc, 0);
+  cout << nxt.to_string() << endl;
+  nxt = nxt.succ(lvc, 0);
+  cout << nxt.to_string() << endl;
+  nxt = nxt.succ(lvc, 0);
+  cout << nxt.to_string() << endl;
+  nxt = nxt.succ(lvc, 0);
+  cout << nxt.to_string() << endl;
 }
 
 TEST_CASE("Testing the SWA interface", "[swa]") {

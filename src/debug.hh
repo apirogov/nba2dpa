@@ -10,6 +10,7 @@ namespace nbautils {
 
 void printSCCI(nbautils::SCCInfo const& scci);
 void printBA(nbautils::BA const& aut, nbautils::SCCInfo const& scci);
+void printLevel(Level const& l);
 
 template <typename L>
 void printPS(nbautils::PS<L>& aut, nbautils::SCCInfo& scci, bool pointed = false) {
