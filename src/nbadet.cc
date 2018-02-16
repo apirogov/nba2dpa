@@ -34,6 +34,8 @@ struct Args {
   bool context;
 
   bool topo;
+
+  bool nooutput;
 };
 
 Args::uptr parse_args(int argc, char *argv[]) {
@@ -47,6 +49,8 @@ Args::uptr parse_args(int argc, char *argv[]) {
   // logging level -v, -vv, etc.
   args::CounterFlag verbose(parser, "verbose", "Show verbose information",
                             {'v', "verbose"});
+
+  args::Flag nooutput(parser, "nooutput", "Do not print resulting automaton", {'x', "no-output"});
 
   // preprocessing on NBA
   args::Flag trim(parser, "trim", "Remove dead states from NBA", {'d', "trim"});
@@ -80,7 +84,8 @@ Args::uptr parse_args(int argc, char *argv[]) {
 
   // postprocessing
   // args::Flag minpri(parser, "minpri", "Minimize number of priorities", {'m',
-  // "minimize-priorities"});
+  // args::Flag minpri(parser, "minmealy", "Minimize number of states using Mealy // techniques", {'m',
+  // "minimize-mealy"});
 
   try {
     parser.ParseCLI(argc, argv);
@@ -117,6 +122,8 @@ Args::uptr parse_args(int argc, char *argv[]) {
 
   args->topo = topo;
 
+  args->nooutput = nooutput;
+
   return move(args);
 }
 
@@ -144,7 +151,7 @@ int main(int argc, char *argv[]) {
     spd::set_level(spd::level::debug);
 
   // now parse input automaton
-  BA::uptr aut = nbautils::parse_ba(args->file);
+  BA::uptr aut = nbautils::parse_ba(args->file, log);
   if (!aut) {
     log->error("failed parsing NBA from {}!", args->file);
     exit(1);
@@ -153,11 +160,11 @@ int main(int argc, char *argv[]) {
 
   // sanity check size of the input
   if (aut->adj.size() > max_nba_states) {
-    spd::get("log")->error("NBA is way too large, I refuse.");
+    log->error("NBA is way too large, I refuse.");
     exit(1);
   }
   if (aut->meta.aps.size() > max_nba_syms) {
-    spd::get("log")->error("Alphabet is way too large, I refuse.");
+    log->error("Alphabet is way too large, I refuse.");
     exit(1);
   }
 
@@ -173,7 +180,6 @@ int main(int argc, char *argv[]) {
   }
 
   if (args->trim) {
-    log->info("trimming original NBA...");
     auto numtrimmed = trim_ba(*aut, *auti);
     log->info("removed {} useless states", numtrimmed);
     log->info("number of states in trimmed A: {}", aut->adj.size());
@@ -184,8 +190,8 @@ int main(int argc, char *argv[]) {
   BAPS::uptr ps = nullptr;
   SCCInfo::uptr psi = nullptr;
   if (args->topo) {
-    ps = powerset_construction(*aut);
-    psi = get_scc_info(*ps, false);
+    ps =  bench(log, "powerset_construction", WRAP(powerset_construction(*aut)));
+    psi = bench(log, "get_scc_info",          WRAP(get_scc_info(*ps, false)));
     log->info("number of states in 2^A: {}", ps->adj.size());
     log->info("number of SCCs in 2^A: {}", psi->sccrep.size());
     // printSCCI(*ctxi);
@@ -196,8 +202,8 @@ int main(int argc, char *argv[]) {
   BAPP::uptr ctx = nullptr;
   SCCInfo::uptr ctxi = nullptr;
   if (args->context) {
-    ctx = powerset_product(*aut);
-    ctxi = get_scc_info(*ctx, true);
+    ctx =  bench(log, "powerset_product", WRAP(powerset_product(*aut)));
+    ctxi = bench(log, "get_scc_info",     WRAP(get_scc_info(*ctx, false)));
     log->info("number of states in Ax2^A: {}", ctx->adj.size());
     log->info("number of SCCs in Ax2^A: {}", ctxi->sccrep.size());
   }
@@ -211,13 +217,20 @@ int main(int argc, char *argv[]) {
   lc->ctx = ctx.get();
   lc->ctxi = ctxi.get();
 
-  PA::uptr pa = determinize(*lc);
+  PA::uptr pa;
+  if (!args->topo)
+    pa = bench(log, "determinize", WRAP(determinize(*lc)));
+  else
+    pa = bench(log, "determinize_topo", WRAP(determinize(*lc, *ps, *psi)));
   log->info("number of states in resulting automaton: {}", pa->num_states());
 
   // TODO: apply postprocessing
-  // TODO: output in HOA format
 
-  //---------------------------
   log->info("completed after {:.3f} seconds", get_secs_since(starttime));
   log->info("used {:.3f} MB of memory", (double)getPeakRSS() / (1024 * 1024));
+  //---------------------------
+
+  if (!args->nooutput) {
+    print_hoa_pa(*pa);
+  }
 }

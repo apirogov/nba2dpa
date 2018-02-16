@@ -12,9 +12,6 @@
 #include <utility>
 #include <vector>
 
-#include <spdlog/spdlog.h>
-namespace spd = spdlog;
-
 namespace nbautils {
 using namespace std;
 
@@ -29,6 +26,8 @@ struct SCCInfo {
   set<state_t> unreachable;  // tags a state as unreachable from initial state
 
   std::map<scc_t, state_t> sccrep;  // representative state
+  std::map<scc_t, size_t> sccsz;    // size of SCC
+
   scc_flag accepting;               // tags an scc as fully accepting
   scc_flag rejecting;               // tags an scc as fully rejecting
   scc_flag trivial;                 // tags an scc as trivial (single state, no loop)
@@ -61,35 +60,24 @@ num) { std::queue<state_t> bfsq; std::set<state_t> visited;
 }
 */
 
-template <typename L, typename T, typename S>
-std::vector<state_t> succ_sccs(SWA<L, T, S> const& aut, SCCInfo const& scci,
+template <Acceptance A, typename T, typename S>
+std::vector<state_t> succ_sccs(SWA<A, T, S> const& aut, SCCInfo const& scci,
                                scc_t const& num) {
-  std::queue<state_t> bfsq;
-  std::set<state_t> visited;
   std::set<nbautils::scc_t> sucsccs;
-
-  bfsq.push(scci.sccrep.at(num));
-  while (!bfsq.empty()) {
-    auto const st = bfsq.front();
-    bfsq.pop();
-    if (visited.find(st) != end(visited)) continue;  // have visited this one
-    visited.emplace(st);
-
+  bfs(scci.sccrep.at(num), [&](auto const& st, auto const& visit) {
     for (auto& sucst : aut.succ(st)) {
       auto sucscc = scci.scc.at(sucst);
       if (sucscc == num)
-        bfsq.push(sucst);
+        visit(sucst);
       else
         sucsccs.emplace(sucscc);
     }
-  }
-  std::vector<nbautils::scc_t> ret;
-  copy(begin(sucsccs), end(sucsccs), back_inserter(ret));
-  return ret;
+  });
+  return vector<nbautils::scc_t>(begin(sucsccs), end(sucsccs));
 }
 
-template <typename L, typename T, typename S>
-void mark_dead_sccs(SWA<L, T, S> const& aut, SCCInfo& scci, scc_t num) {
+template <Acceptance A, typename T, typename S>
+void mark_dead_sccs(SWA<A, T, S> const& aut, SCCInfo& scci, scc_t num) {
   if (scci.dead.find(num) != end(scci.dead))  // done already
     return;
 
@@ -109,11 +97,8 @@ void mark_dead_sccs(SWA<L, T, S> const& aut, SCCInfo& scci, scc_t num) {
 }
 
 // https://en.wikipedia.org/wiki/Path-based_strong_component_algorithm with extensions
-template <typename L, typename T, typename S>
-SCCInfo::uptr get_scc_info(SWA<L, T, S> const& aut, bool analyse_acc = true) {
-  spd::get("log")->debug("get_scc_info(aut,{})", analyse_acc);
-  auto starttime = get_time();
-
+template <Acceptance A, typename T, typename S>
+SCCInfo::uptr get_scc_info(SWA<A, T, S> const& aut, bool analyse_acc = true) {
   auto sccip = std::make_unique<SCCInfo>(SCCInfo());
   auto& scci = *sccip;
 
@@ -150,9 +135,8 @@ SCCInfo::uptr get_scc_info(SWA<L, T, S> const& aut, bool analyse_acc = true) {
         // assume SCC is accepting and rejecting, then falsify
         bool accscc = true;
         bool rejscc = true;
-        // count how many state this scc has to detect triv. SCC
-        int scc_sz = 0;
-        auto scc_num = scci.sccrep.size();  // size corresponds to next number
+        int scc_sz = 0; // count how many state this scc has
+        auto scc_num = scci.sccrep.size();  // size of scc set corresponds to next number
 
         // drop states up to the current state, they are done and part of the SCC
         state_t tmp;
@@ -187,8 +171,9 @@ SCCInfo::uptr get_scc_info(SWA<L, T, S> const& aut, bool analyse_acc = true) {
           if (trivacc && noselfloop) scci.trivial.emplace(scc_num);
         }
 
-        // store the representative state (from which the rest can be obtained easily)
+        // store the representative state (from which the rest can be obtained easily) + size
         scci.sccrep[scc_num] = reps.top();
+        scci.sccsz[scc_num] = scc_sz;
 
         // current SCC is done
         reps.pop();
@@ -204,14 +189,12 @@ SCCInfo::uptr get_scc_info(SWA<L, T, S> const& aut, bool analyse_acc = true) {
   // run dfs that marks dead sccs
   mark_dead_sccs(aut, scci, scci.scc.at(aut.init));
 
-  spd::get("log")->debug("get_scc_info completed ({:.4f} s)", get_secs_since(starttime));
-
   return move(sccip);
 }
 
 // use SCC info to purge unreachable and dead states from automaton and scc info
-template <typename L, typename T, typename S>
-size_t trim_ba(SWA<L, T, S>& ba, SCCInfo& scci) {
+template <Acceptance A, typename T, typename S>
+size_t trim_ba(SWA<A, T, S>& ba, SCCInfo& scci) {
   set<state_t> erase;
 
   // collect unreachable

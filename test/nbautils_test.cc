@@ -12,6 +12,7 @@
 #include "level.hh"
 #include "triebimap.hh"
 #include "interfaces.hh"
+#include "util.hh"
 
 using namespace std;
 using namespace nbautils;
@@ -24,6 +25,22 @@ string const filedir = "test/";
 //TODO: find better way to include logger in code?
 auto logger = spd::stdout_logger_mt("log");
 
+TEST_CASE("Generic bfs", "[parse_ba]") {
+  auto pba = parse_ba(filedir+"test.hoa");
+  auto &ba = *pba;
+  auto scci = get_scc_info(ba,true);
+  auto &bai = *scci;
+  trim_ba(ba, bai);
+
+  int count = 0;
+  bfs(ba.init, [&](state_t const& st, auto v){
+      count ++;
+      for (auto s : ba.succ(st))
+        v(s);
+  });
+  REQUIRE(count == ba.num_states());
+}
+
 TEST_CASE("Parsing an NBA", "[parse_ba]") {
   auto pba = parse_ba("non_existing.file");
   REQUIRE(!pba);
@@ -35,8 +52,8 @@ TEST_CASE("Parsing an NBA", "[parse_ba]") {
   REQUIRE(ba.states() == vector<state_t>{0,1,2,3,4,5,6,7,8,9,10,11,12});
   REQUIRE(ba.num_states() == 13);
   REQUIRE(ba.num_syms() == 2);
-  REQUIRE(!ba.has_acc(0));
-  REQUIRE(ba.get_acc(10) == Unit());
+  REQUIRE(!ba.has_accs(0));
+  REQUIRE(ba.get_accs(10) == vector<acc_t>{0});
   REQUIRE(ba.succ_raw(8,0)==vector<state_t>{9});
   REQUIRE(ba.succ_raw(8,1)==vector<state_t>{7});
 }
@@ -103,12 +120,12 @@ TEST_CASE("Testing the SWA interface", "[swa]") {
   ba.add_state(0);
   ba.init = 0;
   ba.add_state(1);
-  ba.set_acc(1, Unit());
+  ba.set_accs(1,{0});
 
   REQUIRE(ba.num_states() == 2);
-  REQUIRE(!ba.has_acc(0));
-  REQUIRE(ba.has_acc(1));
-  REQUIRE(ba.get_acc(1) == Unit());
+  REQUIRE(!ba.has_accs(0));
+  REQUIRE(ba.has_accs(1));
+  REQUIRE(ba.get_accs(1) == vector<acc_t>{0});
   //TODO test other methods
 }
 

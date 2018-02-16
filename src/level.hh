@@ -3,6 +3,7 @@
 #include <bitset>
 #include <string>
 #include <vector>
+#include <ostream>
 
 #include "ps.hh"
 #include "relorder.hh"
@@ -35,6 +36,8 @@ struct LevelConfig {
   // if remains nullptr, means that no context is used
   BAPP const* ctx = nullptr;
   SCCInfo const* ctxi = nullptr;
+
+  //TODO: parametrize rank_to_prio mapping? or leave level agnostic?
 };
 
 // encodes a set of states as a tuple of disjoint subsets
@@ -52,7 +55,7 @@ struct Level {
 
   // sorted, calculated in the end for == with other levels
   hash_t powerset;  // = union of accs tups and nccs
-  priority_t prio = 0;
+  priority_t prio = 0; //according to min even condition, values from 0 to 2*nbastates+1
 
   Level();
   Level(LevelConfig const& lvc, std::vector<Level::state_t> const& qs);
@@ -60,8 +63,11 @@ struct Level {
 
   bool operator<(Level const& other) const;
   vector<state_t> states() const;
+
   string to_string() const;
 };
+
+std::ostream& operator<<(std::ostream& os,Level const& l);
 
 
 }  // namespace nbautils

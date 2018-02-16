@@ -21,9 +21,6 @@ void printSCCI(nbautils::SCCInfo const& scci) {
   cout << scci.unreachable.size() << " unreachable states." << endl;
 }
 
-void printAcc(Unit) { cout << "*"; }
-void printAcc(priority_t p) { cout << "{" << p << "}"; }
-
 void printBA(nbautils::BA const& aut, nbautils::SCCInfo const& scci = SCCInfo()) {
   cout << "Name: " << aut.meta.name << ", APs: ";
   for (auto ap : aut.meta.aps) cout << ap << " ";
@@ -32,7 +29,14 @@ void printBA(nbautils::BA const& aut, nbautils::SCCInfo const& scci = SCCInfo())
   for (auto& it : aut.adj) {
     auto s = it.first;
     cout << "State: " << s;
-    if (aut.acc.find(s) != end(aut.acc)) printAcc(aut.acc.at(s));
+    if (aut.has_accs(s)) {
+      auto const& ac = aut.get_accs(s);
+      cout << "{";
+      for (auto a : ac) {
+        cout << a << ",";
+      }
+      cout << "}";
+    }
     if (scci.unreachable.find(s) == end(scci.unreachable)) {
       if (scci.scc.find(s) != end(scci.scc)) {
         cout << " -- SCC: " << scci.scc.at(s);

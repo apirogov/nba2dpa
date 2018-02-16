@@ -24,6 +24,11 @@ string Level::to_string() const {
   return ss.str();
 }
 
+std::ostream& operator<<(std::ostream& os,Level const& l) {
+  os << l.to_string();
+  return os;
+}
+
 //compare lexicographically
 bool Level::operator<(Level const& other) const {
   if (tups == other.tups) {
@@ -116,9 +121,44 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
     cout << "begin succ of: " << to_string() << endl;
   }
 
+  //successor helper
+  auto xsucc = [&](auto ps){ return powersucc(*lvc.aut, ps, x); };
+
+  //define helpers to detect whether state is in (relative) acc/rej SCC
+  auto is_xscc = [&](auto const& as, auto const &cs, state_t s){
+    //state is in xscc of original automaton?
+    bool xscc = contains(as, lvc.auti->scc.at(s));
+    //state is in relative xscc of current context (if given)?
+    bool cxscc = false;
+    if (lvc.ctx) {
+      auto stt = make_pair(states(), s);
+      if (lvc.ctx->tag->has(stt)) {
+        auto st = lvc.ctx->tag->get(stt);
+        cxscc = contains(cs, lvc.ctxi->scc.at(st));
+      }
+    }
+    return xscc || cxscc;
+  };
+  auto is_nscc = [&](state_t s){ return is_xscc(lvc.auti->rejecting, lvc.ctxi->rejecting, s); };
+  auto is_ascc = [&](state_t s){ return is_xscc(lvc.auti->accepting, lvc.ctxi->accepting, s); };
+
+  //helper that says whether a state is accepting in original NBA
+  auto is_acc = [&](state_t s){ return lvc.aut->has_accs(s); };
+
+  // define left-reduce helper
+  set<Level::state_t> used_sucs; //track already used successors
+  //left-reduce: tmp = suctups[i] \ used_sucs; used_sucs = used_sucs U tmp
+  auto leftreduce = [&](vector<Level::state_t> const& v){
+      vector<Level::state_t> tmp;
+      set_difference(begin(v), end(v),
+                     begin(used_sucs), end(used_sucs),
+                     back_inserter(tmp));
+      copy(begin(tmp), end(tmp), inserter(used_sucs, end(used_sucs)));
+      return tmp;
+  };
+
   // ----------------------------------------------------------------
   // calculate successor sets
-  auto xsucc = [&](auto ps){ return powersucc(*lvc.aut, ps, x); };
   vector<vector<Level::state_t>> suctups;
   transform(begin(tups),end(tups),back_inserter(suctups), xsucc);
 
@@ -136,25 +176,7 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
   }
 
   // ----------------------------------------------------------------
-  // interlude: define left-reduce helper
-
-  set<Level::state_t> used_sucs; //track already used successors
-  //left-reduce: tmp = suctups[i] \ used_sucs; used_sucs = used_sucs U tmp
-  auto leftreduce = [&](vector<Level::state_t> const& v){
-      vector<Level::state_t> tmp;
-      set_difference(begin(v), end(v),
-                     begin(used_sucs), end(used_sucs),
-                     back_inserter(tmp));
-      copy(begin(tmp), end(tmp), inserter(used_sucs, end(used_sucs)));
-      return tmp;
-  };
-
-  // ----------------------------------------------------------------
   // first take care of breakpoint sets
-
-  auto is_ascc = [&](state_t s) {
-    return lvc.auti->accepting.find(lvc.auti->scc.at(s)) != lvc.auti->accepting.end();
-  };
 
   // what is in good accepting scc stays there, rest goes back into root
   if (lvc.sep_acc) {
@@ -205,8 +227,6 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
   suclvl.tups = vector<vector<state_t>>(2*realn, vector<state_t>());
   suclvl.tupo = vector<ord_t>(2*realn, 0);
 
-  auto is_acc = [lvc](state_t s){ return lvc.aut->has_acc(s); };
-
   // prioritize left, split F/not F, forward token to right
   for (auto i=0; i<realn; i++) {
     vector<Level::state_t> tmp = leftreduce(suctups[i]);
@@ -232,22 +252,6 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
   // now take care of keeping NSCC-states in root
 
   if (lvc.sep_rej) {
-    auto is_nscc = [&](state_t s){
-      //state is in nscc of original automaton?
-      bool nscc = lvc.auti->rejecting.find(lvc.auti->scc.at(s))
-                  != lvc.auti->rejecting.end();
-      //state is in relative nscc of current context (if given)?
-      bool cnscc = false;
-      if (lvc.ctx) {
-        auto stt = make_pair(states(), s);
-        if (lvc.ctx->tag->has(stt)) {
-          auto st = lvc.ctx->tag->get(stt);
-          cnscc = lvc.ctxi->rejecting.find(lvc.ctxi->scc.at(st))
-                    != lvc.ctxi->rejecting.end();
-        }
-      }
-      return nscc || cnscc;
-    };
 
     set<Level::state_t> nsccst;
     for (auto &t : suclvl.tups) {

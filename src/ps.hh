@@ -2,14 +2,12 @@
 
 #include "bench.hh"
 #include "types.hh"
+#include "util.hh"
 
 #include <memory>
 #include <queue>
 #include <set>
 #include <vector>
-
-#include <spdlog/spdlog.h>
-namespace spd = spdlog;
 
 namespace nbautils {
 using namespace std;
@@ -17,72 +15,56 @@ using namespace std;
 using ps_tag = vector<small_state_t>;
 // using ps_tag_store = generic_trie_bimap<ps_tag, small_state_t, state_t>;
 using ps_tag_store = naive_bimap<ps_tag, state_t>;
-template <typename L>
-using PS = SWA<L, ps_tag, ps_tag_store>;
+template <Acceptance A>
+using PS = SWA<A, ps_tag, ps_tag_store>;
 // 2^A for some A
-using BAPS = PS<Unit>;
+using BAPS = PS<Acceptance::BUCHI>;
 
 using pp_tag = pair<vector<small_state_t>, small_state_t>;
 // using pp_tag_store = generic_trie_bimap<pp_tag, small_state_t, state_t>;
 using pp_tag_store = naive_bimap<pp_tag, state_t>;
-template <typename L>
-using PP = SWA<L, pp_tag, pp_tag_store>;
+template <Acceptance A>
+using PP = SWA<A, pp_tag, pp_tag_store>;
 // 2^AxA for some A
-using BAPP = PP<Unit>;
+using BAPP = PP<Acceptance::BUCHI>;
 
 // BA -> 2^BA
-template <typename L, typename T>
-typename PS<L>::uptr powerset_construction(SWA<L, T> const& ks) {
-  spd::get("log")->debug("powerset_construction(aut)");
-  auto starttime = get_time();
-
+template <Acceptance A, typename T>
+typename PS<A>::uptr powerset_construction(SWA<A, T> const& ks) {
   // auto const idmap = [](auto const& v) { return v; };
   // auto tag = std::make_unique<ps_tag_store>(ps_tag_store(idmap, idmap));
   auto tag = std::make_unique<ps_tag_store>(ps_tag_store());
-  auto pksp = std::make_unique<PS<L>>(PS<L>());
+  auto pksp = std::make_unique<PS<A>>(PS<A>());
 
   auto& pks = *pksp;
   pks.tag = move(tag);
   auto& pbm = pks.tag;
 
+  pks.add_state(ks.init);
   pks.init = ks.init;
   pks.meta = ks.meta;
 
   // q_0 -> {q_0}
   pbm->put(std::vector<small_state_t>{(small_state_t)ks.init}, pks.init);
 
-  // explore powerset by bfs
-  std::queue<state_t> bfsq;
-  bfsq.push(pks.init);
-  while (!bfsq.empty()) {
-    auto const st = bfsq.front();
-    bfsq.pop();
-    if (pks.has_state(st)) continue;  // have visited this one
-
+  bfs(pks.init, [&](auto const& st, auto const& visit) {
     auto curset = pbm->get(st);  // get inner states of current ps state
-
     // calculate successors
     for (auto i = 0; i < (int)pks.num_syms(); i++) {
       auto const sucset = powersucc(ks, curset, i);  // calc successors
-
       state_t sucst = pbm->put_or_get(sucset, pbm->size());
       pks.adj[st][i].push_back(sucst);
-      bfsq.push(sucst);
+      visit(sucst);
     }
-  }
+  });
 
-  spd::get("log")->debug("powerset_construction completed ({:.4f} s)",
-                         get_secs_since(starttime));
   return move(pksp);
 }
 
 // BA -> 2^BA x BA, returns basically blown-up original automaton with context annot
-template <typename L, typename T>
-typename PP<L>::uptr powerset_product(SWA<L, T> const& ks) {
-  spd::get("log")->debug("powerset_product(aut)");
-  auto starttime = get_time();
-
-  auto pksp = std::make_unique<PP<L>>(PP<L>());
+template <Acceptance A, typename T>
+typename PP<A>::uptr powerset_product(SWA<A, T> const& ks) {
+  auto pksp = std::make_unique<PP<A>>(PP<A>());
   auto& pks = *pksp;
 
   /*
@@ -105,22 +87,16 @@ typename PP<L>::uptr powerset_product(SWA<L, T> const& ks) {
   // same letters etc
   pks.meta= ks.meta;
   // initial state is 0
+  pks.add_state(0);
   pks.init = 0;
   // keep acceptance of initial state
-  if (ks.has_acc(ks.init)) pks.acc[pks.init] = ks.acc.at(ks.init);
+  if (ks.has_accs(ks.init)) pks.set_accs(pks.init, ks.get_accs(ks.init));
 
   // q_0 -> ({q_0}, q_0)
   auto pinit = make_pair(std::vector<small_state_t>{(small_state_t)ks.init}, ks.init);
   pbm->put(pinit, pks.init);
 
-  // explore powerset by bfs
-  std::queue<state_t> bfsq;
-  bfsq.push(pks.init);
-  while (!bfsq.empty()) {
-    auto const st = bfsq.front();
-    bfsq.pop();
-    if (pks.has_state(st)) continue;  // have visited this one
-
+  bfs(pks.init, [&](auto const& st, auto const& visit) {
     // get inner states of current ps state
     auto curtag = pbm->get(st);
     // remove pointed state from stored set
@@ -136,27 +112,23 @@ typename PP<L>::uptr powerset_product(SWA<L, T> const& ks) {
 
       // for each successor of pointed state add successors
       for (auto const& q : ks.succ(curstate, i)) {
-        // sucset.push_back(q); //add new pointed state
         suctag.second = q;
 
         // get or create vertex corresponding to this product tag
         // and add an edge to it
         auto sucst = pbm->put_or_get(suctag, pbm->size());
+        if (!pks.has_state(sucst))
+          pks.add_state(sucst);
         pks.adj[st][i].push_back(sucst);
 
         // keep acceptance of pointed state
-        if (ks.has_acc(q)) pks.acc[sucst] = ks.acc.at(q);
+        if (ks.has_accs(q)) pks.set_accs(sucst, ks.get_accs(q));
 
-        // add for discovery
-        bfsq.push(sucst);
-
-        // sucset.pop_back(); //remove pointed state
+        visit(sucst); // add for discovery
       }
     }
-  }
+  });
 
-  spd::get("log")->debug("powerset_product completed ({:.4f} s)",
-                         get_secs_since(starttime));
   return move(pksp);
 }
 

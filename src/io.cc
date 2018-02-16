@@ -1,9 +1,11 @@
 #include "io.hh"
 #include <fstream>
+#include <memory>
 #include <string>
 #include <utility>
 #include <tuple>
 #include "types.hh"
+#include "det.hh"
 
 #include <spdlog/spdlog.h>
 
@@ -12,8 +14,6 @@
 #include "cpphoafparser/consumer/hoa_consumer_print.hh"
 #include "cpphoafparser/parser/hoa_parser.hh"
 #pragma GCC diagnostic pop
-
-namespace spd = spdlog;
 
 using namespace std;
 using namespace cpphoafparser;
@@ -47,6 +47,9 @@ class NBAConsumer : public HOAConsumer {
   bool success = false;
   std::map<state_t, std::map<sym_t, std::set<state_t>>> adj;
   BA::uptr aut = make_unique<BA>(BA());
+  std::shared_ptr<spdlog::logger> log;
+
+  NBAConsumer(std::shared_ptr<spdlog::logger> l) : log(l) {};
 
   virtual bool parserResolvesAliases() override { return true; }
 
@@ -100,8 +103,8 @@ class NBAConsumer : public HOAConsumer {
   virtual void addState(unsigned int id, std::shared_ptr<std::string> info,
                         label_expr::ptr labelExpr,
                         std::shared_ptr<int_list> accSignature) override {
-    adj[id] = {};
-    if (accSignature) aut->acc[id] = Unit();
+    aut->add_state(id);
+    if (accSignature) aut->set_accs(id,{0});
     ignore = info;
     ignore = labelExpr;
   }
@@ -157,28 +160,99 @@ class NBAConsumer : public HOAConsumer {
   virtual void notifyAbort() override {}
 
   virtual void notifyWarning(const std::string &warning) override {
-    spd::get("log")->warn(warning);
+    if (log) log->warn(warning);
     // std::cerr << "Warning: " << warning << std::endl;
   }
 };
 
 namespace nbautils {
 
-BA::uptr parse_ba(string const &filename) {
-  spd::get("log")->debug("parse_ba({}) ", filename);
-
+BA::uptr parse_ba(string const &filename, std::shared_ptr<spdlog::logger> log) {
   bool givenfile = !filename.empty();
   ifstream fin;
   if (givenfile) fin = ifstream(filename.c_str(), ifstream::in);
   try {
-    HOAConsumer::ptr consumer(new NBAConsumer());
+    HOAConsumer::ptr consumer(new NBAConsumer(log));
     auto nc = std::static_pointer_cast<NBAConsumer>(consumer);
     HOAParser::parse(givenfile ? fin : cin, consumer);
     return move(nc->aut);
   } catch (std::exception &e) {
-    spd::get("log")->error(e.what());
-    // std::cerr << e.what() << std::endl;
+    if (log)
+      log->error(e.what());
+    else
+      std::cerr << e.what() << std::endl;
     return nullptr;
   }
 }
+
+void print_hoa_pa(PA const& aut, ostream &out) {
+  out << "HOA: v1" << endl;
+  out << "name: \"" << aut.meta.name << "\"" << endl;
+  out << "States: " << aut.num_states() << endl;
+  out << "Start: " << aut.init << endl;
+  out << "AP: " << aut.meta.aps.size();
+  for (auto const& ap : aut.meta.aps)
+    out << " \"" << ap << "\"";
+  out << endl;
+
+  vector<acc_t> accs(begin(aut.accsets),end(aut.accsets));
+  int pris = accs.back() + 1;
+  out << "acc-name: " << "parity min even " << pris << endl;
+  out << "Acceptance: " << pris << " ";
+  // for (auto i = 0; i<(int)aut.accsets.size(); i++) {
+  //     auto a = accs[i];
+  for (auto i = 0; i<pris; i++) {
+      auto a = i;
+      out << (a%2==0 ? "Inf" : "Fin") << "(" << a << ")";
+      if (i!=pris-1) {
+        out << " ";
+        out << (a%2==0 ? "|" : "&") << " (";
+      }
+  }
+  for (auto i = 0; i<pris-1; i++)
+    out << ")";
+  out << endl;
+
+  out << "properties: trans-labels explicit-labels state-acc colored" << endl;
+
+  out << "--BODY--" << endl;
+  for (auto &it : aut.adj) {
+    auto p = it.first;
+    out << "State: " << p;
+    if (aut.tag->has(p)) {
+      out << " \"" << aut.tag->get(p) << "\"";
+    }
+    //TODO: print tag: State: x "tagstr" {accs}
+    if (aut.has_accs(p)) {
+      auto ac = aut.get_accs(p);
+      out << " {";
+      for (auto i=0; i<(int)ac.size(); i++) {
+        out << ac[i];
+        if (i!=(int)ac.size()-1)
+          out << " ";
+      }
+      out << "}";
+    }
+    out << endl;
+    for (auto s : aut.outsyms(p)) {
+      stringstream elbl;
+      elbl << "[";
+      auto tmp=s;
+      for (size_t b=0; b<aut.aps().size(); b++) {
+        if (!(tmp&1))
+          elbl << "!";
+        elbl << b;
+        if (b<aut.aps().size()-1)
+          elbl << "&";
+      }
+      elbl << "] ";
+      string elstr = elbl.str();
+      for (auto q : aut.succ(p,s))
+        out << elstr << q << endl;
+    }
+  }
+
+  out << "--END--" << endl;
+}
+
 }  // namespace nbautils
