@@ -1,8 +1,8 @@
 #pragma once
 
-#include "bench.hh"
 #include "types.hh"
 
+#include <cassert>
 #include <algorithm>
 #include <iostream>
 #include <queue>
@@ -35,37 +35,28 @@ struct SCCInfo {
                                // rejecting)
 };
 
-/*
-template<typename L,typename T>
-std::vector<state_t> scc_states(SWA<L,T> const& aut, SCCInfo const& scci, scc_t const&
-num) { std::queue<state_t> bfsq; std::set<state_t> visited;
-  bfsq.push(scci.sccrep.at(num));
-  while (!bfsq.empty()) {
-    auto const st = bfsq.front();
-    bfsq.pop();
-    if (visited.find(st) != end(visited))
-      continue; // have visited this one
-    for (auto i = 0; i < aut.num_syms; i++) {
-      auto const sucs = succ(aut,st,i);
-      for (auto const& sucst : sucs) {
-        if (scci.scc.at(sucst)==num) {
-          bfsq.push(sucst);
-        }
+template<Acceptance A,typename T,typename S>
+std::vector<state_t> scc_states(SWA<A,T,S> const& aut, SCCInfo const& scci, scc_t const&
+num) {
+  std::vector<nbautils::scc_t> ret;
+  bfs(scci.sccrep.at(num), [&](auto const& st, auto const& visit) {
+    ret.push_back(st);
+    for (auto const& sucst : aut.succ(st)) {
+      if (scci.scc.at(sucst)==num) {
+        visit(sucst);
       }
     }
-  }
-  std::vector<nbautils::scc_t> ret;
-  copy(begin(visited),end(visited),back_inserter(ret));
-  return ret;
+  });
+  sort(begin(ret),end(ret));
+  return move(ret);
 }
-*/
 
 template <Acceptance A, typename T, typename S>
 std::vector<state_t> succ_sccs(SWA<A, T, S> const& aut, SCCInfo const& scci,
                                scc_t const& num) {
   std::set<nbautils::scc_t> sucsccs;
   bfs(scci.sccrep.at(num), [&](auto const& st, auto const& visit) {
-    for (auto& sucst : aut.succ(st)) {
+    for (auto const& sucst : aut.succ(st)) {
       auto sucscc = scci.scc.at(sucst);
       if (sucscc == num)
         visit(sucst);
@@ -73,12 +64,13 @@ std::vector<state_t> succ_sccs(SWA<A, T, S> const& aut, SCCInfo const& scci,
         sucsccs.emplace(sucscc);
     }
   });
-  return vector<nbautils::scc_t>(begin(sucsccs), end(sucsccs));
+  return vector<nbautils::scc_t>(cbegin(sucsccs), cend(sucsccs));
 }
 
+//TODO: refactor this out into extra header with NBA specific stuff?
 template <Acceptance A, typename T, typename S>
 void mark_dead_sccs(SWA<A, T, S> const& aut, SCCInfo& scci, scc_t num) {
-  if (scci.dead.find(num) != end(scci.dead))  // done already
+  if (map_has_key(scci.dead, num))  // done already
     return;
 
   // std::cout << "scc " << num << std::endl;
@@ -87,8 +79,7 @@ void mark_dead_sccs(SWA<A, T, S> const& aut, SCCInfo& scci, scc_t num) {
   for (auto sucscc : sucsccs) mark_dead_sccs(aut, scci, sucscc);
 
   // if we are rejecting and trivial, assume we're dead
-  bool dead = (scci.rejecting.find(num) != end(scci.rejecting) ||
-               scci.trivial.find(num) != end(scci.trivial));
+  bool dead = contains(scci.rejecting, num) || contains(scci.trivial, num);
   // check children and try to falsify
   for (auto sucscc : sucsccs) dead = dead && scci.dead[sucscc];
   // if still dead, we're really dead.
@@ -98,7 +89,9 @@ void mark_dead_sccs(SWA<A, T, S> const& aut, SCCInfo& scci, scc_t num) {
 
 // https://en.wikipedia.org/wiki/Path-based_strong_component_algorithm with extensions
 template <Acceptance A, typename T, typename S>
-SCCInfo::uptr get_scc_info(SWA<A, T, S> const& aut, bool analyse_acc = true) {
+SCCInfo::uptr get_scc_info(SWA<A, T, S> const& aut, bool analyse_acc = false) {
+  assert(!analyse_acc || A==Acceptance::BUCHI);
+
   auto sccip = std::make_unique<SCCInfo>(SCCInfo());
   auto& scci = *sccip;
 
@@ -109,20 +102,22 @@ SCCInfo::uptr get_scc_info(SWA<A, T, S> const& aut, bool analyse_acc = true) {
   std::map<state_t, unsigned> order;  // first visit order
   int count = 0;
 
-  // we just start with the initial state
-  call.push(aut.init);
+  // we just start with the initial state(s)
+  for (auto &v : aut.get_init())
+    call.push(v);
+
   while (!call.empty()) {
     auto v = call.top();
-    if (order.find(v) == order.end()) {  // dfs just "called" with current node
+    if (!map_has_key(order,v)) {  // dfs just "called" with current node
       order[v] = count++;                // assign visit order
 
       reps.push(v);  // SCC representative candidate (for now)
       open.push(v);  // this node is "pending" (not completely discovered from here)
 
       for (auto w : aut.succ(v)) {  // process edges with any label
-        if (order.find(w) == order.end()) {
+        if (!map_has_key(order, w)) {
           call.push(w);  // recursively explore nodes that have not been visited yet
-        } else if (scci.scc.find(w) == scci.scc.end()) {
+        } else if (!map_has_key(scci.scc, w)) {
           // if already visited, but not with assigned scc, we have found a loop
           // -> drop candidates, keep oldest on this loop as SCC representative
           while (order[reps.top()] > order[w]) reps.pop();
@@ -146,7 +141,7 @@ SCCInfo::uptr get_scc_info(SWA<A, T, S> const& aut, bool analyse_acc = true) {
 
           // if acceptance info given, detect acc./rej. sccs
           if (analyse_acc) {
-            auto actmp = aut.acc.find(tmp) != end(aut.acc);
+            auto actmp = aut.has_accs(tmp);
             accscc = accscc && actmp;
             rejscc = rejscc && !actmp;
           }
@@ -167,7 +162,7 @@ SCCInfo::uptr get_scc_info(SWA<A, T, S> const& aut, bool analyse_acc = true) {
           bool trivacc = scc_sz == 1;
           bool noselfloop = true;
           auto vsucs = aut.succ(v);
-          if (find(begin(vsucs), end(vsucs), tmp) != end(vsucs)) noselfloop = false;
+          if (find(cbegin(vsucs), cend(vsucs), tmp) != cend(vsucs)) noselfloop = false;
           if (trivacc && noselfloop) scci.trivial.emplace(scc_num);
         }
 
@@ -184,48 +179,9 @@ SCCInfo::uptr get_scc_info(SWA<A, T, S> const& aut, bool analyse_acc = true) {
   }
   // states still without assigned scc are unreachable
   for (auto& it : aut.adj)
-    if (scci.scc.find(it.first) == end(scci.scc)) scci.unreachable.emplace(it.first);
-
-  // run dfs that marks dead sccs
-  mark_dead_sccs(aut, scci, scci.scc.at(aut.init));
+    if (!map_has_key(scci.scc, it.first)) scci.unreachable.emplace(it.first);
 
   return move(sccip);
-}
-
-// use SCC info to purge unreachable and dead states from automaton and scc info
-template <Acceptance A, typename T, typename S>
-size_t trim_ba(SWA<A, T, S>& ba, SCCInfo& scci) {
-  set<state_t> erase;
-
-  // collect unreachable
-  move(begin(scci.unreachable), end(scci.unreachable), inserter(erase,end(erase)));
-
-  // collect dead states
-  for (auto& it : ba.adj) {
-    if (scci.scc.find(it.first) != end(scci.scc)) {  // has assigned scc
-      auto scit = scci.scc.at(it.first);
-      if (scci.dead.at(scit)) {  // is a dead scc
-        erase.emplace(it.first);
-        scci.scc.erase(it.first);
-      }
-    }
-  }
-  // unmark these states
-  for (auto& kv : scci.dead) {
-    if (kv.second) {
-      scci.accepting.erase(kv.first);
-      scci.rejecting.erase(kv.first);
-      scci.trivial.erase(kv.first);
-      scci.sccrep.erase(kv.first);
-    }
-  }
-  scci.dead.clear();
-
-  vector<state_t> erasevec;
-  move(begin(erase), end(erase), back_inserter(erasevec));
-
-  ba.remove_states(erasevec);
-  return erasevec.size();
 }
 
 }  // namespace nbautils

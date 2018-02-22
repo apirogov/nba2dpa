@@ -1,4 +1,5 @@
 #include "debug.hh"
+#include "common/util.hh"
 #include <iostream>
 
 using namespace std;
@@ -22,8 +23,8 @@ void printSCCI(nbautils::SCCInfo const& scci) {
 }
 
 void printBA(nbautils::BA const& aut, nbautils::SCCInfo const& scci = SCCInfo()) {
-  cout << "Name: " << aut.meta.name << ", APs: ";
-  for (auto ap : aut.meta.aps) cout << ap << " ";
+  cout << "Name: " << aut.get_name() << ", APs: ";
+  for (auto ap : aut.get_aps()) cout << ap << " ";
   cout << endl;
   cout << "BA with " << aut.adj.size() << " states:" << endl;
   for (auto& it : aut.adj) {
@@ -37,8 +38,8 @@ void printBA(nbautils::BA const& aut, nbautils::SCCInfo const& scci = SCCInfo())
       }
       cout << "}";
     }
-    if (scci.unreachable.find(s) == end(scci.unreachable)) {
-      if (scci.scc.find(s) != end(scci.scc)) {
+    if (!contains(scci.unreachable, s)) {
+      if (map_has_key(scci.scc, s)) {
         cout << " -- SCC: " << scci.scc.at(s);
       }
     }

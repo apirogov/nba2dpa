@@ -10,7 +10,7 @@ using namespace std;
 RelOrder::RelOrder(int n) {
   for (int i = 0; i < n; i++) order.push_back(i);
   normalized = true;
-  maxused = order.size() - 1;
+  nextfree = order.size();
 }
 
 // just renumber from 0 upwards
@@ -18,7 +18,7 @@ void RelOrder::normalize() {
   ord_t i = 0;
   for (auto &it : order) it = i++;
   normalized = true;
-  maxused = order.size() - 1;
+  nextfree = order.size();
 }
 
 // get references to order elements with given relative order
@@ -34,7 +34,7 @@ vector<RelOrder::ordref> RelOrder::from_ranks(vector<RelOrder::ord_t> const &ran
   for (auto rank : ranks) {
     if (/* rank < 0 || (rank is unsigned) */ rank >= order.size())
       return vector<ordref>();  // invalid rank for created size
-    ret.push_back(ptrs[rank]);
+    ret.push_back(ordref(ptrs[rank]));
   }
   return ret;
 }
@@ -51,12 +51,12 @@ vector<RelOrder::ord_t> RelOrder::to_ranks(vector<RelOrder::ordref> const &refs)
 
 RelOrder::ordref RelOrder::kill(RelOrder::ordref &ref) {
   normalized = false;
-  if (maxused == std::numeric_limits<ord_t>::max())
+  if (nextfree >= std::numeric_limits<ord_t>::max())
     normalize();  // now we need to, otherwise the order breaks
 
   // just remove in list, add bigger in end
-  order.erase(ref);
-  order.push_back(++maxused);
-  ref = --order.end();
-  return ref;
+  order.erase(ref.ref);
+  order.push_back(nextfree++);
+  ref.ref = --order.end(); //inplace
+  return ref; //and also return it
 }

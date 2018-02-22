@@ -2,6 +2,7 @@
 -Wall
 -Wextra
 -Ivendor/Catch/include
+-Ivendor/rapidcheck/include
 -Ivendor/spdlog/include
 -Ivendor/args
 -Ivendor/cpphoafparser/src/cpphoafparser/include

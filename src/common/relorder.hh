@@ -23,13 +23,22 @@ namespace nbautils {
 
 class RelOrder {
  public:
-  typedef unsigned ord_t;
-  typedef std::list<ord_t>::iterator ordref;
+  using ord_t = unsigned;
+  using ordref_raw = std::list<ord_t>::iterator;
+   class ordref { //wrap a mutable iterator (should not be written to from the outside)
+     friend RelOrder;
+      ordref_raw ref;
+     public:
+      ordref(ordref_raw it) : ref(it) {}
+      ord_t operator*() const { return *ref; }
+      ord_t operator==(ordref const other) const { return ref == other.ref; }
+   };
 
  private:
   std::list<ord_t> order;
+
   bool normalized;
-  ord_t maxused;
+  ord_t nextfree;
 
  public:
   // create space for n order elements

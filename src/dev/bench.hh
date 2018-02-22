@@ -7,11 +7,15 @@
 using timepoint_t = std::chrono::high_resolution_clock::time_point;
 using duration_t = std::chrono::high_resolution_clock::duration;
 
-timepoint_t get_time();
-double duration_to_sec(duration_t const& tp);
-double get_secs_since(timepoint_t const& tp);
+inline timepoint_t get_time() { return std::chrono::high_resolution_clock::now(); }
 
-//any function can be benchmarked like this:
+inline double duration_to_sec(duration_t const& tp) {
+  return std::chrono::duration_cast<std::chrono::duration<double>>(tp).count();
+}
+
+inline double get_secs_since(timepoint_t const& tp) { return duration_to_sec(get_time() - tp); }
+
+//any function can be benchmarked in the log like this:
 //  bench(logger, "function name", WRAP(function_call(args)));
 #define WRAP(x) ([&](){return std::move(x);})
 template<typename F>

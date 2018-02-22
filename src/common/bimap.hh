@@ -2,13 +2,14 @@
 #include <functional>
 #include <map>
 #include <memory>
-
+#include <iostream>
 #include "triebimap.hh"
 
 namespace nbautils {
 using namespace std;
 
 //bimap interface, as required for graph node tagging
+//K=tag, V=node id
 template <typename K, typename V, class Impl>
 struct bimap {
   typedef unique_ptr<bimap<K, V, Impl>> ptr;
@@ -17,13 +18,15 @@ struct bimap {
 
   size_t size() { return impl()->size(); }
   bool has(K const& k) { return impl()->has(k); }
-  bool has(V const& v) { return impl()->has(v); }
+  bool hasi(V const& v) { return impl()->hasi(v); }
   V get(K const& k) { return impl()->get(k); }
-  K get(V const& v) { return impl()->get(v); }
+  K geti(V const& v) { return impl()->geti(v); }
   V put_or_get(K const& k, V const& v) { return impl()->put_or_get(k, v); }
   void put(K const& k, V const& v) { impl()->put(k, v); }
   void erase(V const& v) { impl()->erase(v); }
 };
+
+// the concrete instances:
 
 template <typename T, typename K, typename V>
 class generic_trie_bimap : public bimap<T, V, generic_trie_bimap<T, K, V>> {
@@ -39,13 +42,12 @@ class generic_trie_bimap : public bimap<T, V, generic_trie_bimap<T, K, V>> {
 
   size_t size() const { return m.size(); }
   bool has(T const& k) { return m.has(serialize(k)); }
-  bool has(V const& v) { return m.has(v); }
+  bool hasi(V const& v) { return m.has(v); }
   V get(T const& k) { return m.get(serialize(k)); }
-  T get(V const& v) { return deserialize(m.get(v)); }
+  T geti(V const& v) { return deserialize(m.get(v)); }
   V put_or_get(T const& k, V const& v) { return m.put_or_get(serialize(k), v); }
   void put(T const& k, V const& v) { m.put(serialize(k), v); }
-  void erase(V const& v) { /* not implemented */
-  }
+  void erase(V const& v) { m.erase(v); }
 };
 
 template <typename K, typename V>
@@ -56,9 +58,9 @@ class naive_bimap : public bimap<K, V, naive_bimap<K, V>> {
  public:
   size_t size() const { return ktov.size(); }
   bool has(K const& k) const { return ktov.find(k) != end(ktov); }
-  bool has(V const& v) const { return vtok.find(v) != end(vtok); }
+  bool hasi(V const& v) const { return vtok.find(v) != end(vtok); }
   V get(K const& k) const { return ktov.at(k); }
-  K get(V const& v) const { return vtok.at(v); }
+  K geti(V const& v) const { return vtok.at(v); }
 
   V put_or_get(K const& k, V const& v) {
     if (has(k)) return ktov.at(k);
@@ -73,11 +75,13 @@ class naive_bimap : public bimap<K, V, naive_bimap<K, V>> {
     vtok[v] = k;
   }
   void erase(V const& v) {
-    if (!has(v)) return;
-    auto const k = get(v);
+    if (!hasi(v)) return;
+    auto const k = geti(v);
     ktov.erase(ktov.find(k));
     vtok.erase(vtok.find(v));
   }
 };
+
+//TODO: add boost bimap as possibility?
 
 };  // namespace nbautils

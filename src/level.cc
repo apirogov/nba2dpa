@@ -5,7 +5,7 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
-#include "relorder.hh"
+#include "common/relorder.hh"
 using namespace std;
 using namespace nbautils;
 
@@ -122,16 +122,25 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
   }
 
   //successor helper
-  auto xsucc = [&](auto ps){ return powersucc(*lvc.aut, ps, x); };
+  auto xsucc = [&lvc,&x](auto const& ps){ return powersucc(*lvc.aut, ps, x); };
+  auto sucpset = xsucc(states()); //successor powerset (without structure)
+
+  //check for accepting sinks (then we're happily done)
+  if (!set_intersect(sucpset,lvc.accsinks).empty()) {
+    if (debug) {
+      cout << "reached accepting sink. returning accepting sink level!" << endl;
+    }
+    return Level(lvc,lvc.accsinks);
+  }
 
   //define helpers to detect whether state is in (relative) acc/rej SCC
-  auto is_xscc = [&](auto const& as, auto const &cs, state_t s){
+  auto is_xscc = [&lvc,&sucpset](auto const& as, auto const &cs, state_t s){
     //state is in xscc of original automaton?
     bool xscc = contains(as, lvc.auti->scc.at(s));
     //state is in relative xscc of current context (if given)?
     bool cxscc = false;
     if (lvc.ctx) {
-      auto stt = make_pair(states(), s);
+      auto stt = make_pair(sucpset, s);
       if (lvc.ctx->tag->has(stt)) {
         auto st = lvc.ctx->tag->get(stt);
         cxscc = contains(cs, lvc.ctxi->scc.at(st));
@@ -139,11 +148,11 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
     }
     return xscc || cxscc;
   };
-  auto is_nscc = [&](state_t s){ return is_xscc(lvc.auti->rejecting, lvc.ctxi->rejecting, s); };
-  auto is_ascc = [&](state_t s){ return is_xscc(lvc.auti->accepting, lvc.ctxi->accepting, s); };
+  auto is_nscc = [&lvc,&is_xscc](state_t s){ return is_xscc(lvc.auti->rejecting, lvc.ctxi->rejecting, s); };
+  auto is_ascc = [&lvc,&is_xscc](state_t s){ return is_xscc(lvc.auti->accepting, lvc.ctxi->accepting, s); };
 
   //helper that says whether a state is accepting in original NBA
-  auto is_acc = [&](state_t s){ return lvc.aut->has_accs(s); };
+  auto is_acc = [&lvc](state_t s){ return lvc.aut->has_accs(s); };
 
   // define left-reduce helper
   set<Level::state_t> used_sucs; //track already used successors
@@ -164,9 +173,17 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
 
   //split out accepting scc successors for breakpoint construction sets
   vector<vector<Level::state_t>> sascc;
+  int oldaccscc = -1; //no known previous scc
   if (lvc.sep_acc) {
     copy(end(suctups)-2, end(suctups), back_inserter(sascc));
     suctups.erase(end(suctups)-2, end(suctups));
+
+    if (lvc.sep_acc_cyc) {
+      //for cyclic ASCC probing we need to know the current one, if any
+      if (!sascc.back().empty())
+        oldaccscc = lvc.auti->scc.at(sascc.back().front());
+    }
+
   }
 
   if (debug) {
@@ -336,7 +353,47 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
     if (ascc_empty) { //breakpoint?
           rord.kill(tupranks.back());
           suclvl.prio = min(suclvl.prio, rank_to_prio(ascc_ord, false));
-          swap(sascc.front(), sascc.back()); //breakpoint
+
+          if (debug)
+            cout << "reached ASCC breakpoint" << endl;
+
+          if (!lvc.sep_acc_cyc) {
+            swap(sascc.front(), sascc.back()); //breakpoint (right was empty) -> just swap sets
+
+            if (debug)
+              cout << "swapped ASCC buffer and stage set" << endl;
+
+          } else if (!sascc.front().empty()){ //put next scc in order into the set, if any
+            auto tmp = sascc.front();
+            stable_sort(begin(tmp), end(tmp),
+                 [&](state_t const& a, state_t const& b){ return lvc.auti->scc.at(a) < lvc.auti->scc.at(b); });
+            int nextscc = -1;
+            //take first bigger
+            for (auto st : tmp) {
+              int stscc = lvc.auti->scc.at(st);
+              if (stscc > oldaccscc) {
+                nextscc = stscc;
+                break;
+              }
+            }
+            //or start cycle anew
+            if (nextscc == -1 && !tmp.empty())
+              nextscc = lvc.auti->scc.at(tmp.front());
+
+            if (nextscc > -1) { //move just states of cyclically next scc into right set
+              auto it = stable_partition(begin(tmp), end(tmp), [&lvc, &nextscc](auto s){ return lvc.auti->scc.at(s) != (scc_t)nextscc; });
+              copy(it, end(tmp), back_inserter(sascc.back()));
+              tmp.erase(it, end(tmp));
+              sascc.front() = tmp;
+
+              if (debug)
+                cout << "as ASCC " << oldaccscc << " died, now it's the turn of states from ASCC " << nextscc << endl;
+            } else {
+              if (debug)
+                cout << "no states in buffering ASCC set" << endl;
+            }
+
+          }
     } else {
           suclvl.prio = min(suclvl.prio, rank_to_prio(ascc_ord, true));
     }
@@ -370,14 +427,14 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
 
         suclvl.prio = min(suclvl.prio, rank_to_prio(suclvl.tupo[i], true));
 
-        if (lvc.update == MUELLERSCHUPP) {
+        if (lvc.update == LevelUpdateMode::MUELLERSCHUPP) {
           auto const rc=rightmost_ne_child[i];
           move(begin(suclvl.tups[rc]),
                end(suclvl.tups[rc]),
                back_inserter(suclvl.tups[i]));
           suclvl.tups[rc].clear();
           rord.kill(tupranks[rc]);
-        } else if (lvc.update == SAFRA) {
+        } else if (lvc.update == LevelUpdateMode::SAFRA) {
           for (auto j=l[i]+1; j<i; j++) {
             move(begin(suclvl.tups[j]),
                 end(suclvl.tups[j]),
@@ -437,6 +494,7 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
   }
 
   // ----------------------------------------------------------------
+  assert(suclvl.states() == sucpset); //consistent with powerset
 
   // finalize by assigning powerset stamp
   suclvl.powerset = add_powerset_hash(*lvc.aut, suclvl);

@@ -8,29 +8,30 @@ namespace spd = spdlog;
 
 #include <args.hxx>
 
-#include "det.hh"
 #include "io.hh"
-#include "ps.hh"
+#include "ba.hh"
 #include "scc.hh"
-#include "types.hh"
+#include "ps.hh"
+#include "det.hh"
 
-#include "bench.hh"
-#include "memusage.h"
-
-#include "debug.hh"
+#include "dev/bench.hh"
+#include "dev/memusage.h"
 
 using namespace nbautils;
 
 struct Args {
-  typedef std::unique_ptr<Args> uptr;
+  using uptr = std::unique_ptr<Args>;
 
   string file;
   int verbose;
+
   bool trim;
+  bool detaccsinks;
 
   LevelUpdateMode lvupdate;
   bool seprej;
   bool sepacc;
+  bool cyclicbrk;
   bool context;
 
   bool topo;
@@ -43,49 +44,41 @@ Args::uptr parse_args(int argc, char *argv[]) {
   args::HelpFlag help(parser, "help", "Display this help menu", {'h', "help"});
 
   // exactly one input automaton
-  args::Positional<string> input(parser, "INPUTFILE",
-                                 "file containing the NBA (if none given, uses stdin)");
+  args::Positional<string> input(parser, "INPUTFILE", "file containing the NBA (if none given, uses stdin)");
 
   // logging level -v, -vv, etc.
-  args::CounterFlag verbose(parser, "verbose", "Show verbose information",
-                            {'v', "verbose"});
+  args::CounterFlag verbose(parser, "verbose", "Show verbose information", {'v', "verbose"});
 
   args::Flag nooutput(parser, "nooutput", "Do not print resulting automaton", {'x', "no-output"});
 
-  // preprocessing on NBA
+  // preprocessing on NBA (known, simple stuff)
   args::Flag trim(parser, "trim", "Remove dead states from NBA", {'d', "trim"});
+  args::Flag detaccsinks(parser, "detaccsinks", "Detect accepting sinks", {'s', "detect-acc-sinks"});
 
-  // calculations on NBA to optimize construction
-  // args::Flag sim(parser, "sim", "Calculate simulation relation on NBA to inform
-  // determinization", {'b', "use-sim"});
-  args::Flag context(parser, "context", "Calculate context for separation refinement",
-                     {'c', "use-context"});
+  // additional calculations on NBA to optimize construction
+  args::Flag context(parser, "context", "Calculate context for separation refinement", {'c', "use-context"});
 
-  // enabled optimizations
-  args::Flag seprej(parser, "seprej", "Separate states in non-accepting SCCs",
-                    {'n', "separate-rej"});
-  args::Flag sepacc(parser, "sepacc", "Separate states in accepting SCCs",
-                    {'a', "separate-acc"});
+  // enabled optimizations for Safra/Level update
+  args::Flag seprej(parser, "seprej", "Separate states in non-accepting SCCs", {'n', "separate-rej"});
+  args::Flag sepacc(parser, "sepacc", "Separate states in accepting SCCs", {'a', "separate-acc"});
+  args::Flag cyclicbrk(parser, "cyclicbrk", "Separate states in accepting SCCs, cycle through SCCs", {'b', "cyclic-breakpoint"});
 
   // type of update
-  args::ValueFlag<int> update(parser, "level-update", "Type of update",
-                              {'u', "level-update"});
+  args::ValueFlag<int> update(parser, "level-update", "Type of update", {'u', "level-update"});
 
   // construction methods
 
   // used to weed out redundant SCCs in det. automaton
-  args::Flag topo(parser, "topo", "Use powerset SCCs to guide determinization",
-                  {'t', "topological"});
+  args::Flag topo(parser, "topo", "Use powerset SCCs to guide determinization", {'t', "topological"});
 
   // iterated product construction based determinization
   // args::Flag split(parser, "split", "Determinize all NBA SCCs separately, then
-  // combine", {'s', "split"}); args::Flag rabin(parser, "rabin", "Return a smaller Rabin
+  // combine", {'p', "split"}); args::Flag rabin(parser, "rabin", "Return a smaller Rabin
   // automaton", {'r', "split"});
 
   // postprocessing
-  // args::Flag minpri(parser, "minpri", "Minimize number of priorities", {'m',
-  // args::Flag minpri(parser, "minmealy", "Minimize number of states using Mealy // techniques", {'m',
-  // "minimize-mealy"});
+  args::Flag minpri(parser, "minpri", "Minimize number of priorities", {'p', "minimize-priorities"});
+  args::Flag minmealy(parser, "minmealy", "Minimize number of states using Mealy techniques", {'m', "minimize-mealy"});
 
   try {
     parser.ParseCLI(argc, argv);
@@ -105,7 +98,7 @@ Args::uptr parse_args(int argc, char *argv[]) {
     exit(1);
   }
 
-  if (update && args::get(update) >= LevelUpdateMode::num) {
+  if (update && args::get(update) >= static_cast<int>(LevelUpdateMode::num)) {
     spd::get("log")->error("Invalid update mode provided: {}", args::get(update));
     exit(1);
   }
@@ -116,7 +109,9 @@ Args::uptr parse_args(int argc, char *argv[]) {
   args->trim = trim;
 
   args->lvupdate = static_cast<LevelUpdateMode>(args::get(update));
-  args->sepacc = sepacc;
+  args->detaccsinks = detaccsinks;
+  args->sepacc = sepacc || cyclicbrk;
+  args->cyclicbrk = cyclicbrk;
   args->seprej = seprej;
   args->context = context;
 
@@ -132,6 +127,7 @@ LevelConfig::uptr levelconfig_from_args(Args const &args) {
   lc->update = args.lvupdate;
   lc->sep_rej = args.seprej;
   lc->sep_acc = args.sepacc;
+  lc->sep_acc_cyc = args.cyclicbrk;
   return move(lc);
 }
 
@@ -151,86 +147,119 @@ int main(int argc, char *argv[]) {
     spd::set_level(spd::level::debug);
 
   // now parse input automaton
-  BA::uptr aut = nbautils::parse_ba(args->file, log);
-  if (!aut) {
-    log->error("failed parsing NBA from {}!", args->file);
-    exit(1);
-  }
-  log->info("number of states in A: {}", aut->adj.size());
+  auto auts = nbautils::parse_hoa_ba(args->file, log);
 
-  // sanity check size of the input
-  if (aut->adj.size() > max_nba_states) {
-    log->error("NBA is way too large, I refuse.");
-    exit(1);
-  }
-  if (aut->meta.aps.size() > max_nba_syms) {
-    log->error("Alphabet is way too large, I refuse.");
+  if (auts.empty()) {
+    log->error("Parsing NBAs from {} failed!", args->file.empty() ? "stdin" : args->file);
     exit(1);
   }
 
-  // now we start measuring time
-  //---------------------------
-  auto starttime = get_time();
+  auto totalstarttime = get_time();
+  for (auto &aut : auts) {
+    log->info("processing NBA with name \"{}\"", aut->get_name());
+    log->info("number of states in A: {}", aut->num_states());
 
-  // calculate SCCs of NBA if needed
-  SCCInfo::uptr auti = nullptr;
-  if (args->trim || args->sepacc || args->seprej) {
-    auti = get_scc_info(*aut, true);
-    log->info("number of SCCs in A: {}", auti->sccrep.size());
+    // sanity check size of the input
+    if (aut->num_states() > max_nba_states) {
+      log->error("NBA is way too large, I refuse.");
+      exit(1);
+    }
+    if (aut->get_aps().size() > max_nba_syms) {
+      log->error("Alphabet is way too large, I refuse.");
+      exit(1);
+    }
+
+    // now we start measuring time
+    //---------------------------
+    auto starttime = get_time();
+
+    // calculate SCCs of NBA if needed
+    SCCInfo::uptr auti = nullptr;
+    if (args->trim || args->sepacc || args->seprej) {
+      auti = get_scc_info(*aut, true);
+      log->info("number of SCCs in A: {}", auti->sccrep.size());
+    }
+
+    if (args->trim) {
+      auto deadsccs = get_dead_sccs(*aut, *auti);
+      auto numtrimmed = trim_ba(*aut, *auti, deadsccs);
+      log->info("removed {} useless states", numtrimmed);
+      log->info("number of states in trimmed A: {}", aut->adj.size());
+      log->info("number of SCCs in trimmed A: {}", auti->sccrep.size());
+    }
+
+    // detect accepting sinks (acc states with self loop for each sym)
+    vector<small_state_t> accsinks;
+    if (args->detaccsinks) {
+      accsinks = to_small_state_t(get_accepting_sinks(*aut));
+      log->info("found {} accepting sinks", accsinks.size());
+    }
+
+    // calculate 2^A to guide and optimize determinization
+    BAPS::uptr ps = nullptr;
+    SCCInfo::uptr psi = nullptr;
+    if (args->topo) {
+      ps =  bench(log, "powerset_construction", WRAP(powerset_construction(*aut, accsinks)));
+      psi = bench(log, "get_scc_info",          WRAP(get_scc_info(*ps, false)));
+      log->info("number of states in 2^A: {}", ps->adj.size());
+      log->info("number of SCCs in 2^A: {}", psi->sccrep.size());
+      // printSCCI(*ctxi);
+      // printPS(*ctx, *ctxi, true);
+      if (!is_deterministic(*ps))
+        throw runtime_error("PS automaton is not deterministic!");
+    }
+
+    // calculate A x 2^A as context information
+    BAPP::uptr ctx = nullptr;
+    SCCInfo::uptr ctxi = nullptr;
+    if (args->context) {
+      ctx =  bench(log, "powerset_product", WRAP(powerset_product(*aut)));
+      ctxi = bench(log, "get_scc_info",     WRAP(get_scc_info(*ctx, false)));
+      log->info("number of states in Ax2^A: {}", ctx->adj.size());
+      log->info("number of SCCs in Ax2^A: {}", ctxi->sccrep.size());
+    }
+
+    // configure level update:
+    auto lc = levelconfig_from_args(*args);
+    //set the accepting sink states
+    lc->accsinks = accsinks;
+    // set reference to underlying NBA
+    lc->aut = aut.get();
+    lc->auti = auti.get();
+    // set reference to context NBA
+    lc->ctx = ctx.get();
+    lc->ctxi = ctxi.get();
+
+    PA::uptr pa;
+    if (!args->topo)
+      pa = bench(log, "determinize", WRAP(determinize(*lc)));
+    else
+      pa = bench(log, "determinize_topo", WRAP(determinize(*lc, *ps, *psi)));
+    log->info("number of states in resulting automaton: {}", pa->num_states());
+
+    // TODO: apply postprocessing
+
+    log->info("performing sanity checks...");
+    if (pa->get_name() != aut->get_name())
+      throw runtime_error("Automaton name not set correctly!");
+    if (pa->get_aps() != aut->get_aps())
+      throw runtime_error("Automaton APs not set correctly!");
+    if (pa->get_init().size() != 1)
+      throw runtime_error("Automaton has not exactly one initial state!");
+    if (!is_deterministic(*pa))
+      throw runtime_error("Automaton is not deterministic!");
+    if (!get_scc_info(*pa)->unreachable.empty())
+      throw runtime_error("Automaton contains unreachable states!");
+
+    log->info("completed automaton in {:.3f} seconds", get_secs_since(starttime));
+    //---------------------------
+
+    if (!args->nooutput) {
+      print_hoa_pa(*pa);
+    }
+
   }
 
-  if (args->trim) {
-    auto numtrimmed = trim_ba(*aut, *auti);
-    log->info("removed {} useless states", numtrimmed);
-    log->info("number of states in trimmed A: {}", aut->adj.size());
-    log->info("number of SCCs in trimmed A: {}", auti->sccrep.size());
-  }
-
-  // calculate 2^A to guide and optimize determinization
-  BAPS::uptr ps = nullptr;
-  SCCInfo::uptr psi = nullptr;
-  if (args->topo) {
-    ps =  bench(log, "powerset_construction", WRAP(powerset_construction(*aut)));
-    psi = bench(log, "get_scc_info",          WRAP(get_scc_info(*ps, false)));
-    log->info("number of states in 2^A: {}", ps->adj.size());
-    log->info("number of SCCs in 2^A: {}", psi->sccrep.size());
-    // printSCCI(*ctxi);
-    // printPS(*ctx, *ctxi, true);
-  }
-
-  // calculate A x 2^A as context information
-  BAPP::uptr ctx = nullptr;
-  SCCInfo::uptr ctxi = nullptr;
-  if (args->context) {
-    ctx =  bench(log, "powerset_product", WRAP(powerset_product(*aut)));
-    ctxi = bench(log, "get_scc_info",     WRAP(get_scc_info(*ctx, false)));
-    log->info("number of states in Ax2^A: {}", ctx->adj.size());
-    log->info("number of SCCs in Ax2^A: {}", ctxi->sccrep.size());
-  }
-
-  // configure level update:
-  auto lc = levelconfig_from_args(*args);
-  // set reference to underlying NBA
-  lc->aut = aut.get();
-  lc->auti = auti.get();
-  // set reference to context NBA
-  lc->ctx = ctx.get();
-  lc->ctxi = ctxi.get();
-
-  PA::uptr pa;
-  if (!args->topo)
-    pa = bench(log, "determinize", WRAP(determinize(*lc)));
-  else
-    pa = bench(log, "determinize_topo", WRAP(determinize(*lc, *ps, *psi)));
-  log->info("number of states in resulting automaton: {}", pa->num_states());
-
-  // TODO: apply postprocessing
-
-  log->info("completed after {:.3f} seconds", get_secs_since(starttime));
-  log->info("used {:.3f} MB of memory", (double)getPeakRSS() / (1024 * 1024));
-  //---------------------------
-
-  if (!args->nooutput) {
-    print_hoa_pa(*pa);
-  }
+  log->info("total time: {:.3f} seconds", get_secs_since(totalstarttime));
+  log->info("total used memory: {:.3f} MB", (double)getPeakRSS() / (1024 * 1024));
 }

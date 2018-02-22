@@ -1,8 +1,9 @@
 #pragma once
 
-#include "interfaces.hh"
-#include "util.hh"
+#include "common/bimap.hh"
+#include "common/util.hh"
 
+#include <cassert>
 #include <algorithm>
 #include <cinttypes>
 #include <iostream>
@@ -28,88 +29,108 @@ constexpr int max_nba_syms = 1 << (8 * sizeof(sym_t));
 using state_t = uint32_t;
 
 // type of acceptance sets
-using acc_t = unsigned;
+using acc_t = uint32_t;
 
-struct SWAMeta {
-  // automaton name
-  string name;
-  // atomic props
-  vector<string> aps;
-};
+inline vector<small_state_t> to_small_state_t(vector<state_t> const& v) { return vector<small_state_t>(cbegin(v),cend(v)); }
+// inline vector<small_state_t> to_big_state_t(vector<small_state_t> const& v) { return vector<state_t>(cbegin(v),cend(v)); }
 
-enum Acceptance { BUCHI, PARITY };
+enum class Acceptance { DYNAMIC, BUCHI, PARITY };
 
-// acceptance-labelled KS with tagged nodes, constant size alphabet
-template <Acceptance A,typename T,class tag_storage = generic_trie_bimap<T, small_state_t, state_t>>
+// acceptance-labelled KS with tagged nodes, fixed alphabet
+template <Acceptance A,typename T,class tag_storage = naive_bimap<T, state_t>>
 struct SWA {
-  typedef unique_ptr<SWA<A, T, tag_storage>> uptr;
-  typedef shared_ptr<SWA<A, T, tag_storage>> sptr;
-  typedef unique_ptr<bimap<T, state_t, tag_storage>> tag_ptr;
+  using uptr =  unique_ptr<SWA<A, T, tag_storage>>;
+  using sptr =  shared_ptr<SWA<A, T, tag_storage>>;
+  using tag_container =  bimap<T, state_t, tag_storage>;
+  using tag_ptr = unique_ptr<tag_container>;
 
-  SWA() {}
+  private:
+  bool normalized = true;
+  string name;
 
-  SWA(vector<string> const& aps, state_t const& start) : init(start) {
-      add_state(start);
-      meta.aps = aps;
-    }
+  const Acceptance acond;   //immutable acceptance condition type
 
-  SWAMeta meta;
+  vector<string> aps; //atomic props can be set just once
 
-  state_t init;  // initial state
-  set<acc_t> accsets; //all used acceptance sets
-
+  // initial state(s)
+  vector<state_t> init;
+  //all used acceptance sets
+  set<acc_t> accsets;
   // state acceptance marks
   map<state_t, vector<acc_t>> acc;
 
+  // generic graph stuff
+
+  public:
+  string const& get_name() const { return name; }
+  void set_name(string const& n) { name = n; }
+  set<acc_t> const& get_accsets() const { return accsets; }
+
   // list of successors per symbol
   map<state_t, map<sym_t, vector<state_t>>> adj;
-  // shared_ptr<bimap<state_t,T>> tag;
+  // node tags
   tag_ptr tag;
 
-  //TODO: state iterator wrapping map iterator?
+  //TODO: state iterator wrapping map iterator? all sym iterator? succ sym iterator?
 
-  vector<string> const& aps() const { return meta.aps; }
-  inline size_t num_syms() const { return 1 << meta.aps.size(); }
+  SWA(string const& title="", vector<string> const& ap={}, vector<state_t> const& initial={})
+    : name(title), acond(A), aps(ap), tag(make_unique<tag_storage>()) { set_init(initial); }
+
+  void set_aps(vector<string> const& ap) {
+    assert(aps.empty()); // Can set APs only once!
+    aps = ap;
+  }
+
+  int num_syms() const { return 1 << aps.size(); }
+  vector<string> const& get_aps() const { return aps; }
 
   size_t num_states() const { return adj.size(); }
   vector<state_t> states() const { return map_get_keys(adj); }
   bool has_state(state_t const& s) const { return map_has_key(adj, s); }
 
-  // add a state if not yet existing. return true if added
-  bool add_state(state_t const& s) {
-    if (!has_state(s)) {
+  // add a new state (must have unused id)
+  void add_state(state_t const& s) {
+    assert(!has_state(s));
+    // if (!has_state(s)) {
       adj[s] = {};
-      return true;
-    }
-    return false;
+      // return true;
+    // }
+    // return false;
   }
+
+  void set_init(vector<state_t> const& initial) {
+    assert(is_set_vec(initial));
+
+    init = initial;
+    //add states if they do not exist yet
+    for (auto &v : init)
+      if (!has_state(v))
+        add_state(v);
+  }
+  vector<state_t> const& get_init() const { return init; }
+  bool is_init(state_t const& s){ return contains(init, s); }
 
   // bool has_acc(state_t const& s, acc_t a) const { return acc.at(s).find(a) != acc.at(s).end(); }
   // bool add_acc(state_t const& s, acc_t a) const { return acc.at(s).find(a) != acc.at(s).end(); }
   // bool remove_acc(state_t const& s, acc_t a) const { return acc.at(s).find(a) != acc.at(s).end(); }
 
   bool has_accs(state_t const& s) const { return map_has_key(acc, s); }
-  vector<acc_t> const& get_accs(state_t const& s) const { return acc.at(s); }
+  vector<acc_t> get_accs(state_t const& s) const { if (!has_accs(s)) return {}; else return acc.at(s); }
   void set_accs(state_t const& s, vector<acc_t> const& a) {
-    if (!has_state(s))
-      throw runtime_error("ERROR: Adding acceptance to non-exinting state!");
+    assert(has_state(s)); // otherwise adding acceptance to non-exinting state
+    assert(is_set_vec(a));
 
     acc[s] = a;
-    copy(begin(a),end(a), inserter(accsets, end(accsets)));
+    copy(cbegin(a),cend(a), inserter(accsets, end(accsets)));
   }
 
   vector<sym_t> outsyms(state_t const& p) const {
-    if (!has_state(p))
-      throw runtime_error("ERROR: callung outsyms on non-exinting state!");
-
-    auto const& edges = adj.at(p);
-    return map_get_keys(edges);
+    assert(has_state(p));
+    return map_get_keys(adj.at(p));
   }
 
-
-  bool state_has_outsym(state_t const& s, sym_t const& x) const {
-    auto const& edges = adj.at(s);
-    return map_has_key(edges, x);
+  bool state_has_outsym(state_t const& p, sym_t const& x) const {
+    return map_has_key(adj.at(p), x);
   }
 
   vector<state_t> succ(state_t const& p, sym_t const& x) const {
@@ -134,9 +155,75 @@ struct SWA {
     return ret;
   }
 
+  //renumber all states continuously starting from offset
+  void normalize(state_t offset=0) {
+    //calculate state renumbering
+    map<state_t, state_t> m;
+    state_t i=offset;
+    for (auto const& it : adj) {
+      m[it.first] = i++;
+    }
+    auto map_states = [&m](auto &s){
+      if (!map_has_key(m,s))
+        cerr << s << " not in state map!" << endl;
+      return m.at(s);
+    };
+
+    map<state_t, vector<acc_t>> newacc;
+    tag_ptr newtag = make_unique<tag_storage>();
+    map<state_t, map<sym_t, vector<state_t>>> newadj;
+    for (auto const& it : adj) {
+      auto const olds = it.first;
+      auto const news = m.at(olds);
+      // cout << olds << " -> " << news << endl;
+
+      // cout << "move acc" << endl;
+      newacc[news] = acc[olds];
+
+      // cout << "rewrite tag" << endl;
+      if (tag->hasi(olds)) {
+        // cout << " get tag" << endl;
+        auto t = tag->geti(olds);
+        // cout << " write tag" << endl;
+        newtag->put(t, news);
+      }
+
+      // cout << "rewrite edges" << endl;
+      auto tmp = it.second;
+      for (auto& jt : tmp) {
+        auto &v = jt.second;
+        transform(begin(v), end(v), begin(v), map_states);
+      }
+      newadj[news] = tmp;
+      // cout << "state done" << endl;
+
+    }
+    //replace old stuff
+    transform(begin(init), end(init), begin(init), map_states);
+    acc = newacc;
+    tag = move(newtag);
+    adj = newadj;
+    normalized = true;
+  }
+
+  //stupidly paste another automaton (ignore initial status)
+  void insert(SWA<A,T,tag_storage> const& other) {
+    assert(set_intersect(states(), other.states()).empty()); // no common states
+
+    for (auto const& it : other.adj) {
+      auto st = it.first;
+      // cout << it.second.size() << " ";
+      adj[st] = it.second;
+      // cout << adj.at(st).size() << endl;
+      set_accs(st, other.get_accs(st));
+      tag->put(other.tag->geti(st), st);
+    }
+
+    normalized = false;
+  }
+
   // given set in sorted(!!) vector, kill states
   void remove_states(vector<state_t> const& tokill) {
-    // TODO: refuse to kill initial
     for (auto const& it : tokill) {
       if (map_has_key(adj,it))
         adj.erase(adj.find(it));  // kill state + edges
@@ -145,16 +232,24 @@ struct SWA {
       if (map_has_key(acc,it))
         acc.erase(acc.find(it));  // kill acc. mark
     }
+    for (auto const& it : tokill) {
+      if (tag->hasi(it))
+        tag->erase(it);  // kill tag
+    }
 
     // kill states from edge targets
     for (auto& it : adj) {
       for (auto& jt : it.second) {
-        vector<state_t> res;
-        set_difference(begin(jt.second), end(jt.second), begin(tokill), end(tokill),
-                       back_inserter(res));
+        auto res = set_diff(jt.second, tokill);
         jt.second = res;
       }
     }
+
+    // kill from initial
+    auto res = set_diff(init, tokill);
+    init = res;
+
+    normalized = false;
   }
 
   // given set in sorted(!!) vector, merge states into one
@@ -202,6 +297,8 @@ struct SWA {
   }
 };
 
+//common stuff working on any automaton
+
 template <Acceptance A, typename T, typename S>
 vector<small_state_t> powersucc(SWA<A, T> const& ks, std::vector<S> const& ps,
                                 sym_t const& x) {
@@ -217,6 +314,29 @@ vector<small_state_t> powersucc(SWA<A, T> const& ks, std::vector<S> const& ps,
   return vector<S>(suc.begin(), suc.end());
 }
 
-using BA = SWA<BUCHI, Unit>;
+template <Acceptance A, typename T>
+bool is_deterministic(SWA<A,T> const& aut) {
+  for (auto const& p : aut.states()) {
+    for (auto const& s : aut.outsyms(p))
+      if (aut.succ(p,s).size() > 1) {
+        cerr << (int) p << "-" << (int) s << " > ";
+        for (auto q : aut.succ(p,s)) {
+          cerr << (int) q << ",";
+        }
+        cerr << endl;
+
+        return false;
+      }
+  }
+  return true;
+}
+
+template <Acceptance A, typename T>
+bool is_colored(SWA<A,T> const& aut) {
+  for (auto const& p : aut.states()) {
+    //TODO
+  }
+  return true;
+}
 
 }  // namespace nbautils

@@ -7,3 +7,9 @@
 [submodule "vendor/args"]
 	path = vendor/args
 	url = https://github.com/Taywee/args
+[submodule "vendor/autocheck"]
+	path = vendor/autocheck
+	url = https://github.com/thejohnfreeman/autocheck
+[submodule "vendor/rapidcheck"]
+	path = vendor/rapidcheck
+	url = https://github.com/emil-e/rapidcheck

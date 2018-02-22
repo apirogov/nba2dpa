@@ -10,8 +10,7 @@
 
 namespace nbautils {
 
-using pa_tag_store = naive_bimap<Level, state_t>;
-using PA = SWA<Acceptance::PARITY, Level, pa_tag_store>;
+using PA = SWA<Acceptance::PARITY, Level>;
 
 PA::uptr determinize(LevelConfig const& lu);
 

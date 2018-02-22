@@ -18,8 +18,8 @@ void printPS(nbautils::PS<A>& aut, nbautils::SCCInfo& scci, bool pointed = false
   for (auto& it : aut.adj) {
     auto s = it.first;
     cout << s;
-    auto pacc = aut.acc.find(s);
     string acc = "";
+    auto pacc = aut.acc.find(s);
     if (pacc != end(aut.acc)) {
       cout << "(" << pacc->second << ")";
     }

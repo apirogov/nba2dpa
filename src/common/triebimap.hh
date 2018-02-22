@@ -1,5 +1,6 @@
 #pragma once
 
+#include "util.hh" //map_get_keys
 #include <map>
 #include <memory>
 #include <vector>
@@ -8,29 +9,28 @@ namespace nbautils {
 
 template <typename K, typename V>
 struct trie_bimap_node {
-  typedef std::unique_ptr<trie_bimap_node<K, V>> node_ptr;
-  trie_bimap_node *parent = nullptr;
+  using node_ptr = std::unique_ptr<trie_bimap_node<K, V>>;
+  trie_bimap_node* parent = nullptr;
   K key = 0;
   std::unique_ptr<V> value = nullptr;
 
-  std::map<K, std::unique_ptr<trie_bimap_node<K, V>>> suc;
+  std::map<K, node_ptr> suc;
 };
 
-// TODO: add access to leaves? other operations?
-// TODO: abstract bimap interface with lookups, insertion and removal
 template <typename K, typename V>
 class trie_bimap {
-  trie_bimap_node<K, V> root;
-  std::map<V, trie_bimap_node<K, V> *> revmap;
+  using node_t = trie_bimap_node<K, V>;
+  node_t root;
+  std::map<V,node_t*> revmap;
 
   // traverse trie to given node and return it. when create=false and it does
   // not exist, return null pointer
-  trie_bimap_node<K, V> *traverse(std::vector<K> const &ks, bool create = false) {
+  node_t* traverse(std::vector<K> const &ks, bool create = false) {
     auto *curr = &root;
     for (int i = ks.size() - 1; i >= 0; i--) {
       if (curr->suc.find(ks[i]) == curr->suc.end()) {
         if (create) {
-          curr->suc[ks[i]] = std::make_unique<trie_bimap_node<K,V>>(trie_bimap_node<K,V>());
+          curr->suc[ks[i]] = std::make_unique<node_t>();
           curr->suc[ks[i]]->parent = curr;
           curr->suc[ks[i]]->key = ks[i];
         } else
@@ -43,6 +43,8 @@ class trie_bimap {
 
  public:
   size_t size() const { return revmap.size(); }
+
+  std::vector<V> values() const { return map_get_keys(revmap); }
 
   // puts a set,value pair
   void put(std::vector<K> const &ks, V val) {
@@ -83,5 +85,16 @@ class trie_bimap {
     }
     return ret;
   }
+
+  //TODO: clean up branches when no leaves are below? (if efficiently possible)
+  void erase(V val) {
+    auto it = revmap.find(val);
+    if (it == revmap.end())
+      return;
+    node_t* curr = it->second;
+    revmap.erase(it);
+    curr->value = nullptr;
+  }
+
 };
 }  // namespace nbautils

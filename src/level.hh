@@ -5,17 +5,17 @@
 #include <vector>
 #include <ostream>
 
+#include "common/relorder.hh"
 #include "ps.hh"
-#include "relorder.hh"
 #include "scc.hh"
-#include "types.hh"
+#include "ba.hh"
 
 namespace nbautils {
 using namespace nbautils;
 
 using priority_t = unsigned int;
 
-enum LevelUpdateMode { MUELLERSCHUPP, SAFRA, num };
+enum class LevelUpdateMode { MUELLERSCHUPP, SAFRA, num };
 
 struct LevelConfig {
   typedef std::unique_ptr<LevelConfig> uptr;
@@ -28,9 +28,11 @@ struct LevelConfig {
   SCCInfo const* auti = nullptr;
 
   // with defaults
+  vector<small_state_t> accsinks; //if non-empty, will be used
   bool sep_rej = false;
   bool sep_acc = false;
-  LevelUpdateMode update = MUELLERSCHUPP;
+  bool sep_acc_cyc = false;
+  LevelUpdateMode update = LevelUpdateMode::MUELLERSCHUPP;
 
   // optional context information to refine separation
   // if remains nullptr, means that no context is used
