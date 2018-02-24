@@ -1,5 +1,5 @@
 #include "det.hh"
-#include "types.hh"
+#include "swa.hh"
 
 namespace nbautils {
   using namespace std;
@@ -38,7 +38,7 @@ PA::uptr determinize(LevelConfig const& lc, vector<small_state_t> const& startse
       if (!pa->has_accs(sucst))
         pa->set_accs(sucst,{suclevel.prio});
       // create edge
-      pa->adj[st][i].push_back(sucst);
+      pa->set_succs(st, i, {sucst});
       // schedule for bfs
       visit(sucst);
     }
@@ -188,8 +188,7 @@ PA::uptr determinize(LevelConfig const& lc, PS<Acceptance::BUCHI> const& psa, SC
             auto const old = ret->succ(past, sym);
             if (old.size() > 0)
               cout << "weird!" << endl;
-            auto const tmp = set_merge(old, {pasuc});
-            ret->adj.at(past)[sym] = tmp;
+            ret->set_succs(past, sym, set_merge(old, {pasuc}));
           }
 
           visit(sucst);

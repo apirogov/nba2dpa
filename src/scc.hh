@@ -1,6 +1,6 @@
 #pragma once
 
-#include "types.hh"
+#include "swa.hh"
 
 #include <cassert>
 #include <algorithm>
@@ -27,17 +27,16 @@ struct SCCInfo {
 
   std::map<scc_t, state_t> sccrep;  // representative state
   std::map<scc_t, size_t> sccsz;    // size of SCC
+  inline size_t num_sccs() { return sccrep.size(); }
 
   scc_flag accepting;               // tags an scc as fully accepting
   scc_flag rejecting;               // tags an scc as fully rejecting
   scc_flag trivial;                 // tags an scc as trivial (single state, no loop)
-  std::map<scc_t, bool> dead;  // tags an scc as dead (means that all reachable states are
-                               // rejecting)
 };
 
+//states in given scc
 template<Acceptance A,typename T,typename S>
-std::vector<state_t> scc_states(SWA<A,T,S> const& aut, SCCInfo const& scci, scc_t const&
-num) {
+std::vector<state_t> scc_states(SWA<A,T,S> const& aut, SCCInfo const& scci, scc_t const& num) {
   std::vector<nbautils::scc_t> ret;
   bfs(scci.sccrep.at(num), [&](auto const& st, auto const& visit) {
     ret.push_back(st);
@@ -51,6 +50,7 @@ num) {
   return move(ret);
 }
 
+//successor sccs of given scc (by bfs of that scc)
 template <Acceptance A, typename T, typename S>
 std::vector<state_t> succ_sccs(SWA<A, T, S> const& aut, SCCInfo const& scci,
                                scc_t const& num) {
@@ -67,30 +67,10 @@ std::vector<state_t> succ_sccs(SWA<A, T, S> const& aut, SCCInfo const& scci,
   return vector<nbautils::scc_t>(cbegin(sucsccs), cend(sucsccs));
 }
 
-//TODO: refactor this out into extra header with NBA specific stuff?
-template <Acceptance A, typename T, typename S>
-void mark_dead_sccs(SWA<A, T, S> const& aut, SCCInfo& scci, scc_t num) {
-  if (map_has_key(scci.dead, num))  // done already
-    return;
-
-  // std::cout << "scc " << num << std::endl;
-  auto sucsccs = succ_sccs(aut, scci, num);
-  // mark children first
-  for (auto sucscc : sucsccs) mark_dead_sccs(aut, scci, sucscc);
-
-  // if we are rejecting and trivial, assume we're dead
-  bool dead = contains(scci.rejecting, num) || contains(scci.trivial, num);
-  // check children and try to falsify
-  for (auto sucscc : sucsccs) dead = dead && scci.dead[sucscc];
-  // if still dead, we're really dead.
-
-  scci.dead[num] = dead;
-}
-
 // https://en.wikipedia.org/wiki/Path-based_strong_component_algorithm with extensions
-template <Acceptance A, typename T, typename S>
-SCCInfo::uptr get_scc_info(SWA<A, T, S> const& aut, bool analyse_acc = false) {
-  assert(!analyse_acc || A==Acceptance::BUCHI);
+template <Acceptance A, typename T>
+SCCInfo::uptr get_scc_info(SWA<A, T> const& aut, bool analyse_acc = false) {
+  assert(!analyse_acc || A==Acceptance::BUCHI); //extended SCC analysis only for BA
 
   auto sccip = std::make_unique<SCCInfo>(SCCInfo());
   auto& scci = *sccip;
@@ -159,10 +139,8 @@ SCCInfo::uptr get_scc_info(SWA<A, T, S> const& aut, bool analyse_acc = false) {
           if (rejscc) scci.rejecting.emplace(scc_num);
 
           // trivial scc with no self-loop?
-          bool trivacc = scc_sz == 1;
-          bool noselfloop = true;
-          auto vsucs = aut.succ(v);
-          if (find(cbegin(vsucs), cend(vsucs), tmp) != cend(vsucs)) noselfloop = false;
+          bool const trivacc = scc_sz == 1;
+          bool const noselfloop = !contains(aut.succ(v), tmp);
           if (trivacc && noselfloop) scci.trivial.emplace(scc_num);
         }
 
@@ -178,8 +156,8 @@ SCCInfo::uptr get_scc_info(SWA<A, T, S> const& aut, bool analyse_acc = false) {
     }
   }
   // states still without assigned scc are unreachable
-  for (auto& it : aut.adj)
-    if (!map_has_key(scci.scc, it.first)) scci.unreachable.emplace(it.first);
+  for (auto const& it : aut.states()) //TODO: iterator
+    if (!map_has_key(scci.scc, it)) scci.unreachable.emplace(it);
 
   return move(sccip);
 }

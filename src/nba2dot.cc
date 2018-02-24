@@ -79,8 +79,8 @@ void dot_state(state_t s, BA const& aut, set<state_t> const& unreach,
     ps.push_back("width=\"0.2\",fixedwidth=true,label=\"\"");
   if (nodeinfo<=2)
     ps.push_back("shape=\"circle\"");
-  // if (nodeinfo==3)
-  //   ps.push_back("label=\""+ aut.tag->geti(s).to_string() +"\"");
+  if (nodeinfo==3)
+    ps.push_back("label=\""+ aut.print_tag(s) +"\"");
   if (aut.has_accs(s))
     ps.push_back("peripheries=2");
   if (aut.has_accs(s) || contains(initial, s))
@@ -128,13 +128,12 @@ int main(int argc, char *argv[]) {
   auto& aut = *auts.front();
 
   SCCInfo::uptr auti = get_scc_info(aut, true);
+  auto deadscc = get_dead_sccs(aut, *auti);
 
   set<state_t> dead;
   for (auto s : aut.states()) {
     if (map_has_key(auti->scc, s)) {
-        auto sccs = auti->scc.at(s);
-        // cout << sccs << endl;
-        if (auti->dead.at(sccs))
+        if (contains(deadscc,auti->scc.at(s)))
           dead.emplace(s);
       }
   }

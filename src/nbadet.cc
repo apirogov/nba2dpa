@@ -184,14 +184,14 @@ int main(int argc, char *argv[]) {
       auto deadsccs = get_dead_sccs(*aut, *auti);
       auto numtrimmed = trim_ba(*aut, *auti, deadsccs);
       log->info("removed {} useless states", numtrimmed);
-      log->info("number of states in trimmed A: {}", aut->adj.size());
+      log->info("number of states in trimmed A: {}", aut->num_states());
       log->info("number of SCCs in trimmed A: {}", auti->sccrep.size());
     }
 
     // detect accepting sinks (acc states with self loop for each sym)
     vector<small_state_t> accsinks;
     if (args->detaccsinks) {
-      accsinks = to_small_state_t(get_accepting_sinks(*aut));
+      accsinks = get_accepting_sinks(*aut);
       log->info("found {} accepting sinks", accsinks.size());
     }
 
@@ -201,7 +201,7 @@ int main(int argc, char *argv[]) {
     if (args->topo) {
       ps =  bench(log, "powerset_construction", WRAP(powerset_construction(*aut, accsinks)));
       psi = bench(log, "get_scc_info",          WRAP(get_scc_info(*ps, false)));
-      log->info("number of states in 2^A: {}", ps->adj.size());
+      log->info("number of states in 2^A: {}", ps->num_states());
       log->info("number of SCCs in 2^A: {}", psi->sccrep.size());
       // printSCCI(*ctxi);
       // printPS(*ctx, *ctxi, true);
@@ -215,7 +215,7 @@ int main(int argc, char *argv[]) {
     if (args->context) {
       ctx =  bench(log, "powerset_product", WRAP(powerset_product(*aut)));
       ctxi = bench(log, "get_scc_info",     WRAP(get_scc_info(*ctx, false)));
-      log->info("number of states in Ax2^A: {}", ctx->adj.size());
+      log->info("number of states in Ax2^A: {}", ctx->num_states());
       log->info("number of SCCs in Ax2^A: {}", ctxi->sccrep.size());
     }
 
@@ -255,7 +255,7 @@ int main(int argc, char *argv[]) {
     //---------------------------
 
     if (!args->nooutput) {
-      print_hoa_pa(*pa);
+      print_hoa(*pa);
     }
 
   }

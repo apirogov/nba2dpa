@@ -4,7 +4,7 @@
 #include <string>
 #include <utility>
 #include <tuple>
-#include "types.hh"
+#include "swa.hh"
 #include "det.hh"
 
 #include <spdlog/spdlog.h>
@@ -54,7 +54,7 @@ class NBAConsumer : public HOAConsumer {
   std::shared_ptr<spdlog::logger> log;
 
   vector<BA::uptr> auts;
-  std::map<state_t, std::map<sym_t, std::set<state_t>>> adj;
+  std::map<state_t, std::map<sym_t, std::set<state_t>>> edges;
 
 
   NBAConsumer(std::shared_ptr<spdlog::logger> l) : log(l) {};
@@ -64,6 +64,7 @@ class NBAConsumer : public HOAConsumer {
   virtual void notifyHeaderStart(const std::string &version) override {
     ignore = version;
     auts.push_back(move(make_unique<BA>()));
+    auts.back()->tag_to_str = [](auto const& str){return str;};
   }
 
   virtual void setNumberOfStates(unsigned int numStates) override { ignore = numStates; }
@@ -71,6 +72,9 @@ class NBAConsumer : public HOAConsumer {
   virtual void addStartStates(const int_list &stateConjunction) override {
     if (stateConjunction.size() != 1)
       throw std::runtime_error("There must be exactly one initial state!");
+    for (auto v : stateConjunction)
+      if (!auts.back()->has_state(v))
+        auts.back()->add_state(v);
     auts.back()->set_init(stateConjunction);
   }
 
@@ -116,11 +120,19 @@ class NBAConsumer : public HOAConsumer {
                         std::shared_ptr<int_list> accSignature) override {
     helper->startOfState(id);
 
-    if (!auts.back()->has_state(id))
+    if (!auts.back()->has_state(id)) {
       auts.back()->add_state(id);
-    auts.back()->tag->put(id, id); //we mark the original id number in the tag
-    if (accSignature) auts.back()->set_accs(id,{0});
-    ignore = info;
+    }
+
+    if (accSignature)
+      auts.back()->set_accs(id,{0});
+
+    if (info) {
+      auts.back()->tag->put(*info, id);
+    } else {
+      auts.back()->tag->put(to_string(id), id); //if untagged, we tag with the original id number
+    }
+
     ignore = labelExpr;
   }
 
@@ -134,7 +146,7 @@ class NBAConsumer : public HOAConsumer {
     auto sym = helper->nextImplicitEdge(); //the helper tells us which edge this is
     if (!conjSuccessors.empty())
         copy(cbegin(conjSuccessors), cend(conjSuccessors),
-             inserter(adj[stateId][sym], end(adj[stateId][sym])));
+             inserter(edges[stateId][sym], end(edges[stateId][sym])));
   }
 
   virtual void addEdgeWithLabel(unsigned int stateId, label_expr::ptr labelExpr,
@@ -150,7 +162,7 @@ class NBAConsumer : public HOAConsumer {
     for (auto sym = 0; sym < (int)auts.back()->num_syms(); sym++) {
       if (eval_expr(labelExpr, sym) && !conjSuccessors.empty())
         copy(cbegin(conjSuccessors), cend(conjSuccessors),
-             inserter(adj[stateId][sym], end(adj[stateId][sym])));
+             inserter(edges[stateId][sym], end(edges[stateId][sym])));
     }
   }
 
@@ -161,20 +173,19 @@ class NBAConsumer : public HOAConsumer {
 
   // finalize - copy successor edge sets into vectors
   virtual void notifyEnd() override {
-    for (auto &it : adj) {
+    for (auto &it : edges) {
       auto state = it.first;
       for (auto const &sym : it.second) { //add edges, if present
-        auts.back()->adj[state][sym.first] = {};
-        copy(cbegin(sym.second), cend(sym.second),
-             back_inserter(auts.back()->adj[state][sym.first]));
+        auts.back()->set_succs(state, sym.first,
+                               vector<state_t>(cbegin(sym.second),cend(sym.second)));
       }
     }
-    adj = {}; //reset edges storage for next automaton
+    edges = {}; //reset edges storage for next automaton
   }
 
   virtual void notifyAbort() override {
     auts.pop_back(); //drop current automaton
-    adj = {}; //reset edges
+    edges = {}; //reset edges
   }
 
   virtual void notifyWarning(const std::string &warning) override {
@@ -232,74 +243,6 @@ std::string sym_to_edgelabel(sym_t s, std::vector<std::string> const& aps,bool a
     tmp = tmp >> 1;
   }
   return elbl.str();
-}
-
-//output automaton in HOA format
-void print_hoa_pa(PA const& aut, ostream &out) {
-  out << "HOA: v1" << endl;
-  out << "name: \"" << aut.get_name() << "\"" << endl;
-  out << "States: " << aut.num_states() << endl;
-  out << "Start: ";
-  auto const& init = aut.get_init();
-  for (size_t i=0; i<init.size(); i++)
-    out << init.at(i) << (i<init.size()-1 ? "&" : "");
-  out << endl;
-  out << "AP: " << aut.get_aps().size();
-  for (auto const& ap : aut.get_aps())
-    out << " \"" << ap << "\"";
-  out << endl;
-
-  vector<acc_t> accs(cbegin(aut.get_accsets()),cend(aut.get_accsets()));
-  int pris = accs.back() + 1;
-  out << "acc-name: " << "parity min even " << pris << endl;
-  out << "Acceptance: " << pris << " ";
-  // for (auto i = 0; i<(int)aut.accsets.size(); i++) {
-  //     auto a = accs[i];
-  for (auto i = 0; i<pris; i++) {
-      auto a = i;
-      out << (a%2==0 ? "Inf" : "Fin") << "(" << a << ")";
-      if (i!=pris-1) {
-        out << " ";
-        out << (a%2==0 ? "|" : "&") << " (";
-      }
-  }
-  for (auto i = 0; i<pris-1; i++)
-    out << ")";
-  out << endl;
-
-  out << "properties: trans-labels explicit-labels state-acc colored deterministic" << endl;
-
-  out << "--BODY--" << endl;
-  for (auto &it : aut.adj) {
-    auto p = it.first;
-
-    //State: x "tagstr" {accs}
-    out << "State: " << p;
-    if (aut.tag->hasi(p)) {
-      out << " \"" << aut.tag->geti(p) << "\"";
-    }
-    if (aut.has_accs(p)) {
-      auto ac = aut.get_accs(p);
-      out << " {";
-      for (auto i=0; i<(int)ac.size(); i++) {
-        out << ac[i];
-        if (i!=(int)ac.size()-1)
-          out << " ";
-      }
-      out << "}";
-    }
-    out << endl;
-
-    //list edges
-    for (auto s : aut.outsyms(p)) {
-      // cout << (int)s << endl;
-      string const lbl = sym_to_edgelabel(s, aut.get_aps());
-      for (auto q : aut.succ(p,s))
-        out << "[" << lbl << "] " << q << endl;
-    }
-  }
-
-  out << "--END--" << endl;
 }
 
 }  // namespace nbautils

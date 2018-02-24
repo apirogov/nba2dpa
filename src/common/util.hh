@@ -51,6 +51,11 @@ void vec_to_set(std::vector<T>& v) {
 
 //TODO: make one abstract for these
 
+//TODO: make set_intersect_empty without full calc.
+//and replace all set_intersect(..).empty()
+
+//TODO: group_by for quotienting
+
 template<typename T>
 inline std::vector<T> set_intersect(std::vector<T> const& v,
                                     std::vector<T> const& w) {

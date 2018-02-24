@@ -61,8 +61,8 @@ Level::hash_t add_powerset_hash(BA const& ba, Level const& lv) {
   // traverse states in order, check which are present and set bits
   int num = 0;
   auto pit = pset.begin();
-  for (auto const& it : ba.adj) {
-    if (it.first == *pit) {
+  for (auto const& v : ba.states()) {
+    if (v == *pit) {
       ret.set(num);
       if (++pit == end(pset)) break;
     }

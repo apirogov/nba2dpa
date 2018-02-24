@@ -30,9 +30,7 @@ find_package(Threads REQUIRED)
 # Catch for testing
 set(Catch_INCLUDE_DIR vendor/Catch/single_include)
 # rapidcheck for testing
-add_subdirectory("vendor/rapidcheck")
-#target_link_libraries(my_target rapidcheck)
-#set(rapidcheck_INCLUDE_DIR vendor/rapidcheck/include)
+#add_subdirectory("vendor/rapidcheck")
 
 # Spdlog for logging
 set(spdlog_SOURCE_DIR vendor/spdlog)
@@ -78,7 +76,7 @@ set(nbautils_SOURCE src/dev/memusage.h src/dev/memusage.c src/dev/bench.hh
                    src/common/relorder.hh src/common/relorder.cc
                    src/common/triebimap.hh
                    #src/debug.hh src/debug.cc
-                   src/types.hh
+                   src/swa.hh
                    src/ba.hh src/ba.cc
                    src/io.hh src/io.cc
                    src/ps.hh #src/ps.cc
@@ -102,26 +100,26 @@ target_link_libraries(nba2dot nbautils-lib ${CMAKE_THREAD_LIBS_INIT})
 
 if (nbautils-build_tests)
     enable_testing()
-
-    add_library(test-main test/test_main.cc)
-    target_include_directories(test-main PUBLIC ${Catch_INCLUDE_DIR})
-    target_link_libraries(test-main nbautils-lib rapidcheck)
-
-    add_executable(test-nbautils-common test/test_nbautils_common.cc)
-    target_include_directories(test-nbautils-common PUBLIC ${Catch_INCLUDE_DIR} ${rapidcheck_INCLUDE_DIR})
-    target_link_libraries(test-nbautils-common test-main)
-
-    add_executable(test-nbautils-swa test/test_nbautils_swa.cc)
-    target_include_directories(test-nbautils-swa PUBLIC ${Catch_INCLUDE_DIR} ${rapidcheck_INCLUDE_DIR})
-    target_link_libraries(test-nbautils-swa test-main)
-
     # to add binaries to "make test" suite
     macro (create_test target)
       add_test (NAME ${target} COMMAND $<TARGET_FILE:${target}>)
     endmacro (create_test)
 
-    create_test(test-nbautils-common)
-    create_test(test-nbautils-swa)
+    add_library(test-main test/test_main.cc)
+    target_include_directories(test-main PUBLIC ${Catch_INCLUDE_DIR})
+    target_link_libraries(test-main nbautils-lib) #rapidcheck)
+
+    set(test_nbautils_SOURCE test/test_nbautils_common.cc
+                             test/test_nbautils_swa.cc
+                             test/test_nbautils_scc.cc
+                             test/test_nbautils_ps.cc
+                             )
+
+    add_executable(test-nbautils ${test_nbautils_SOURCE})
+    target_include_directories(test-nbautils PUBLIC ${Catch_INCLUDE_DIR}) # ${rapidcheck_INCLUDE_DIR})
+    target_link_libraries(test-nbautils test-main)
+
+    create_test(test-nbautils)
 endif()
 
 add_custom_target(

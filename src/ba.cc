@@ -1,16 +1,13 @@
-#include "types.hh"
 #include "scc.hh"
 #include "ba.hh"
-#include <vector>
 
 namespace nbautils {
 using namespace std;
 
 //returns sorted list of accepting sinks (acc. states with self-loop for each sym)
-vector<state_t> get_accepting_sinks(BA const& aut) {
-  vector<state_t> ret;
-  for (auto &it : aut.adj) {
-    auto v = it.first;
+vector<small_state_t> get_accepting_sinks(BA const& aut) {
+  vector<small_state_t> ret;
+  for (auto const& v : aut.states()) {
     auto outsyms = aut.outsyms(v);
     //must be accepting and have successors for each symbol
     bool accsink = aut.has_accs(v) && outsyms.size() == (size_t)aut.num_syms();
@@ -26,12 +23,7 @@ vector<state_t> get_accepting_sinks(BA const& aut) {
   return ret;
 }
 
-//TODO: refactor this out into extra header with NBA specific stuff?
-
-
-void mark_dead_sccs(
-     BA const& aut, SCCInfo const& scci,
-     map<scc_t,bool>& dead, scc_t num) {
+void mark_dead_sccs(BA const& aut, SCCInfo const& scci, map<scc_t,bool>& dead, scc_t num) {
   if (map_has_key(dead, num))  // done already
     return;
 
@@ -67,15 +59,18 @@ size_t trim_ba(BA& ba, SCCInfo& scci, set<scc_t> const& dead) {
   set<state_t> erase;
 
   // collect unreachable
-  move(begin(scci.unreachable), end(scci.unreachable), inserter(erase,end(erase)));
+  swap(scci.unreachable, erase);
+
+  if (erase.empty() && dead.empty())
+    return 0; //nothing to do
 
   // collect dead states
-  for (auto& it : ba.adj) {
-    if (map_has_key(scci.scc, it.first)) {  // has assigned scc
-      auto scit = scci.scc.at(it.first);
-      if (scci.dead.at(scit)) {  // is a dead scc
-        erase.emplace(it.first);
-        scci.scc.erase(it.first);
+  for (auto const& s : ba.states()) {
+    if (map_has_key(scci.scc, s)) {  // has assigned scc
+      auto scit = scci.scc.at(s);
+      if (contains(dead,scit)) {  // is a dead scc
+        erase.emplace(s);
+        scci.scc.erase(s);
       }
     }
   }
@@ -85,11 +80,10 @@ size_t trim_ba(BA& ba, SCCInfo& scci, set<scc_t> const& dead) {
     scci.rejecting.erase(scc);
     scci.trivial.erase(scc);
     scci.sccrep.erase(scc);
+    scci.sccsz.erase(scc);
   }
 
-  vector<state_t> erasevec;
-  move(begin(erase), end(erase), back_inserter(erasevec));
-
+  vector<state_t> erasevec(begin(erase), end(erase));
   ba.remove_states(erasevec);
   return erasevec.size();
 }

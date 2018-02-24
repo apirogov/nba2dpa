@@ -6,7 +6,7 @@
 #include <vector>
 #include "level.hh"
 #include "scc.hh"
-#include "types.hh"
+#include "swa.hh"
 
 namespace nbautils {
 
