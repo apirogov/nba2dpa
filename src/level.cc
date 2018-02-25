@@ -44,7 +44,7 @@ bool Level::operator<(Level const& other) const {
 vector<Level::state_t> Level::states() const {
   vector<state_t> ret;
   for (auto const& tup : tups)
-    copy(begin(tup),end(tup),back_inserter(ret));
+    copy(cbegin(tup),cend(tup),back_inserter(ret));
   sort(begin(ret),end(ret));
   return ret;
 }
@@ -384,6 +384,7 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
               auto it = stable_partition(begin(tmp), end(tmp), [&lvc, &nextscc](auto s){ return lvc.auti->scc.at(s) != (scc_t)nextscc; });
               copy(it, end(tmp), back_inserter(sascc.back()));
               tmp.erase(it, end(tmp));
+              sort(begin(tmp), end(tmp));
               sascc.front() = tmp;
 
               if (debug)
@@ -394,6 +395,7 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
             }
 
           }
+          // cout << seq_to_str(sascc.front()) << " , " << seq_to_str(sascc.back()) << endl;
     } else {
           suclvl.prio = min(suclvl.prio, rank_to_prio(ascc_ord, true));
     }

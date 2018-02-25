@@ -12,6 +12,7 @@ namespace spd = spdlog;
 #include "ba.hh"
 #include "scc.hh"
 #include "ps.hh"
+#include "pa.hh"
 #include "det.hh"
 
 #include "dev/bench.hh"
@@ -35,6 +36,9 @@ struct Args {
   bool context;
 
   bool topo;
+
+  bool minpri;
+  bool minmealy;
 
   bool nooutput;
 };
@@ -116,6 +120,8 @@ Args::uptr parse_args(int argc, char *argv[]) {
   args->context = context;
 
   args->topo = topo;
+  args->minpri = minpri;
+  args->minmealy = minmealy;
 
   args->nooutput = nooutput;
 
@@ -235,6 +241,15 @@ int main(int argc, char *argv[]) {
       pa = bench(log, "determinize", WRAP(determinize(*lc)));
     else
       pa = bench(log, "determinize_topo", WRAP(determinize(*lc, *ps, *psi)));
+
+    if (args->minpri) {
+      auto oldpris = pa->get_accsets();
+      auto pf = bench(log, "minimize priorities", WRAP(minimize_priorities(*pa)));
+      for (auto a : oldpris)
+        cout << a << " -> " << pf(a) << endl;
+      transform_priorities(*pa, pf);
+    }
+
     log->info("number of states in resulting automaton: {}", pa->num_states());
 
     // TODO: apply postprocessing
@@ -248,6 +263,8 @@ int main(int argc, char *argv[]) {
       throw runtime_error("Automaton has not exactly one initial state!");
     if (!is_deterministic(*pa))
       throw runtime_error("Automaton is not deterministic!");
+    if (!is_colored(*pa))
+      throw runtime_error("Automaton is not colored!");
     if (!get_scc_info(*pa)->unreachable.empty())
       throw runtime_error("Automaton contains unreachable states!");
 

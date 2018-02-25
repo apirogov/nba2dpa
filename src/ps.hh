@@ -32,7 +32,7 @@ typename PS<A>::uptr powerset_construction(SWA<A, T> const& ks, vector<small_sta
   pks->tag_to_str = [](auto const& vec){ return "{" + seq_to_str(vec) +"}"; };
   pks->tag->put(to_small_state_t(ks.get_init()), myinit);
 
-  bfs(myinit, [&](auto const& st, auto const& visit) {
+  bfs(myinit, [&](auto const& st, auto const& visit, auto const&) {
     // get inner states of current ps state
     auto const curset = pks->tag->geti(st);
     // calculate successors and add to graph
@@ -68,7 +68,7 @@ typename PP<A>::uptr powerset_product(SWA<A, T> const& ks) {
   // associate with initial states in original aut
   pks->tag->put(make_pair(to_small_state_t({ksinit}), ksinit), myinit);
 
-  bfs(myinit, [&](auto const& st, auto const& visit) {
+  bfs(myinit, [&](auto const& st, auto const& visit, auto const&) {
     // get inner states of current ps state
     auto const curtag = pks->tag->geti(st);
     // remove pointed state from stored set

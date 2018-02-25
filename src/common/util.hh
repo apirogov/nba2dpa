@@ -10,6 +10,9 @@
 #include <sstream>
 #include <cassert>
 
+template<typename T>
+T identity(T t){ return t; };
+
 // is sorted + unique vector?
 template<typename T>
 bool is_set_vec(std::vector<T> const& v) {
@@ -124,6 +127,7 @@ void bfs(T const& start, F visit) {
   std::set<T> visited;
 
   auto pusher = [&](T const& el){ bfsq.push(el); };
+  auto checker = [&](T const& el){ return contains(visited, el); };
   pusher(start);
 
   while (!bfsq.empty()) {
@@ -132,6 +136,6 @@ void bfs(T const& start, F visit) {
     if (visited.find(st) != visited.end()) continue;  // have visited this one
     visited.emplace(st);
 
-    visit(st, pusher);
+    visit(st, pusher, checker);
   }
 }

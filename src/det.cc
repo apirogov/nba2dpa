@@ -6,15 +6,18 @@ namespace nbautils {
 
 // BFS-based determinization with supplied level update config
 PA::uptr determinize(LevelConfig const& lc, vector<small_state_t> const& startset, auto const& pred) {
-  // same letters etc
+  // create automaton with same letters etc
   auto pa = std::make_unique<PA>(lc.aut->get_name(), lc.aut->get_aps());
+  pa->set_patype(PAType::MIN_EVEN);
+  pa->tag_to_str = [](Level const& l){ return l.to_string(); };
 
   state_t myinit = 0;
+  pa->add_state(myinit);
   pa->set_init({myinit});
   pa->set_accs(myinit, {0}); // initial state priority does not matter
   pa->tag->put(Level(lc, startset), myinit); // initial state tag
 
-  bfs(myinit, [&](auto const& st, auto const& visit) {
+  bfs(myinit, [&](auto const& st, auto const& visit, auto const&) {
     // get inner states of current ps state
     auto const curlevel = pa->tag->geti(st);
 
@@ -101,6 +104,9 @@ PA::uptr determinize(LevelConfig const& lc, PS<Acceptance::BUCHI> const& psa, SC
   map<state_t, state_t> ps2pa;
   int curnumstates = 0;
   auto ret = std::make_unique<PA>(lc.aut->get_name(), lc.aut->get_aps());
+  ret->set_patype(PAType::MIN_EVEN);
+  ret->tag_to_str = [](Level const& l){ return l.to_string(); };
+
   for (auto &it : psai.sccrep) {
     auto const& scc = it.first;
     auto const& rep = it.second;
@@ -125,17 +131,25 @@ PA::uptr determinize(LevelConfig const& lc, PS<Acceptance::BUCHI> const& psa, SC
     auto const mintermscc = get_min_term_scc_with_powerset(*sccpa, *sccpai, repps);
     auto const sccstates = scc_states(*sccpa, *sccpai, mintermscc);
     sccpa->remove_states(set_diff(sccpa->states(), sccstates));
-    cout << "before norm " << sccpa->num_states() << endl;
     sccpa->normalize(curnumstates);
-    cout << "after norm " << sccpa->num_states() << endl;
-    cout << seq_to_str(sccpa->states(),",") << endl;
+
+    //find representative in trimmed SCC PA graph
+    int repst=-1;
+    for (auto const st : sccpa->states()) {
+      if (sccpa->tag->hasi(st) && sccpa->tag->geti(st).states() == repps) {
+        repst = st;
+        break;
+      }
+    }
+    assert(repst >= curnumstates);
+
+    //copy the SCC
     ret->insert(*sccpa);
-    // cout << "after insert " << ret->num_states() << endl;
 
     //update PS State -> PA State inter-SCC map
     //by exploring the scc of PS and simulating it in PA
-    ps2pa[rep] = curnumstates;
-    bfs(rep, [&](auto const& st, auto const& visit) {
+    ps2pa[rep] = repst;
+    bfs(rep, [&](auto const& st, auto const& visit, auto const&) {
         auto const pst = ps2pa.at(st);
         //add successor powerset states in same scc
         for (auto sym : psa.outsyms(st)) {
@@ -146,13 +160,7 @@ PA::uptr determinize(LevelConfig const& lc, PS<Acceptance::BUCHI> const& psa, SC
             auto psucst = sccpa->succ(pst, sym);
             assert(psucst.size()==1); //PA SCC subautomaton must be deterministic!
             ps2pa[sucst] = psucst.front();
-            cout << (int)sucst << " -> " << psucst.front() << endl;
-            if (psucst.front()==84) {
-            for (auto s : psa.tag->geti(sucst))
-            cout << (int)s << ",";
-            cout << endl;
-            cout << ret->tag->geti(psucst.front()) << endl;
-            }
+
             visit(sucst);
           }
         }
@@ -175,19 +183,15 @@ PA::uptr determinize(LevelConfig const& lc, PS<Acceptance::BUCHI> const& psa, SC
   ret->set_init({ps2pa.at(psa.get_init().front())});
 
   //traverse PSA again to construct interSCC edges
-  bfs(psa.get_init().front(), [&](auto const& st, auto const& visit) {
-      cout << "visit " << st << endl;
+  bfs(psa.get_init().front(), [&](auto const& st, auto const& visit, auto const&) {
       for (auto sym : psa.outsyms(st)) {
         for (auto sucst : psa.succ(st, sym)) {
           if (psai.scc.at(sucst) != psai.scc.at(st)) {
             //we can't have this edge yet in the PA so add it
             auto const past = ps2pa.at(st);
             auto const pasuc = ps2pa.at(sucst);
-            cout << (int)past << " - " << (int)sym << " > " << (int)pasuc << endl;
 
             auto const old = ret->succ(past, sym);
-            if (old.size() > 0)
-              cout << "weird!" << endl;
             ret->set_succs(past, sym, set_merge(old, {pasuc}));
           }
 

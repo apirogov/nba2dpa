@@ -78,6 +78,7 @@ set(nbautils_SOURCE src/dev/memusage.h src/dev/memusage.c src/dev/bench.hh
                    #src/debug.hh src/debug.cc
                    src/swa.hh
                    src/ba.hh src/ba.cc
+                   src/pa.hh src/pa.cc
                    src/io.hh src/io.cc
                    src/ps.hh #src/ps.cc
                    src/scc.hh #src/scc.cc
@@ -113,6 +114,7 @@ if (nbautils-build_tests)
                              test/test_nbautils_swa.cc
                              test/test_nbautils_scc.cc
                              test/test_nbautils_ps.cc
+                             test/test_nbautils_pa.cc
                              )
 
     add_executable(test-nbautils ${test_nbautils_SOURCE})

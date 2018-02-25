@@ -38,7 +38,7 @@ struct SCCInfo {
 template<Acceptance A,typename T,typename S>
 std::vector<state_t> scc_states(SWA<A,T,S> const& aut, SCCInfo const& scci, scc_t const& num) {
   std::vector<nbautils::scc_t> ret;
-  bfs(scci.sccrep.at(num), [&](auto const& st, auto const& visit) {
+  bfs(scci.sccrep.at(num), [&](auto const& st, auto const& visit, auto const&) {
     ret.push_back(st);
     for (auto const& sucst : aut.succ(st)) {
       if (scci.scc.at(sucst)==num) {
@@ -55,7 +55,7 @@ template <Acceptance A, typename T, typename S>
 std::vector<state_t> succ_sccs(SWA<A, T, S> const& aut, SCCInfo const& scci,
                                scc_t const& num) {
   std::set<nbautils::scc_t> sucsccs;
-  bfs(scci.sccrep.at(num), [&](auto const& st, auto const& visit) {
+  bfs(scci.sccrep.at(num), [&](auto const& st, auto const& visit, auto const&) {
     for (auto const& sucst : aut.succ(st)) {
       auto sucscc = scci.scc.at(sucst);
       if (sucscc == num)

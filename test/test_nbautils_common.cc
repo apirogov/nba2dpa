@@ -14,7 +14,7 @@ using namespace nbautils;
 // test generic BFS by using it to count sum of state ids in a virtual full graph
 TEST_CASE("Generic bfs", "[parse_ba]") {
   int count = 0;
-  bfs(1, [&](auto const& st, auto v){
+  bfs(1, [&](auto const& st, auto const& v, auto const&){
       count += st;
       for (auto i=1; i<=10; i++)
         v(i);

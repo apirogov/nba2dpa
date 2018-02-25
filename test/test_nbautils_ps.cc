@@ -103,17 +103,17 @@ TEST_CASE("Powerset construction") {
     map<state_t, state_t> m;
     state_t start = psa->get_init().front();
     m[start] = psa2->get_init().front();
-    set<state_t> vis;
-    bfs(start, [&](auto const& st, auto const& visit) {
+    set<state_t> discovered;
+    bfs(start, [&](auto const& st, auto const& visit, auto const&) {
         auto st2 = m.at(st);
         REQUIRE(psa->outsyms(st) == psa2->outsyms(st2));
         for (auto sym : psa->outsyms(st)) {
           state_t suc = psa->succ(st, sym).front();
           state_t suc2 = psa2->succ(st2, sym).front();
 
-          if (!contains(vis, suc)) {
+          if (!contains(discovered, suc)) {
             REQUIRE(!map_has_key(m, suc));
-            vis.emplace(suc);
+            discovered.emplace(suc);
             m[suc] = suc2;
           } else {
             REQUIRE(map_has_key(m, suc));
