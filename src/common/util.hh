@@ -1,9 +1,11 @@
 #pragma once
 
 #include <algorithm>
+#include <iostream>
 #include <functional>
 #include <queue>
 #include <vector>
+#include <stack>
 #include <map>
 #include <set>
 #include <string>
@@ -117,25 +119,36 @@ inline bool contains(C const& c, V const& v) {
   return std::find(std::cbegin(c), std::cend(c), v) != std::cend(c);
 }
 
-//generic bfs. input: start node, function that takes current node and a pusher function
+//generic bfs. input: start node, function that takes current node,
+//a function to schedule a visit and a visited and discovery check
 //the visit function just does whatever needed with current node and calls
 //pusher function on all successors that also need to be visited.
+//can use visited function to check for already visited states
+//can use discovered function to check for states already in the visit pipeline
 //bfs keeps track that each node is visited once in bfs order automatically.
 template <typename T, typename F>
 void bfs(T const& start, F visit) {
   std::queue<T> bfsq;
   std::set<T> visited;
+  std::set<T> discovered;
 
-  auto pusher = [&](T const& el){ bfsq.push(el); };
-  auto checker = [&](T const& el){ return contains(visited, el); };
+  auto pusher = [&](T const& st){
+    if (!contains(discovered, st)) {
+      discovered.emplace(st);
+      bfsq.push(st);
+    }
+  };
+  auto visited_f = [&](T const& el){ return contains(visited, el); };
+  // auto discovered_f = [&](T const& el){ return contains(visited, el); };
+
   pusher(start);
-
   while (!bfsq.empty()) {
     auto const st = bfsq.front();
     bfsq.pop();
     if (visited.find(st) != visited.end()) continue;  // have visited this one
     visited.emplace(st);
 
-    visit(st, pusher, checker);
+    visit(st, pusher, visited_f /*, discovered_f */);
   }
 }
+
