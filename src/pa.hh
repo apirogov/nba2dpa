@@ -11,9 +11,9 @@ function<acc_t(acc_t)> flip_acc_parity(vector<acc_t> const& as);
 function<acc_t(acc_t)> flip_acc_polarity(vector<acc_t> const& as);
 function<acc_t(acc_t)> priority_transformer(PAType from, PAType to, vector<acc_t> const& as);
 
-//TODO: debug this. does not work correctly yet
+//linear time priority reduction attempt
 template<typename T>
-function<acc_t(acc_t)> minimize_priorities(SWA<Acceptance::PARITY,T> const& aut) {
+function<acc_t(acc_t)> heuristic_minimize_priorities(SWA<Acceptance::PARITY,T> const& aut) {
   assert(aut.get_init().size() == 1);
   assert(is_colored(aut));
 
@@ -39,27 +39,49 @@ function<acc_t(acc_t)> minimize_priorities(SWA<Acceptance::PARITY,T> const& aut)
         visit(suc);
       }
    });
-  for (auto it : reachpri) {
-    cout << it << " " << endl;
-  }
-  for (auto it : maxlesspri) {
-    cout << it.first << " -> " << it.second << endl;
-  }
+
+  // for (auto it : reachpri) {
+  //   cout << it << " " << endl;
+  // }
+  // for (auto it : maxlesspri) {
+  //   cout << it.first << " -> " << it.second << endl;
+  // }
 
   //unreachable priorities can be set to any.
   //if exists biggest smaller reachable priority + has same parity, we don't need that one
-  map<acc_t, acc_t> minprimap;
   vector<acc_t> newpris;
+  vector<acc_t> keptpris;
+  vector<acc_t> useless;
   acc_t currpri = oldpris.front() % 2 == 0 ? 0 : 1;
   for (auto const& p : oldpris) {
     auto const adp = min_even_adapter(p);
     if (contains(reachpri, adp)) {
       if ((!map_has_key(maxlesspri, adp) || !same_parity(adp, maxlesspri.at(adp))) && (newpris.empty() || !same_parity(adp,newpris.back()))) {
         newpris.push_back(currpri++);
+        keptpris.push_back(adp);
+      } else {
+        useless.push_back(adp);
       }
+    } else {
+      useless.push_back(adp);
     }
-    minprimap[adp] = newpris.back();
   }
+
+  // cout << "kept: " << seq_to_str(keptpris) << endl;
+  // cout << "removed: " << seq_to_str(useless) << endl;
+
+  map<acc_t, acc_t> minprimap;
+  for (int i=0; i<(int)keptpris.size(); i++)
+    minprimap[keptpris.at(i)] = newpris.at(i);
+
+  int j=keptpris.size()-1;
+  for (int i=(int)useless.size()-1; i>=0; i--) {
+    auto const adp = useless.at(i);
+    while (adp < keptpris.at(j) && j>0)
+      --j;
+    minprimap[adp] = newpris.at(j);
+  }
+
   //transform to original acceptance
   auto reverse_adapter = priority_transformer(PAType::MIN_EVEN, aut.get_patype(), newpris);
   //return map from original acceptance to minimized original acceptance

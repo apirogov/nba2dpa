@@ -244,9 +244,9 @@ int main(int argc, char *argv[]) {
 
     if (args->minpri) {
       auto oldpris = pa->get_accsets();
-      auto pf = bench(log, "minimize priorities", WRAP(minimize_priorities(*pa)));
-      for (auto a : oldpris)
-        cout << a << " -> " << pf(a) << endl;
+      auto pf = bench(log, "heuristic minimize priorities", WRAP(heuristic_minimize_priorities(*pa)));
+      // for (auto a : oldpris)
+      //   cout << a << " -> " << pf(a) << endl;
       transform_priorities(*pa, pf);
     }
 
