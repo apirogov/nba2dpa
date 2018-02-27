@@ -1,7 +1,7 @@
 #pragma once
 
 #include "swa.hh"
-#include "common/algo.hh"
+#include "common/graph.hh"
 
 #include <cassert>
 #include <algorithm>

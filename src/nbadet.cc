@@ -243,12 +243,12 @@ int main(int argc, char *argv[]) {
       pa = bench(log, "determinize_topo", WRAP(determinize(*lc, *ps, *psi)));
 
     if (args->minpri) {
-      auto oldpris = pa->get_accsets();
+      // auto oldpris = pa->get_accsets();
       // auto pf = bench(log, "heuristic minimize priorities", WRAP(heuristic_minimize_priorities(*pa)));
-      auto pf = bench(log, "minimize priorities", WRAP(minimize_priorities(*pa)));
+      bench(log, "minimize priorities", WRAP(pa_minimize_priorities(*pa)));
       // for (auto a : oldpris)
       //   cout << a << " -> " << pf(a) << endl;
-      transform_priorities(*pa, pf);
+      // transform_priorities(*pa, pf);
     }
 
     log->info("number of states in resulting automaton: {}", pa->num_states());

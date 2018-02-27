@@ -2,6 +2,7 @@
 
 #include "common/bimap.hh"
 #include "common/util.hh"
+#include "common/parityacc.hh"
 
 // #include <boost/variant.hpp>
 
@@ -41,55 +42,6 @@ inline vector<small_state_t> to_small_state_t(vector<state_t> const& v) {
 
 
 enum class Acceptance { DYNAMIC, BUCHI, PARITY };
-enum class PAType { MIN_EVEN, MIN_ODD, MAX_EVEN, MAX_ODD };
-inline constexpr PAType opposite_parity(PAType pt) {
-  switch (pt) {
-    case PAType::MIN_EVEN: return PAType::MIN_ODD;
-    case PAType::MIN_ODD:  return PAType::MIN_EVEN;
-    case PAType::MAX_EVEN: return PAType::MAX_ODD;
-    case PAType::MAX_ODD:  return PAType::MAX_EVEN;
-  }
-}
-
-inline constexpr PAType opposite_polarity(PAType pt) {
-  switch (pt) {
-    case PAType::MIN_EVEN: return PAType::MAX_EVEN;
-    case PAType::MIN_ODD:  return PAType::MAX_ODD;
-    case PAType::MAX_EVEN: return PAType::MIN_EVEN;
-    case PAType::MAX_ODD:  return PAType::MIN_ODD;
-  }
-}
-
-inline constexpr bool pa_acc_is_min(PAType a) {
-  return a==PAType::MIN_EVEN || a==PAType::MIN_ODD;
-}
-inline constexpr bool pa_acc_is_even(PAType a) {
-  return a==PAType::MIN_EVEN || a==PAType::MAX_EVEN;
-}
-inline constexpr bool pa_acc_is_max(PAType a) {
-  return !pa_acc_is_min(a);
-}
-inline constexpr bool pa_acc_is_odd(PAType a) {
-  return !pa_acc_is_even(a);
-}
-
-inline constexpr bool same_parity(PAType a, PAType b) {
-  return (pa_acc_is_even(a) == pa_acc_is_even(b));
-}
-inline constexpr bool same_parity(acc_t a, acc_t b) {
-  return (a%2==0)==(b%2==0);
-}
-inline constexpr bool same_polarity(PAType a, PAType b) {
-  return (pa_acc_is_min(a) == pa_acc_is_min(b));
-}
-inline constexpr bool good_priority(PAType a, acc_t p) {
-  return p%2 == (pa_acc_is_even(a) ? 0 : 1);
-}
-inline auto stronger_priority_f(PAType a) {
-  return pa_acc_is_max(a) ? [](acc_t p, acc_t q){ return max(p,q); }
-                          : [](acc_t p, acc_t q){ return min(p,q); };
-}
-
 
 // acceptance-labelled KS with tagged nodes, fixed alphabet
 template <Acceptance A,typename T,class tag_storage = naive_bimap<T, state_t>>

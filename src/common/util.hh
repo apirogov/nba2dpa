@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <numeric>
 #include <functional>
 #include <vector>
 #include <map>
@@ -9,10 +10,9 @@
 #include <sstream>
 #include <cassert>
 
-template<typename T>
-T identity(T t){ return t; };
+auto identity = [](auto const& t){ return t; };
 
-auto const_true = [](auto&){return true;};
+auto const_true = [](auto const&){ return true; };
 
 // is sorted + unique vector?
 template<typename T>
@@ -47,6 +47,13 @@ auto vec_fmap(std::vector<A> const& v, F const& f) {
   std::vector<decltype(f(v.front()))> ret;
   transform(std::cbegin(v), std::end(v), std::back_inserter(ret), f);
   return ret;
+}
+
+template<typename A, typename B>
+B vec_fold_mapped(std::vector<A> const& v, B const& def,
+  std::function<B(A)> lift, std::function<B(B,B)> const& op) {
+  return std::accumulate(cbegin(v), cend(v), def,
+      [&](B const& accum, A const& val){ return op(accum, lift(val)); });
 }
 
 template<typename T, typename F>
