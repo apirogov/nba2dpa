@@ -1,11 +1,8 @@
 #pragma once
 
 #include <algorithm>
-#include <iostream>
 #include <functional>
-#include <queue>
 #include <vector>
-#include <stack>
 #include <map>
 #include <set>
 #include <string>
@@ -14,6 +11,8 @@
 
 template<typename T>
 T identity(T t){ return t; };
+
+auto const_true = [](auto&){return true;};
 
 // is sorted + unique vector?
 template<typename T>
@@ -42,24 +41,25 @@ void vec_to_set(std::vector<T>& v) {
   v.erase(std::unique(std::begin(v),std::end(v)), std::end(v));
 }
 
-// monomorphic inplace fmap
-// template<template<typename> typename C, typename T, typename F>
-// inline void fmap_inplace(C<T>& v, F const& w) {
-//   transform(begin(v), end(v), begin(v), w);
-// }
-// template<template<typename> typename C, typename T, typename F>
-// inline C<T> fmap(C<T>& v, F const& w) {
-//   auto ret = v;
-//   transform(begin(ret), end(ret), begin(ret), w);
-//   return ret;
-// }
+// vector fmap
+template<typename A, typename F>
+auto vec_fmap(std::vector<A> const& v, F const& f) {
+  std::vector<decltype(f(v.front()))> ret;
+  transform(std::cbegin(v), std::end(v), std::back_inserter(ret), f);
+  return ret;
+}
+
+template<typename T, typename F>
+std::vector<T> vec_filter(std::vector<T> const& v, F const& f) {
+  std::vector<T> ret;
+  copy_if(std::cbegin(v), std::cend(v), std::back_inserter(ret), f);
+  return ret;
+}
 
 //TODO: make one abstract for these
 
 //TODO: make set_intersect_empty without full calc.
 //and replace all set_intersect(..).empty()
-
-//TODO: group_by for quotienting
 
 template<typename T>
 inline std::vector<T> set_intersect(std::vector<T> const& v,
@@ -67,7 +67,7 @@ inline std::vector<T> set_intersect(std::vector<T> const& v,
   assert(is_set_vec(v)); assert(is_set_vec(w));
   std::vector<T> ret;
   std::set_intersection(std::cbegin(v), std::cend(v),
-                        std::cbegin(w), std::cend(w), std::back_inserter(ret));
+    std::cbegin(w), std::cend(w), std::back_inserter(ret));
   return ret;
 }
 template<typename T>
@@ -89,7 +89,6 @@ inline std::vector<T> set_diff(std::vector<T> const& v,
   return ret;
 }
 
-
 // collect all keys in a map, returns sorted vector
 template <typename K, typename V>
 std::vector<K> map_get_keys(std::map<K,V> const& m) {
@@ -108,6 +107,16 @@ std::vector<K> map_get_vals(std::map<K,V> const& m) {
 }
 
 // check whether a map has a key using .find()
+template <typename K>
+inline std::set<K> mapbool_to_set(std::map<K,bool> const& m) {
+  std::set<K> ret;
+  for (auto &it : m)
+    if (it.second)
+      ret.emplace(it.first);
+  return ret;
+}
+
+// check whether a map has a key using .find()
 template <typename K, typename V>
 inline bool map_has_key(std::map<K,V> const& m, K const& k) {
   return m.find(k) != end(m);
@@ -119,36 +128,9 @@ inline bool contains(C const& c, V const& v) {
   return std::find(std::cbegin(c), std::cend(c), v) != std::cend(c);
 }
 
-//generic bfs. input: start node, function that takes current node,
-//a function to schedule a visit and a visited and discovery check
-//the visit function just does whatever needed with current node and calls
-//pusher function on all successors that also need to be visited.
-//can use visited function to check for already visited states
-//can use discovered function to check for states already in the visit pipeline
-//bfs keeps track that each node is visited once in bfs order automatically.
+//TODO: group_by for quotienting
 template <typename T, typename F>
-void bfs(T const& start, F visit) {
-  std::queue<T> bfsq;
-  std::set<T> visited;
-  std::set<T> discovered;
-
-  auto pusher = [&](T const& st){
-    if (!contains(discovered, st)) {
-      discovered.emplace(st);
-      bfsq.push(st);
-    }
-  };
-  auto visited_f = [&](T const& el){ return contains(visited, el); };
-  // auto discovered_f = [&](T const& el){ return contains(visited, el); };
-
-  pusher(start);
-  while (!bfsq.empty()) {
-    auto const st = bfsq.front();
-    bfsq.pop();
-    if (visited.find(st) != visited.end()) continue;  // have visited this one
-    visited.emplace(st);
-
-    visit(st, pusher, visited_f /*, discovered_f */);
-  }
+std::vector<std::vector<T>> group_by(std::vector<T> v, F const& f) {
+  if (v.empty())
+      return {};
 }
-

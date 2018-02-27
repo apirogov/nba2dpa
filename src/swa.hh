@@ -3,7 +3,7 @@
 #include "common/bimap.hh"
 #include "common/util.hh"
 
-#include <boost/variant.hpp>
+// #include <boost/variant.hpp>
 
 #include <cassert>
 #include <functional>
@@ -79,10 +79,17 @@ inline constexpr bool same_parity(PAType a, PAType b) {
 inline constexpr bool same_parity(acc_t a, acc_t b) {
   return (a%2==0)==(b%2==0);
 }
-
 inline constexpr bool same_polarity(PAType a, PAType b) {
   return (pa_acc_is_min(a) == pa_acc_is_min(b));
 }
+inline constexpr bool good_priority(PAType a, acc_t p) {
+  return p%2 == (pa_acc_is_even(a) ? 0 : 1);
+}
+inline auto stronger_priority_f(PAType a) {
+  return pa_acc_is_max(a) ? [](acc_t p, acc_t q){ return max(p,q); }
+                          : [](acc_t p, acc_t q){ return min(p,q); };
+}
+
 
 // acceptance-labelled KS with tagged nodes, fixed alphabet
 template <Acceptance A,typename T,class tag_storage = naive_bimap<T, state_t>>

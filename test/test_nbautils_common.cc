@@ -6,6 +6,7 @@
 
 #include "common/relorder.hh"
 #include "common/util.hh"
+#include "common/algo.hh"
 #include "common/triebimap.hh"
 #include "common/bimap.hh"
 
@@ -56,6 +57,9 @@ TEST_CASE("STL helpers", "[stl_helpers]") {
   REQUIRE(set_merge(v,x) == vector<int>{1,2,3,4,5,6});
   REQUIRE(set_diff(v,x) == vector<int>{1,2});
   REQUIRE(set_diff(x,v) == vector<int>{5,6});
+
+  auto bs = vec_fmap(v, [](auto const& v){ return v % 2 == 0; });
+  REQUIRE(bs == vector<bool>{false, true, false, true});
 }
 
 TEST_CASE("Testing the relative order structure", "[relorder]") {

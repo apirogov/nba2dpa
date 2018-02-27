@@ -88,6 +88,31 @@ function<acc_t(acc_t)> heuristic_minimize_priorities(SWA<Acceptance::PARITY,T> c
   return [=](acc_t p){ return reverse_adapter(minprimap.at(min_even_adapter(p))); };
 }
 
+template<typename T>
+function<acc_t(acc_t)> minimize_priorities(SWA<Acceptance::PARITY,T> const& aut) {
+  assert(is_colored(aut));
+
+  function<vector<state_t>(state_t)> const sucs = [&](state_t v){ return aut.succ(v); };
+  function<unsigned(state_t)> const get_pri = [&](state_t v){return aut.get_accs(v).front();};
+
+  auto const oldpris = aut.get_accsets();
+  auto const max_odd_adapter = priority_transformer(aut.get_patype(), PAType::MAX_ODD, oldpris);
+
+  function<unsigned(state_t)> get_max_odd_pri = [&](state_t v){ return max_odd_adapter(get_pri(v)); };
+  auto const primap = minimize_priorities(aut.states(), sucs, get_max_odd_pri);
+
+  //transform to original acceptance
+  vector<acc_t> tmppris = vec_fmap(aut.get_accsets(), max_odd_adapter);
+  vec_to_set(tmppris);
+
+  vector<acc_t> minpris = vec_fmap(tmppris, [&](auto p){return primap.at(p);});
+  vec_to_set(minpris);
+
+  auto reverse_adapter = priority_transformer(PAType::MAX_ODD, aut.get_patype(), minpris);
+  //return map from original acceptance to minimized original acceptance
+  return [=](acc_t p){ return reverse_adapter(primap.at(max_odd_adapter(p))); };
+}
+
 //map over the priorities (using a function obtained with other functions provided here)
 template<typename T>
 void transform_priorities(SWA<Acceptance::PARITY,T> &aut, function<acc_t(acc_t)> const& pf) {
