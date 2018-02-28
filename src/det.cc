@@ -106,19 +106,20 @@ scc_t get_min_term_scc_with_powerset(PA const& pa, SCCInfo const& pai, vector<sm
 // determinization of each powerset component separately, then fusing
 PA::uptr determinize(LevelConfig const& lc, PS<Acceptance::BUCHI> const& psa, SCCInfo const& psai) {
   map<state_t, state_t> ps2pa;
-  int curnumstates = 0;
   auto ret = std::make_unique<PA>(lc.aut->get_name(), lc.aut->get_aps());
   ret->set_patype(PAType::MIN_EVEN);
   ret->tag_to_str = [](Level const& l){ return l.to_string(); };
 
-  for (auto &it : psai.sccrep) {
-    auto const& scc = it.first;
-    auto const& rep = it.second;
+  // for (auto &it : psai.sccrep) {
+  for (auto it=psai.sccrep.crbegin(); it!=psai.sccrep.crend(); ++it) {
+    auto const& scc = it->first;
+    auto const& rep = it->second;
+
     auto const repps = psa.tag->geti(rep); //powerset of scc representative
     if (repps.empty())
       continue;
 
-    // cout << "scc " << scc <<" (" << psai.sccsz.at(scc) << " states) -> ";
+    // cout << "scc " << scc <<" (" << psai.sccsz.at(scc) << " states:" << seq_to_str(repps) << ") -> ";
 
     auto sccpa = determinize(lc, repps, [&psa,&psai,&scc](Level const& l){
         auto const pset = l.states();
@@ -137,7 +138,7 @@ PA::uptr determinize(LevelConfig const& lc, PS<Acceptance::BUCHI> const& psa, SC
     auto const mintermscc = get_min_term_scc_with_powerset(*sccpa, *sccpai, repps);
     auto const sccstates = scc_states(*sccpa, *sccpai, mintermscc);
     sccpa->remove_states(set_diff(sccpa->states(), sccstates));
-    sccpa->normalize(curnumstates);
+    sccpa->normalize(ret->num_states());
 
     //find representative in trimmed SCC PA graph
     int repst=-1;
@@ -147,7 +148,7 @@ PA::uptr determinize(LevelConfig const& lc, PS<Acceptance::BUCHI> const& psa, SC
         break;
       }
     }
-    assert(repst >= curnumstates);
+    assert(repst >= (int)ret->num_states());
 
     //copy the SCC
     ret->insert(*sccpa);
@@ -173,8 +174,6 @@ PA::uptr determinize(LevelConfig const& lc, PS<Acceptance::BUCHI> const& psa, SC
     });
     // cout << "after norm " << sccpa->num_states() << endl;
     // cout << mintermscc << " with " << sccpa->num_states() << endl;
-    // curnumstates += sccpa->num_states();
-    curnumstates = ret->num_states();
   }
 
 #ifndef NDEBUG
@@ -183,26 +182,28 @@ PA::uptr determinize(LevelConfig const& lc, PS<Acceptance::BUCHI> const& psa, SC
     mapvals.emplace(it.second);
 #endif
   assert(mapvals.size() == map_get_keys(ps2pa).size()); //i, "not injective!");
-  // cout << "total: " << curnumstates << endl;
 
   //set initial state to mapped initial state
   ret->set_init({ps2pa.at(psa.get_init().front())});
 
-  //traverse PSA again to construct interSCC edges
-  bfs(psa.get_init().front(), [&](auto const& st, auto const& visit, auto const&) {
-      for (auto sym : psa.outsyms(st)) {
-        for (auto sucst : psa.succ(st, sym)) {
-          if (!psa.tag->geti(sucst).empty() && psai.scc.at(sucst) != psai.scc.at(st)) {
-            //we can't have this edge yet in the PA so add it
-            auto const past = ps2pa.at(st);
-            auto const pasuc = ps2pa.at(sucst);
+  //traverse resulting DPA and add missing edges (which are present in PSA)
+  bfs(ret->get_init().front(), [&](auto const& st, auto const& visit, auto const&) {
+      for (auto i=0; i<ret->num_syms(); i++) {
+        if (!ret->state_has_outsym(st,i)) { //missing successor candidate
+          //get corresponding state in PSA
+          auto const pst = psa.tag->get(ret->tag->geti(st).states());
+          //check out its successors
+          auto const psucs = psa.succ(pst, i);
 
-            auto const old = ret->succ(past, sym);
-            ret->set_succs(past, sym, set_merge(old, {pasuc}));
+          if (!psucs.empty()) { //indeed missing successor!
+            assert(psucs.size()==1); //PS subautomaton is deterministic
+            // set PA rep of PS successor as PA successor
+            ret->set_succs(st, i, {ps2pa.at(psucs.front())});
           }
-
-          visit(sucst);
         }
+        // if now a successor is present, visit it too
+        for (auto const sucst : ret->succ(st,i))
+          visit(sucst);
       }
     });
 

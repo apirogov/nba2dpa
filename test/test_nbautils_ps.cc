@@ -88,8 +88,7 @@ TEST_CASE("Powerset construction") {
     aut.set_init({0});
     psa = powerset_construction(aut, {});
     REQUIRE(psa->tag->geti(0) == vector<small_state_t>{0});
-    REQUIRE(psa->tag->geti(1) == vector<small_state_t>{});
-    REQUIRE(psa->num_states() == 2);
+    REQUIRE(psa->num_states() == 1);
   }
 
   SECTION("Powerset of deterministic automaton is same automaton") {

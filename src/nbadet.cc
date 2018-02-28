@@ -82,7 +82,7 @@ Args::uptr parse_args(int argc, char *argv[]) {
 
   // postprocessing
   args::Flag minpri(parser, "minpri", "Minimize number of priorities", {'p', "minimize-priorities"});
-  args::Flag mindfa(parser, "mindfa", "Minimize number of states using Hopcroft", {'h', "minimize-dfa"});
+  args::Flag mindfa(parser, "mindfa", "Minimize number of states using Hopcroft", {'m', "minimize-dfa"});
 
   try {
     parser.ParseCLI(argc, argv);

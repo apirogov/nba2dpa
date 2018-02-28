@@ -84,12 +84,8 @@ int main(int argc, char *argv[]) {
   }
   */
 
-  if (argc>2){
-    auto ps = powerset_product(*aut);
-    print_hoa(*ps);
-  } else {
-    auto ps = powerset_construction(*aut);
-    print_hoa(*ps);
-  }
+  auto const accsinks = get_accepting_sinks(*aut);
+  auto ps = powerset_construction(*aut, accsinks);
+  print_hoa(*ps);
 
 }
