@@ -229,6 +229,9 @@ vector<BA::uptr> parse_hoa_ba(string const &filename, std::shared_ptr<spdlog::lo
 }
 
 std::string sym_to_edgelabel(sym_t s, std::vector<std::string> const& aps,bool as_aps) {
+  if (aps.empty()) //no aps and edge -> can always be taken
+    return "t";
+
   stringstream elbl;
   auto tmp=s;
   for (size_t b=0; b<aps.size(); b++) {

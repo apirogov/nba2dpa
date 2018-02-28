@@ -55,6 +55,7 @@ set<scc_t> get_dead_sccs(BA const& aut, SCCInfo const& scci) {
 
 
 // use SCC info to purge unreachable and dead states from automaton and scc info
+// (but keeps initial states, even when they are dead)
 size_t trim_ba(BA& ba, SCCInfo& scci, set<scc_t> const& dead) {
   set<state_t> erase;
 
@@ -68,7 +69,7 @@ size_t trim_ba(BA& ba, SCCInfo& scci, set<scc_t> const& dead) {
   for (auto const& s : ba.states()) {
     if (map_has_key(scci.scc, s)) {  // has assigned scc
       auto scit = scci.scc.at(s);
-      if (contains(dead,scit)) {  // is a dead scc
+      if (contains(dead,scit) && !contains(ba.get_init(), s)) {  // is a dead scc
         erase.emplace(s);
         scci.scc.erase(s);
       }

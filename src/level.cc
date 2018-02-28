@@ -130,7 +130,9 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
     if (debug) {
       cout << "reached accepting sink. returning accepting sink level!" << endl;
     }
-    return Level(lvc,lvc.accsinks);
+    auto ret = Level(lvc,lvc.accsinks);
+    ret.prio = 0; //must accept
+    return ret;
   }
 
   //define helpers to detect whether state is in (relative) acc/rej SCC
@@ -171,19 +173,18 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
   vector<vector<Level::state_t>> suctups;
   transform(begin(tups),end(tups),back_inserter(suctups), xsucc);
 
+  int oldaccscc = -1; //no known previous scc
+  if (lvc.sep_acc_cyc) {
+    //for cyclic ASCC probing we need to know the current one, if any
+    if (!tups.back().empty())
+      oldaccscc = lvc.auti->scc.at(tups.back().front());
+  }
+
   //split out accepting scc successors for breakpoint construction sets
   vector<vector<Level::state_t>> sascc;
-  int oldaccscc = -1; //no known previous scc
   if (lvc.sep_acc) {
     copy(end(suctups)-2, end(suctups), back_inserter(sascc));
     suctups.erase(end(suctups)-2, end(suctups));
-
-    if (lvc.sep_acc_cyc) {
-      //for cyclic ASCC probing we need to know the current one, if any
-      if (!sascc.back().empty())
-        oldaccscc = lvc.auti->scc.at(sascc.back().front());
-    }
-
   }
 
   if (debug) {

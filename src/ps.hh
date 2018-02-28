@@ -38,8 +38,11 @@ typename PS<A>::uptr powerset_construction(SWA<A, T> const& ks, vector<small_sta
     // calculate successors and add to graph
     for (auto i = 0; i < pks->num_syms(); i++) {
       auto const sucset = powersucc(ks, curset, i, sinks);
+      if (sucset.empty())
+        continue;
 
       auto const sucst = pks->tag->put_or_get(sucset, pks->num_states());
+
       if (!pks->has_state(sucst))
         pks->add_state(sucst);
       // add edge

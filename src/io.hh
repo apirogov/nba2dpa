@@ -21,7 +21,7 @@ void print_hoa(SWA<A,T> const& aut, ostream &out = cout) {
   out << "name: \"" << aut.get_name() << "\"" << endl;
   out << "States: " << aut.num_states() << endl;
   out << "Start: " << seq_to_str(aut.get_init(), "&") << endl;
-  out << "AP:" << aut.get_aps().size();
+  out << "AP: " << aut.get_aps().size();
   for (auto const& ap : aut.get_aps())
     out << " \"" << ap << "\"";
   out << endl;
@@ -39,8 +39,8 @@ void print_hoa(SWA<A,T> const& aut, ostream &out = cout) {
         auto a = i;
         out << (a%2==0 ? "Inf" : "Fin") << "(" << a << ")";
         if (i!=pris-1) {
-          out << " ";
-          out << (a%2==0 ? "|" : "&") << " (";
+          // out << " ";
+          out << (a%2==0 ? "|" : "&") << "(";
         }
     }
     for (auto i = 0; i<pris-1; i++)

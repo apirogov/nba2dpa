@@ -14,6 +14,7 @@ PA::uptr determinize(LevelConfig const& lc, vector<small_state_t> const& startse
   state_t myinit = 0;
   pa->add_state(myinit);
   pa->set_init({myinit});
+
   pa->set_accs(myinit, {0}); // initial state priority does not matter
   pa->tag->put(Level(lc, startset), myinit); // initial state tag
 
@@ -21,9 +22,12 @@ PA::uptr determinize(LevelConfig const& lc, vector<small_state_t> const& startse
     // get inner states of current ps state
     auto const curlevel = pa->tag->geti(st);
 
+    // cout << "visit " << curlevel.to_string() << endl;
+
     for (auto i = 0; i < pa->num_syms(); i++) {
       // calculate successor level
       auto const suclevel = curlevel.succ(lc, i);
+      // cout << "suc " << suclevel.to_string() << endl;
 
       if (suclevel.powerset == 0) //is an empty set -> invalid successor
         continue;
@@ -111,6 +115,8 @@ PA::uptr determinize(LevelConfig const& lc, PS<Acceptance::BUCHI> const& psa, SC
     auto const& scc = it.first;
     auto const& rep = it.second;
     auto const repps = psa.tag->geti(rep); //powerset of scc representative
+    if (repps.empty())
+      continue;
 
     // cout << "scc " << scc <<" (" << psai.sccsz.at(scc) << " states) -> ";
 
@@ -186,7 +192,7 @@ PA::uptr determinize(LevelConfig const& lc, PS<Acceptance::BUCHI> const& psa, SC
   bfs(psa.get_init().front(), [&](auto const& st, auto const& visit, auto const&) {
       for (auto sym : psa.outsyms(st)) {
         for (auto sucst : psa.succ(st, sym)) {
-          if (psai.scc.at(sucst) != psai.scc.at(st)) {
+          if (!psa.tag->geti(sucst).empty() && psai.scc.at(sucst) != psai.scc.at(st)) {
             //we can't have this edge yet in the PA so add it
             auto const past = ps2pa.at(st);
             auto const pasuc = ps2pa.at(sucst);

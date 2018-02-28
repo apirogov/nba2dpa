@@ -8,7 +8,6 @@ using namespace nbautils;
 
 //this is for trying stuff out. do whatever you want here.
 int main(int argc, char *argv[]) {
-  /*
   string file="";
   if (argc>1)
     file = argv[1];
@@ -18,6 +17,7 @@ int main(int argc, char *argv[]) {
 
   auto &aut = bas.front();
 
+  /*
   function<vector<state_t>(state_t)> const sucs = [&aut](state_t v){ return aut->succ(v); };
   function<vector<state_t>(state_t,sym_t)> const xsucs = [&aut](state_t v,sym_t s){ return aut->succ(v,s); };
   function<vector<sym_t>(state_t)> const outsyms = [&aut](state_t v){ return aut->outsyms(v); };
@@ -51,6 +51,7 @@ int main(int argc, char *argv[]) {
   }
   */
 
+  /*
   SWA<Acceptance::PARITY, string> aut;
   aut.set_patype(PAType::MIN_EVEN);
   aut.add_state(0);
@@ -81,15 +82,14 @@ int main(int argc, char *argv[]) {
   for (auto p : aut.get_accsets()) {
     cout << p << " -> " << newpris(p) << endl;
   }
+  */
 
-  /*
   if (argc>2){
-    auto ps = powerset_product(*ba);
+    auto ps = powerset_product(*aut);
     print_hoa(*ps);
   } else {
-    auto ps = powerset_construction(*ba);
+    auto ps = powerset_construction(*aut);
     print_hoa(*ps);
   }
-  */
 
 }

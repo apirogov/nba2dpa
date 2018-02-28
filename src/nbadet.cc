@@ -38,7 +38,7 @@ struct Args {
   bool topo;
 
   bool minpri;
-  bool minmealy;
+  bool mindfa;
 
   bool nooutput;
 };
@@ -82,7 +82,7 @@ Args::uptr parse_args(int argc, char *argv[]) {
 
   // postprocessing
   args::Flag minpri(parser, "minpri", "Minimize number of priorities", {'p', "minimize-priorities"});
-  args::Flag minmealy(parser, "minmealy", "Minimize number of states using Mealy techniques", {'m', "minimize-mealy"});
+  args::Flag mindfa(parser, "mindfa", "Minimize number of states using Hopcroft", {'h', "minimize-dfa"});
 
   try {
     parser.ParseCLI(argc, argv);
@@ -121,7 +121,7 @@ Args::uptr parse_args(int argc, char *argv[]) {
 
   args->topo = topo;
   args->minpri = minpri;
-  args->minmealy = minmealy;
+  args->mindfa = mindfa;
 
   args->nooutput = nooutput;
 
@@ -141,7 +141,7 @@ int main(int argc, char *argv[]) {
   // initialize stuff (args + logging)
 
   // auto console = spd::stdout_color_mt("log");
-  auto log = spd::stdout_logger_mt("log");
+  auto log = spd::stderr_logger_mt("log");
   spd::set_pattern("[%Y-%m-%d %H:%M:%S %z] [%l] %v");
 
   auto args = parse_args(argc, argv);
