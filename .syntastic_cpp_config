@@ -2,6 +2,7 @@
 -Wall
 -Wextra
 -Ivendor/Catch/include
+-Ivendor/range-v3/include
 -Ivendor/rapidcheck/include
 -Ivendor/spdlog/include
 -Ivendor/args

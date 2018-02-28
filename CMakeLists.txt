@@ -29,8 +29,13 @@ find_package(Threads REQUIRED)
 
 # Catch for testing
 set(Catch_INCLUDE_DIR vendor/Catch/single_include)
+
 # rapidcheck for testing
 #add_subdirectory("vendor/rapidcheck")
+
+# range-v3
+set(rangev3_INCLUDE_DIR vendor/range-v3/include)
+include_directories(${rangev3_INCLUDE_DIR})
 
 # Spdlog for logging
 set(spdlog_SOURCE_DIR vendor/spdlog)

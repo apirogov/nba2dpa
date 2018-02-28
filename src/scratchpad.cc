@@ -3,6 +3,8 @@
 #include "common/algo.hh"
 #include "pa.hh"
 
+#include <range/v3/all.hpp>
+
 using namespace std;
 using namespace nbautils;
 
@@ -16,6 +18,12 @@ int main(int argc, char *argv[]) {
     cout << "something went wrong!" << endl;
 
   auto &aut = bas.front();
+
+  map<int,bool> m{{2,true},{1,false}};
+  for (auto k : m | ranges::view::keys)
+    cout << k << endl;
+  for (auto v : m | ranges::view::values)
+    cout << v << endl;
 
   /*
   function<vector<state_t>(state_t)> const sucs = [&aut](state_t v){ return aut->succ(v); };
