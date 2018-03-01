@@ -102,6 +102,9 @@ inline set<unsigned> ba_get_dead_sccs(int num_sccs,
 template <typename T>
 int max_chain(function<int(T)> const& oldpri, map<T,int>& newpri,
     vector<T> const& p, succ_fun<T> const& get_succs) {
+  if (p.empty()) //by definition, empty set has no chain
+    return 0;
+
   int maxlen = 0;
   // cout << "max_chain " << seq_to_str(p) << endl;
 
@@ -118,6 +121,8 @@ int max_chain(function<int(T)> const& oldpri, map<T,int>& newpri,
     // cout << "scc " << seq_to_str(scc) << endl;
 
     if (contains(triv,i)) {
+      // cout << "trivial, skip" << endl;
+
       ++i;
       continue; //non-essential
     }
@@ -131,7 +136,7 @@ int max_chain(function<int(T)> const& oldpri, map<T,int>& newpri,
     auto const not_deriv_scc = vec_filter(scc, [&](auto v){return oldpri(v) >= scc_pri;});
 
     int m = 0;
-    if (!deriv_scc.empty() && scc_pri > 0) {
+    if (scc_pri > 0) {
       m = max_chain(oldpri, newpri, deriv_scc, succs_in_p);
 
       if ((scc_pri - m) % 2 == 1) //alternation -> requires new priority

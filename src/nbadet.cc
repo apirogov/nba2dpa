@@ -1,6 +1,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <cassert>
 using namespace std;
 
 #include <spdlog/spdlog.h>
@@ -209,10 +210,7 @@ int main(int argc, char *argv[]) {
       psi = bench(log, "get_scc_info",          WRAP(get_scc_info(*ps, false)));
       log->info("number of states in 2^A: {}", ps->num_states());
       log->info("number of SCCs in 2^A: {}", psi->sccrep.size());
-      // printSCCI(*ctxi);
-      // printPS(*ctx, *ctxi, true);
-      if (!is_deterministic(*ps))
-        throw runtime_error("PS automaton is not deterministic!");
+      assert(is_deterministic(*ps));
     }
 
     // calculate A x 2^A as context information
@@ -242,6 +240,8 @@ int main(int argc, char *argv[]) {
     else
       pa = bench(log, "determinize_topo", WRAP(determinize(*lc, *ps, *psi)));
 
+    log->info("number of states in resulting automaton: {}", pa->num_states());
+
     if (args->minpri) {
       // auto oldpris = pa->get_accsets();
       // auto pf = bench(log, "heuristic minimize priorities", WRAP(heuristic_minimize_priorities(*pa)));
@@ -251,23 +251,15 @@ int main(int argc, char *argv[]) {
       // transform_priorities(*pa, pf);
     }
 
-    log->info("number of states in resulting automaton: {}", pa->num_states());
-
     // TODO: apply postprocessing
 
-    log->info("performing sanity checks...");
-    if (pa->get_name() != aut->get_name())
-      throw runtime_error("Automaton name not set correctly!");
-    if (pa->get_aps() != aut->get_aps())
-      throw runtime_error("Automaton APs not set correctly!");
-    if (pa->get_init().size() != 1)
-      throw runtime_error("Automaton has not exactly one initial state!");
-    if (!is_deterministic(*pa))
-      throw runtime_error("Automaton is not deterministic!");
-    if (!is_colored(*pa))
-      throw runtime_error("Automaton is not colored!");
-    if (!get_scc_info(*pa)->unreachable.empty())
-      throw runtime_error("Automaton contains unreachable states!");
+    //sanity checks
+    assert(pa->get_name() == aut->get_name());
+    assert(pa->get_aps() == aut->get_aps());
+    assert(pa->get_init().size() == 1);
+    assert(is_deterministic(*pa));
+    assert(is_colored(*pa));
+    assert(get_scc_info(*pa)->unreachable.empty());
 
     log->info("completed automaton in {:.3f} seconds", get_secs_since(starttime));
     //---------------------------

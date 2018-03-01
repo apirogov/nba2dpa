@@ -18,6 +18,12 @@ void transform_priorities(SWA<Acceptance::PARITY,T> &aut, function<acc_t(acc_t)>
     aut.set_accs(s, {pf(aut.get_accs(s).front())});
 }
 
+//complement PA by flipping parity of states
+template<typename T>
+void complement_pa(SWA<Acceptance::PARITY,T> &aut, PAType pt) {
+  transform_priorities(aut, [](int p){return p+1;});
+}
+
 //switch between different parity conditions
 template<typename T>
 void change_patype(SWA<Acceptance::PARITY,T> &aut, PAType pt) {
@@ -58,11 +64,5 @@ auto pa_minimize_priorities(SWA<Acceptance::PARITY,T>& aut) {
   return primap;
 }
 
-
-//complement PA by flipping parity of states
-template<typename T>
-void complement_pa(SWA<Acceptance::PARITY,T> &aut, PAType pt) {
-  transform_priorities(aut, [](int p){return p+1;});
-}
 
 }
