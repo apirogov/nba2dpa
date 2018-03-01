@@ -1,6 +1,7 @@
 #include <iostream>
 #include "io.hh"
 #include "common/algo.hh"
+#include "common/part_refinement.hh"
 #include "pa.hh"
 
 #include <range/v3/all.hpp>
@@ -19,14 +20,8 @@ int main(int argc, char *argv[]) {
 
   auto &aut = bas.front();
 
-  map<int,bool> m{{2,true},{1,false}};
-  for (auto k : m | ranges::view::keys)
-    cout << k << endl;
-  for (auto v : m | ranges::view::values)
-    cout << v << endl;
-
+  // function<vector<state_t>(state_t)> sucs(&aut->succ); //[&aut](state_t v){ return aut->succ(v); };
   /*
-  function<vector<state_t>(state_t)> const sucs = [&aut](state_t v){ return aut->succ(v); };
   function<vector<state_t>(state_t,sym_t)> const xsucs = [&aut](state_t v,sym_t s){ return aut->succ(v,s); };
   function<vector<sym_t>(state_t)> const outsyms = [&aut](state_t v){ return aut->outsyms(v); };
   function<bool(state_t)> const ac = [&aut](state_t v){ return aut->has_accs(v); };

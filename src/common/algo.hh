@@ -2,7 +2,10 @@
 
 #include <iostream>
 #include "common/util.hh"
+#include "common/part_refinement.hh"
 #include "common/scc.hh"
+
+#include <range/v3/all.hpp>
 
 #include <functional>
 #include <queue>
@@ -15,10 +18,10 @@ using namespace std;
 using namespace nbautils;
 
 template <typename Node,typename Sym>
-using outsym_fun = function<vector<Sym>(Node)>;
+using outsym_fun = function<vector<Sym>(Node)> const&;
 
 template <typename Node,typename Sym>
-using succ_sym_fun = function<vector<Node>(Node,Sym)>;
+using succ_sym_fun = function<vector<Node>(Node,Sym)> const&;
 
 struct BaSccClassification {
   set<unsigned> accepting;  // tags an scc as fully accepting
@@ -26,15 +29,15 @@ struct BaSccClassification {
 };
 
 // classify sccs as accepting or rejecting
-template <typename T>
-BaSccClassification ba_classify_sccs(SCCDat<T> const& scci,
-    function<bool(T)> const& is_acc) {
+template <typename Node>
+BaSccClassification ba_classify_sccs(SCCDat<Node> const& scci,
+    function<bool(Node)> const& is_acc) {
   BaSccClassification ret;
 
   auto const conj = [](bool a, bool b){return a&&b;};
-  ret.accepting = mapbool_to_set(fold_sccs<T,bool>(scci, true, is_acc, conj));
-  ret.rejecting = mapbool_to_set(fold_sccs<T,bool>(scci, true,
-        [&is_acc](T v){ return !is_acc(v); }, conj));
+  ret.accepting = mapbool_to_set(fold_sccs<Node,bool>(scci, true, is_acc, conj));
+  ret.rejecting = mapbool_to_set(fold_sccs<Node,bool>(scci, true,
+        [&is_acc](Node v){ return !is_acc(v); }, conj));
 
   return ret;
 }
@@ -155,19 +158,78 @@ int max_chain(function<int(T)> const& oldpri, map<T,int>& newpri,
   return maxlen;
 }
 
-// takes max odd priorities (max odd parity), minimizes them
-// "Computing the Rabin Index of a parity automaton"
+// takes priorities (with max odd parity!), minimizes them
 // takes all states, normal successor function and old priority map function
 // priorities must be from a max odd acceptance
-// returns new priority map (old priority to new)
+// returns new state to priority map
+// Paper: "Computing the Rabin Index of a parity automaton"
 template <typename T>
-map<T, int> minimize_priorities(vector<T> const& states,
+map<T, int> pa_minimize_priorities(vector<T> const& states,
     succ_fun<T> const& get_succs, function<int(T)> const& oldpri) {
   map<T, int> primap;
   for (auto const s : states)
     primap[s] = 0;
   max_chain(oldpri, primap, states, get_succs);
   return primap;
+}
+
+
+template <typename Node,typename Sym>
+using det_succ_sym_fun = function<Node(Node,Sym)> const&;
+template <typename Node,typename Val>
+using node_prop_fun = function<Val(Node)> const&;
+
+// https://en.wikipedia.org/wiki/DFA_minimization
+//
+// hopcroft algorithm to calculate equivalence classes that can be merged
+// without changing the language / output behaviour
+// requires complete, deterministic automaton
+template <typename T, typename S, typename C>
+vector<vector<T>> dfa_equivalent_states(vector<T> const& states, node_prop_fun<T,C> color,
+    int num_syms, det_succ_sym_fun<T,S> get_xsucc) {
+  // prepare initial partitions = different colors
+  vector<T> sorted = states;
+  ranges::sort(sorted, [&](T a, T b){ return color(a) < color(b); });
+  vector<vector<T>> startsets = sorted
+    | ranges::view::group_by([&](T a, T b){ return color(a) == color(b); });
+
+  // cerr << "starter sets:" << endl;
+  // for (auto  s : startsets) {
+  //   cerr << seq_to_str(s) << endl;
+  // }
+  // cerr << endl;
+
+  PartitionRefiner<T> p(startsets);
+  auto w=p.get_set_ids();
+
+  // cerr << "starting refinement" << endl;
+
+  while (!w.empty()) {
+    auto const a = w.back();
+    // cerr << "separator " << seq_to_str(p.get_elements_of(a)) << endl;
+    w.pop_back();
+
+    for (auto i=0; i<num_syms; i++) {
+      auto const succ_in_a = [&](T st){ return p.get_set_of(get_xsucc(st, i)) == a; };
+
+      for (auto y : p.get_set_ids()) {
+        auto const z = p.separate(y, succ_in_a);
+        if (z) { //separation happened
+          if (contains(w, y)) //if y is in w, its symbol still is, and we need the other set
+            w.push_back(*z);
+          else { //if y is not in w, take smaller part as separator
+            if (p.get_set_size(y) <= p.get_set_size(*z)) {
+              w.push_back(y);
+            } else {
+              w.push_back(*z);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return p.get_refined_sets();
 }
 
 }

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <utility>
 #include <string>
 #include <iostream>
 #include "ba.hh"
@@ -55,6 +54,8 @@ void print_hoa(SWA<A,T> const& aut, ostream &out = cout) {
     out << " deterministic";
   if (is_colored(aut))
     out << " colored";
+  // if (is_complete(aut))
+  //   out << " complete";
   out << endl;
 
   out << "--BODY--" << endl;

@@ -365,9 +365,11 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
               cout << "swapped ASCC buffer and stage set" << endl;
 
           } else if (!sascc.front().empty()){ //put next scc in order into the set, if any
+            //TODO: cyclic update seems to have a bug still
             auto tmp = sascc.front();
             stable_sort(begin(tmp), end(tmp),
-                 [&](state_t const& a, state_t const& b){ return lvc.auti->scc.at(a) < lvc.auti->scc.at(b); });
+                 [&](state_t const& a, state_t const& b){
+                 return lvc.auti->scc.at(a) < lvc.auti->scc.at(b); });
             int nextscc = -1;
             //take first bigger
             for (auto st : tmp) {
@@ -382,7 +384,8 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
               nextscc = lvc.auti->scc.at(tmp.front());
 
             if (nextscc > -1) { //move just states of cyclically next scc into right set
-              auto it = stable_partition(begin(tmp), end(tmp), [&lvc, &nextscc](auto s){ return lvc.auti->scc.at(s) != (scc_t)nextscc; });
+              auto it = stable_partition(begin(tmp), end(tmp), [&lvc, &nextscc](auto s){
+                  return lvc.auti->scc.at(s) != (scc_t)nextscc; });
               copy(it, end(tmp), back_inserter(sascc.back()));
               tmp.erase(it, end(tmp));
               sort(begin(tmp), end(tmp));

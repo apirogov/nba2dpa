@@ -1,11 +1,9 @@
 #include "io.hh"
+#include "swa.hh"
+
 #include <fstream>
 #include <memory>
 #include <string>
-#include <utility>
-#include <tuple>
-#include "swa.hh"
-#include "det.hh"
 
 #include <spdlog/spdlog.h>
 

@@ -9,9 +9,9 @@ namespace spd = spdlog;
 
 #include <args.hxx>
 
+#include "scc.hh"
 #include "io.hh"
 #include "ba.hh"
-#include "scc.hh"
 #include "ps.hh"
 #include "pa.hh"
 #include "det.hh"
@@ -165,6 +165,7 @@ int main(int argc, char *argv[]) {
   for (auto &aut : auts) {
     log->info("processing NBA with name \"{}\"", aut->get_name());
     log->info("number of states in A: {}", aut->num_states());
+      log->info("number of APs in A: {}", aut->get_aps().size());
 
     // sanity check size of the input
     if (aut->num_states() > max_nba_states) {
@@ -184,7 +185,7 @@ int main(int argc, char *argv[]) {
     SCCInfo::uptr auti = nullptr;
     if (args->trim || args->sepacc || args->seprej) {
       auti = get_scc_info(*aut, true);
-      log->info("number of SCCs in A: {}", auti->sccrep.size());
+      log->info("number of SCCs in A: {}", auti->num_sccs());
     }
 
     if (args->trim) {
@@ -192,7 +193,7 @@ int main(int argc, char *argv[]) {
       auto numtrimmed = trim_ba(*aut, *auti, deadsccs);
       log->info("removed {} useless states", numtrimmed);
       log->info("number of states in trimmed A: {}", aut->num_states());
-      log->info("number of SCCs in trimmed A: {}", auti->sccrep.size());
+      log->info("number of SCCs in trimmed A: {}", auti->num_sccs());
     }
 
     // detect accepting sinks (acc states with self loop for each sym)
@@ -209,7 +210,7 @@ int main(int argc, char *argv[]) {
       ps =  bench(log, "powerset_construction", WRAP(powerset_construction(*aut, accsinks)));
       psi = bench(log, "get_scc_info",          WRAP(get_scc_info(*ps, false)));
       log->info("number of states in 2^A: {}", ps->num_states());
-      log->info("number of SCCs in 2^A: {}", psi->sccrep.size());
+      log->info("number of SCCs in 2^A: {}", psi->num_sccs());
       assert(is_deterministic(*ps));
     }
 
@@ -220,7 +221,7 @@ int main(int argc, char *argv[]) {
       ctx =  bench(log, "powerset_product", WRAP(powerset_product(*aut)));
       ctxi = bench(log, "get_scc_info",     WRAP(get_scc_info(*ctx, false)));
       log->info("number of states in Ax2^A: {}", ctx->num_states());
-      log->info("number of SCCs in Ax2^A: {}", ctxi->sccrep.size());
+      log->info("number of SCCs in Ax2^A: {}", ctxi->num_sccs());
     }
 
     // configure level update:
@@ -242,17 +243,6 @@ int main(int argc, char *argv[]) {
 
     log->info("number of states in resulting automaton: {}", pa->num_states());
 
-    if (args->minpri) {
-      // auto oldpris = pa->get_accsets();
-      // auto pf = bench(log, "heuristic minimize priorities", WRAP(heuristic_minimize_priorities(*pa)));
-      bench(log, "minimize priorities", WRAP(pa_minimize_priorities(*pa)));
-      // for (auto a : oldpris)
-      //   cout << a << " -> " << pf(a) << endl;
-      // transform_priorities(*pa, pf);
-    }
-
-    // TODO: apply postprocessing
-
     //sanity checks
     assert(pa->get_name() == aut->get_name());
     assert(pa->get_aps() == aut->get_aps());
@@ -261,6 +251,50 @@ int main(int argc, char *argv[]) {
     assert(is_colored(*pa));
     assert(get_scc_info(*pa)->unreachable.empty());
 
+    //make complete here. so added rej. sink gets optimized away later eventually
+    // if (args->mindfa) {
+    make_complete(*pa);
+    assert(is_complete(*pa));
+    print_hoa(*pa);
+    // }
+
+    if (args->minpri) {
+      // auto oldpris = pa->get_accsets();
+      // auto pf = bench(log, "heuristic minimize priorities", WRAP(heuristic_minimize_priorities(*pa)));
+      bench(log, "minimize number of priorities", WRAP(minimize_priorities(*pa)));
+      // for (auto a : oldpris)
+      //   cout << a << " -> " << pf(a) << endl;
+      // transform_priorities(*pa, pf);
+    }
+
+    if (args->mindfa) {
+      function<acc_t(state_t)> colors = [&](auto s){return pa->get_accs(s).front();};
+      function<state_t(state_t,sym_t)> xsucc = [&](auto p, auto s){return pa->succ(p,s).front();};
+      auto equiv = dfa_equivalent_states(pa->states(), colors, pa->num_syms(), xsucc);
+      log->info("number of states after minimization: {}", equiv.size());
+      // for (auto const& v : equiv) {
+      //   cout << seq_to_str(v) << endl;
+      // }
+      auto initial = aut->get_init().front();
+      bool seenini = false;
+      for (auto ecl : equiv) {
+        if (!seenini) {
+          auto it = lower_bound(begin(ecl), end(ecl), initial);
+          if (it != end(ecl)) {
+            ecl.erase(it);
+            pa->merge_states(ecl, initial);
+            seenini = true;
+          }
+
+        } else {
+          auto rep = ecl.back();
+          ecl.pop_back();
+          pa->merge_states(ecl, rep);
+        }
+      }
+    }
+
+    pa->normalize();
     log->info("completed automaton in {:.3f} seconds", get_secs_since(starttime));
     //---------------------------
 

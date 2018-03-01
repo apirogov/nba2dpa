@@ -4,7 +4,10 @@
 #include <catch.hpp>
 // #include <rapidcheck.h>
 
+#include "swa.hh"
+#include "io.hh"
 #include "common/relorder.hh"
+#include "common/part_refinement.hh"
 #include "common/util.hh"
 #include "common/algo.hh"
 #include "common/triebimap.hh"
@@ -106,6 +109,102 @@ TEST_CASE("Testing the relative order structure", "[relorder]") {
         });
     }
     */
+}
+
+TEST_CASE("testing partition refinement structure", "[part_refine]") {
+  vector<int> vals{0,1,2,3,4,5,6,7,8,9};
+  PartitionRefiner<int> pr({vals});
+
+  REQUIRE(pr.num_sets()==1);
+  auto ini = pr.get_set_ids().front();
+  REQUIRE(pr.get_set_size(ini)==10);
+  for (auto v : vals)
+    REQUIRE(pr.get_set_of(v)==ini);
+
+  auto newset = pr.separate(ini, [](int i){ return i%2==0; });
+  REQUIRE(newset != nullptr);
+  REQUIRE(pr.get_set_ids().front()==*newset);
+  REQUIRE(pr.num_sets()==2);
+  REQUIRE(pr.num_sets()==pr.get_set_ids().size());
+  REQUIRE(pr.get_elements_of(pr.get_set_ids().front())==vector<int>{0,2,4,6,8});
+  REQUIRE(pr.get_elements_of(pr.get_set_ids().back())==vector<int>{1,3,5,7,9});
+
+  auto newset2 = pr.separate(pr.get_set_ids().back(), [](int i){ return i%3==0; });
+  REQUIRE(newset2 != nullptr);
+  REQUIRE(pr.num_sets()==3);
+  auto sids = pr.get_set_ids();
+  REQUIRE(pr.num_sets()==sids.size());
+  REQUIRE(sids[1]==*newset2);
+  REQUIRE(pr.get_elements_of(sids[0])==vector<int>{0,2,4,6,8});
+  REQUIRE(pr.get_elements_of(sids[1])==vector<int>{3,9});
+  REQUIRE(pr.get_elements_of(sids[2])==vector<int>{1,5,7});
+
+  for (auto sid : pr.get_set_ids()) {
+    REQUIRE(pr.separate(sid, [](int i){ return i%2==0; }) == nullptr);
+  }
+
+  for (auto sid : pr.get_set_ids()) {
+    auto els = pr.get_elements_of(sid);
+    REQUIRE(pr.get_set_size(sid) == els.size());
+    for (auto el : els) {
+      REQUIRE(pr.get_set_of(el)==sid);
+    }
+  }
+
+  vector<vector<int>> vals2{{1,3},{2,4},{7}};
+  PartitionRefiner<int> pr2(vals2);
+  REQUIRE(pr2.num_sets()==3);
+  auto sids2 = pr2.get_set_ids();
+  REQUIRE(pr2.get_elements_of(sids2[0])==vector<int>{1,3});
+  REQUIRE(pr2.get_elements_of(sids2[1])==vector<int>{2,4});
+  REQUIRE(pr2.get_elements_of(sids2[2])==vector<int>{7});
+  REQUIRE(pr2.get_refined_sets() == vals2);
+  for (auto sid : sids2) {
+    auto els = pr2.get_elements_of(sid);
+    REQUIRE(pr2.get_set_size(sid) == els.size());
+    for (auto el : els) {
+      REQUIRE(pr2.get_set_of(el)==sid);
+    }
+  }
+}
+
+TEST_CASE("minimize DFA") {
+  SWA<Acceptance::PARITY,string> aut("dfa",{"x","y"},{0});
+  aut.add_state(1); aut.add_state(2); aut.add_state(3); aut.add_state(4);
+  aut.set_accs(0, {0}); aut.set_accs(1, {1}); aut.set_accs(2, {2}); aut.set_accs(3, {2}); aut.set_accs(4, {1});
+  aut.set_succs(0, 0, {1}); aut.set_succs(0, 1, {3}); aut.set_succs(0, 2, {4}); aut.set_succs(0, 3, {4});
+  aut.set_succs(1, 0, {1}); aut.set_succs(1, 1, {2}); aut.set_succs(1, 2, {4}); aut.set_succs(1, 3, {4});
+  aut.set_succs(2, 0, {0}); aut.set_succs(2, 1, {2}); aut.set_succs(2, 2, {4}); aut.set_succs(2, 3, {4});
+  aut.set_succs(3, 0, {0}); aut.set_succs(3, 1, {3}); aut.set_succs(3, 2, {4}); aut.set_succs(3, 3, {4});
+  aut.set_succs(4, 0, {4}); aut.set_succs(4, 1, {4}); aut.set_succs(4, 2, {4}); aut.set_succs(4, 3, {4});
+  REQUIRE(is_deterministic(aut));
+  REQUIRE(is_colored(aut));
+
+  function<acc_t(state_t)> colors = [&](auto s){return aut.get_accs(s).front();};
+  function<state_t(state_t,sym_t)> xsucc = [&](auto p, auto s){return aut.succ(p,s).front();};
+  auto equiv = dfa_equivalent_states(aut.states(), colors, aut.num_syms(), xsucc);
+  REQUIRE(equiv == vector<vector<state_t>>{{0},{1},{4},{2,3}});
+
+  auto initial = aut.get_init().front();
+  bool seenini = false;
+  for (auto ecl : equiv) {
+    auto rep = ecl.back();
+    if (!seenini) {
+      auto it = lower_bound(begin(ecl), end(ecl), initial);
+      if (it != end(ecl)) {
+        rep = initial;
+        seenini = true;
+        ecl.erase(it);
+      }
+    } else {
+      ecl.pop_back();
+    }
+    aut.merge_states(ecl, rep);
+  }
+  REQUIRE(is_deterministic(aut));
+  aut.normalize();
+  REQUIRE(is_deterministic(aut));
+  print_hoa(aut);
 }
 
 template<typename Impl>

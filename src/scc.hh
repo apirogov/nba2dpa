@@ -5,22 +5,18 @@
 
 #include <cassert>
 #include <algorithm>
-#include <iostream>
-#include <queue>
 #include <set>
 #include <stack>
-#include <unordered_set>
-#include <utility>
 #include <vector>
 
 namespace nbautils {
 using namespace std;
 
 using scc_t = state_t;
-using scc_flag = unordered_set<scc_t>;
+using scc_flag = set<scc_t>;
 
+//TODO: this is obsolete, port stuff to common/scc.hh
 struct SCCInfo {
-  typedef std::shared_ptr<SCCInfo> sptr;
   typedef std::unique_ptr<SCCInfo> uptr;
 
   map<state_t, scc_t> scc;   // tags each state with scc num

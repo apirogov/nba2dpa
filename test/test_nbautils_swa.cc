@@ -163,10 +163,9 @@ TEST_CASE("SWA construction and simple methods", "[swa]") {
     aut5.add_state(4);
     aut5.set_succs(0,0,{1});
     aut5.set_succs(0,1,{2});
-    aut5.set_succs(1,0,{2});
-    aut5.set_succs(2,1,{2});
-    aut5.set_succs(1,0,{3});
+    aut5.set_succs(1,0,{2,3});
     aut5.set_succs(1,1,{3});
+    aut5.set_succs(2,1,{2});
     aut5.set_succs(2,2,{3});
     aut5.set_succs(2,3,{4});
 
@@ -178,8 +177,6 @@ TEST_CASE("SWA construction and simple methods", "[swa]") {
     aut5.merge_states({2},1);
     REQUIRE(aut5.num_states()==4);
     REQUIRE(!aut5.has_state(2));
-    REQUIRE(contains(aut5.succ(0,0), 1));
-    REQUIRE(contains(aut5.succ(0,1), 1));
     REQUIRE(contains(aut5.succ(0,0), 1));
     REQUIRE(contains(aut5.succ(0,1), 1));
     REQUIRE(contains(aut5.succ(1,0), 1));

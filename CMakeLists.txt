@@ -78,14 +78,13 @@ include_directories(${source_dir}/include)
 include_directories(src)
 
 set(nbautils_SOURCE src/dev/memusage.h src/dev/memusage.c src/dev/bench.hh
-                   src/common/relorder.hh src/common/relorder.cc
-                   src/common/triebimap.hh
-                   #src/debug.hh src/debug.cc
+                   src/common/util.hh src/common/relorder.hh src/common/relorder.cc
+                   src/common/triebimap.hh src/common/bimap.hh
+                   src/common/algo.hh src/common/graph.hh src/common/scc.hh
                    src/swa.hh
-                   src/ba.hh src/ba.cc
+                   src/ba.hh src/ba.cc src/scc.hh
                    src/io.hh src/io.cc
-                   src/ps.hh #src/ps.cc
-                   src/scc.hh #src/scc.cc
+                   src/ps.hh
                    src/level.hh src/level.cc
                    src/det.hh src/det.cc
                    )

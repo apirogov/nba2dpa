@@ -34,7 +34,7 @@ void change_patype(SWA<Acceptance::PARITY,T> &aut, PAType pt) {
 }
 
 template<typename T>
-auto pa_minimize_priorities(SWA<Acceptance::PARITY,T>& aut) {
+auto minimize_priorities(SWA<Acceptance::PARITY,T>& aut) {
   assert(is_colored(aut));
   auto const orig_patype = aut.get_patype();
 
@@ -50,7 +50,7 @@ auto pa_minimize_priorities(SWA<Acceptance::PARITY,T>& aut) {
   // }
 
   function<int(state_t)> max_odd_pri = [&](state_t v){ return to_max_odd(get_pri(v)); };
-  auto const primap = minimize_priorities(aut.states(), sucs, max_odd_pri);
+  auto const primap = pa_minimize_priorities(aut.states(), sucs, max_odd_pri);
 
   // auto const minpris = map_get_vals(primap);
   // cout << seq_to_str(minpris) << endl;
@@ -64,5 +64,23 @@ auto pa_minimize_priorities(SWA<Acceptance::PARITY,T>& aut) {
   return primap;
 }
 
+template<typename T>
+void make_complete(SWA<Acceptance::PARITY,T>& aut) {
+  if (is_complete(aut) || aut.num_syms()==0)
+    return;
+
+  state_t rejsink = aut.num_states();
+  aut.add_state(rejsink);
+  acc_t rejpri = pa_acc_is_even(aut.get_patype()) ? 1 : 0;
+  aut.set_accs(rejsink,{rejpri}); //rejecting prio
+
+  //missing edges -> edge to rejecting sink
+  for (auto st : aut.states()) {
+    for (auto i=0; i<aut.num_syms(); i++) {
+      if (aut.succ(st, i).empty())
+        aut.set_succs(st, i, {rejsink});
+    }
+  }
+}
 
 }

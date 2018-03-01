@@ -14,12 +14,12 @@ using namespace nbautils;
 template <typename Node>
 using succ_fun = function<vector<Node>(Node)>;
 
-//generic bfs. input: start node, function that takes current node,
-//a function to schedule a visit and a visited and discovery check
+//generic bfs. input: start node,
+//function that takes current node,
+//a function to schedule a visit
+//a has_visited and has_discovered predicate
 //the visit function just does whatever needed with current node and calls
 //pusher function on all successors that also need to be visited.
-//can use visited function to check for already visited states
-//can use discovered function to check for states already in the visit pipeline
 //bfs keeps track that each node is visited once in bfs order automatically.
 //TODO: maybe make something with "process_edge, give_edges" ?
 template <typename Node, typename F>

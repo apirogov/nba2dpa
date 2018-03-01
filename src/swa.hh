@@ -292,33 +292,38 @@ struct SWA {
     normalized = false;
   }
 
-  // given set in sorted(!!) vector, merge states into one rep
-  // TODO: what about initial states?
+  // given set in sorted(!!) vector, merge states into one rep. merged mustnot be initial
+  // after merge graph not normalized
   void merge_states(vector<state_t> const& others, state_t rep) {
-    assert(is_set_vec(others));
-
     if (others.empty()) return; //nothing to do
 
+    assert(is_set_vec(others));
+    assert(set_intersect(others, init).empty());
     assert(!contains(others,rep));
     assert(has_state(rep));
     for (auto q : others)
       assert(has_state(q));
 
     // add outgoing edges from all class members to representative
-    for (auto const st : others) {
-      for (auto const sym : outsyms(st)) {
-        auto const sucs = succ(st, sym);
-        auto const res = set_merge(sucs, succ(rep, sym));
-        set_succs(rep, sym, res);
+    for (auto i=0; i<num_syms(); i++) {
+      vector<state_t> sucs = succ(rep, i);
+      for (auto const st : others) {
+        auto const tmp = succ(st, i);
+        sucs = set_merge(tmp, sucs);
       }
+      set_succs(rep, i, sucs);
+      // cout << rep << " -"<<i<<"> " << seq_to_str(sucs) << endl;
     }
 
     // add ingoing edges into all class members to representative
     for (auto const st : states()) {
       for (auto const sym : outsyms(st)) {
         auto const sucs = succ(st, sym);
-        auto const res = set_intersect(sucs, others);
-        set_succs(st, sym, set_merge(sucs, {rep}));
+        if (!set_intersect(sucs, others).empty()) {
+          auto newsucs = set_merge(sucs, {rep});
+          set_succs(st, sym, newsucs);
+          // cout << st << " -"<<(int)sym<<"> " << seq_to_str(newsucs) << endl;
+        }
       }
     }
 
@@ -437,6 +442,18 @@ bool is_colored(SWA<A,T> const& aut) {
   for (auto const& p : aut.states()) {
     if (!aut.has_accs(p) || aut.get_accs(p).size() != 1)
       return false;
+  }
+  return true;
+}
+
+// each state has successors for each edge label
+template <Acceptance A, typename T>
+bool is_complete(SWA<A,T> const& aut) {
+  for (auto const& p : aut.states()) {
+    for (auto i=0; i<aut.num_syms(); i++) {
+      if (aut.succ(p,i).empty())
+        return false;
+    }
   }
   return true;
 }
