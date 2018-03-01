@@ -17,10 +17,12 @@ namespace nbautils {
 //partition refinement structure for a fixed number of elements
 template<typename T>
 class PartitionRefiner {
+public:
   using vec_it = typename vector<T>::iterator;
   using bounds = pair<vec_it, vec_it>;
   using sym_set = typename list<bounds>::iterator;
 
+private:
   vector<T> elements; //states are grouped by sets
   list<bounds> sets;  //set boundaries over elements as iterator pairs
   map<T, sym_set> set_of; //map from states back to iterator pair

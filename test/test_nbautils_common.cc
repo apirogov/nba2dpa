@@ -63,6 +63,10 @@ TEST_CASE("STL helpers", "[stl_helpers]") {
 
   auto bs = vec_fmap(v, [](auto const& v){ return v % 2 == 0; });
   REQUIRE(bs == vector<bool>{false, true, false, true});
+
+  v = vector<int>{1,3,5,7,2,4,6,9};
+  auto samepar = [](int a, int b){return (a%2==0)==(b%2==0);};
+  REQUIRE(group_by(v, samepar) == vector<vector<int>>{{1,3,5,7},{2,4,6},{9}});
 }
 
 TEST_CASE("Testing the relative order structure", "[relorder]") {

@@ -144,7 +144,7 @@ struct SWA {
     init = initial;
   }
   vector<state_t> const& get_init() const { return init; }
-  bool is_init(state_t const& s){ return contains(init, s); }
+  bool is_init(state_t const& s) const { return contains(init, s); }
 
   // bool has_acc(state_t const& s, acc_t a) const { return acc.at(s).find(a) != acc.at(s).end(); }
   // bool add_acc(state_t const& s, acc_t a) const { return acc.at(s).find(a) != acc.at(s).end(); }
@@ -243,6 +243,7 @@ struct SWA {
     assert(is_set_vec(tokill));
     for (auto s : tokill)
       assert(has_state(s));
+    // cerr << "removing " << seq_to_str(tokill) << endl;
 
     for (auto const& it : tokill) {
       if (has_accs(it))
@@ -298,6 +299,10 @@ struct SWA {
     if (others.empty()) return; //nothing to do
 
     assert(is_set_vec(others));
+    // cerr << seq_to_str(others) << endl;
+    // cerr << seq_to_str(init) << endl;
+    // cerr << seq_to_str(get_init()) << endl;
+    // cerr << "intersect: " << seq_to_str(set_intersect(others, init)) << endl;
     assert(set_intersect(others, init).empty());
     assert(!contains(others,rep));
     assert(has_state(rep));

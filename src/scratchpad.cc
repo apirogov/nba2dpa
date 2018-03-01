@@ -20,6 +20,8 @@ int main(int argc, char *argv[]) {
 
   auto &aut = bas.front();
 
+  cout << return_const<bool,true>(5) << endl;
+
   // function<vector<state_t>(state_t)> sucs(&aut->succ); //[&aut](state_t v){ return aut->succ(v); };
   /*
   function<vector<state_t>(state_t,sym_t)> const xsucs = [&aut](state_t v,sym_t s){ return aut->succ(v,s); };

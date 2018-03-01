@@ -255,7 +255,7 @@ int main(int argc, char *argv[]) {
     // if (args->mindfa) {
     make_complete(*pa);
     assert(is_complete(*pa));
-    print_hoa(*pa);
+    // print_hoa(*pa);
     // }
 
     if (args->minpri) {
@@ -275,22 +275,28 @@ int main(int argc, char *argv[]) {
       // for (auto const& v : equiv) {
       //   cout << seq_to_str(v) << endl;
       // }
+      assert(aut->get_init().size()==1);
       auto initial = aut->get_init().front();
+            // cerr << "init: " << initial << endl;
       bool seenini = false;
       for (auto ecl : equiv) {
+        // cerr << seq_to_str(ecl) << endl;
+        auto rep = ecl.back();
         if (!seenini) {
-          auto it = lower_bound(begin(ecl), end(ecl), initial);
+          auto it = find(begin(ecl), end(ecl), initial);//TODO: lower_bound does not work ?
           if (it != end(ecl)) {
             ecl.erase(it);
-            pa->merge_states(ecl, initial);
+            rep = initial;
             seenini = true;
+          } else {
+            ecl.pop_back();
           }
-
         } else {
-          auto rep = ecl.back();
           ecl.pop_back();
-          pa->merge_states(ecl, rep);
         }
+        // cerr << seq_to_str(ecl) << " , " << rep << endl;
+        // cerr << "init: " << seq_to_str(aut->get_init()) << endl;
+        pa->merge_states(ecl, rep);
       }
     }
 

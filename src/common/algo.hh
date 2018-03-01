@@ -8,8 +8,6 @@
 #include <range/v3/all.hpp>
 
 #include <functional>
-#include <queue>
-#include <stack>
 #include <set>
 #include <map>
 
@@ -113,7 +111,7 @@ int max_chain(function<int(T)> const& oldpri, map<T,int>& newpri,
 
   // maximal essential subsets = non-trivial SCCs in restricted graph
   succ_fun<T> succs_in_p = [&](auto v) { return set_intersect(get_succs(v), p); };
-  auto scci = get_sccs(p, succs_in_p, const_true);
+  auto scci = get_sccs(p, succs_in_p, return_const<bool,true>);
   auto triv = trivial_sccs(scci, succs_in_p);
 
   // lift priority map to state sets
@@ -173,6 +171,7 @@ map<T, int> pa_minimize_priorities(vector<T> const& states,
   return primap;
 }
 
+// ----------------------------------------------------------------------------
 
 template <typename Node,typename Sym>
 using det_succ_sym_fun = function<Node(Node,Sym)> const&;
@@ -187,11 +186,14 @@ using node_prop_fun = function<Val(Node)> const&;
 template <typename T, typename S, typename C>
 vector<vector<T>> dfa_equivalent_states(vector<T> const& states, node_prop_fun<T,C> color,
     int num_syms, det_succ_sym_fun<T,S> get_xsucc) {
-  // prepare initial partitions = different colors
   vector<T> sorted = states;
+
+  // prepare initial partitions = different colors
   ranges::sort(sorted, [&](T a, T b){ return color(a) < color(b); });
   vector<vector<T>> startsets = sorted
     | ranges::view::group_by([&](T a, T b){ return color(a) == color(b); });
+  // sort(begin(sorted), end(sorted), [&](T a, T b){ return color(a) < color(b); });
+  // vector<vector<T>> startsets = group_by(sorted, [&](T a, T b){ return color(a) == color(b); });
 
   // cerr << "starter sets:" << endl;
   // for (auto  s : startsets) {
@@ -215,6 +217,7 @@ vector<vector<T>> dfa_equivalent_states(vector<T> const& states, node_prop_fun<T
       for (auto y : p.get_set_ids()) {
         auto const z = p.separate(y, succ_in_a);
         if (z) { //separation happened
+          //TODO: w is vector, this is slow
           if (contains(w, y)) //if y is in w, its symbol still is, and we need the other set
             w.push_back(*z);
           else { //if y is not in w, take smaller part as separator

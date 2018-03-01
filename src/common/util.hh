@@ -10,9 +10,12 @@
 #include <sstream>
 #include <cassert>
 
+// gives identity function for any type
 auto identity = [](auto const& t){ return t; };
 
-auto const_true = [](auto const&){ return true; };
+// gives function that returns fixed value for arbitrary parameter
+template <typename T, T V>
+auto return_const = [](auto const&){ return V; };
 
 // is sorted + unique vector?
 template<typename T>
@@ -21,6 +24,14 @@ bool is_set_vec(std::vector<T> const& v) {
   return std::equal(std::cbegin(v), std::cend(v), std::cbegin(s));
 }
 
+// sort + make unique inplace
+template <typename T>
+void vec_to_set(std::vector<T>& v) {
+  std::sort(std::begin(v),std::end(v));
+  v.erase(std::unique(std::begin(v),std::end(v)), std::end(v));
+}
+
+// arbitrary sequence (with iterators) to string, intercalated with separator
 template<typename T>
 std::string seq_to_str(T const& s, std::string const& sep=",") {
   std::stringstream ss;
@@ -32,13 +43,6 @@ std::string seq_to_str(T const& s, std::string const& sep=",") {
     }
   }
   return ss.str();
-}
-
-// sort + make unique inplace
-template <typename T>
-void vec_to_set(std::vector<T>& v) {
-  std::sort(std::begin(v),std::end(v));
-  v.erase(std::unique(std::begin(v),std::end(v)), std::end(v));
 }
 
 // vector fmap
@@ -135,9 +139,28 @@ inline bool contains(C const& c, V const& v) {
   return std::find(std::cbegin(c), std::cend(c), v) != std::cend(c);
 }
 
-//TODO: group_by for quotienting
+template <typename C, typename V>
+inline bool sorted_contains(C const& c, V const& v) {
+  return std::lower_bound(std::cbegin(c), std::cend(c), v) != std::cend(c);
+}
+
+//group_by for quotienting
 template <typename T, typename F>
 std::vector<std::vector<T>> group_by(std::vector<T> v, F const& f) {
   if (v.empty())
-      return {};
+    return {};
+  if (v.size()==1)
+    return {v};
+
+  std::vector<std::vector<T>> ret;
+  auto l=cbegin(v);
+  ret.push_back({*l});
+  auto r=l; ++r;
+  do {
+    if (!f(*l,*r))
+      ret.push_back({});
+    ret.back().push_back(*r);
+    ++l; ++r;
+  } while (r != cend(v));
+  return ret;
 }
