@@ -1,6 +1,6 @@
 #!/bin/sh
-spot_ltl2dpa="ltl2tgba -B | autfilt --complement | autfilt --complement --small -S"
-ltl_nbadet="ltl2tgba -B | ../build/bin/nbadet -d -s -n -a -b -t -p -m "
+spot_ltl2dpa="ltl2tgba -B | autfilt --complement | autfilt --complement --small -S -C"
+ltl_nbadet="ltl2tgba -B | ../build/bin/nbadet -d -s -n -a -b -c -t -p -m " #"-d -s -n -a -b -c -t -p -m "
 
 ltlcross \
   -t "cat %F | $spot_ltl2dpa > %O" \

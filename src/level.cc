@@ -50,7 +50,7 @@ vector<Level::state_t> Level::states() const {
 }
 
 //encode powerset as bitset for quick comparisons
-Level::hash_t add_powerset_hash(BA const& ba, Level const& lv) {
+Level::hash_t add_powerset_hash(SWA<string> const& ba, Level const& lv) {
   Level::hash_t ret(0);
 
   set<Level::state_t> pset;
@@ -138,20 +138,20 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
   //define helpers to detect whether state is in (relative) acc/rej SCC
   auto is_xscc = [&lvc,&sucpset](auto const& as, auto const &cs, state_t s){
     //state is in xscc of original automaton?
-    bool xscc = contains(as, lvc.auti->scc.at(s));
+    bool xscc = contains(as, lvc.aut_scc->scc_of.at(s));
     //state is in relative xscc of current context (if given)?
     bool cxscc = false;
     if (lvc.ctx) {
       auto stt = make_pair(sucpset, s);
       if (lvc.ctx->tag->has(stt)) {
         auto st = lvc.ctx->tag->get(stt);
-        cxscc = contains(cs, lvc.ctxi->scc.at(st));
+        cxscc = contains(cs, lvc.ctx_scc->scc_of.at(st));
       }
     }
     return xscc || cxscc;
   };
-  auto is_nscc = [&lvc,&is_xscc](state_t s){ return is_xscc(lvc.auti->rejecting, lvc.ctxi->rejecting, s); };
-  auto is_ascc = [&lvc,&is_xscc](state_t s){ return is_xscc(lvc.auti->accepting, lvc.ctxi->accepting, s); };
+  auto is_nscc = [&lvc,&is_xscc](state_t s){ return is_xscc(lvc.aut_cl->rejecting, lvc.ctx_cl->rejecting, s); };
+  auto is_ascc = [&lvc,&is_xscc](state_t s){ return is_xscc(lvc.aut_cl->accepting, lvc.ctx_cl->accepting, s); };
 
   //helper that says whether a state is accepting in original NBA
   auto is_acc = [&lvc](state_t s){ return lvc.aut->has_accs(s); };
@@ -177,7 +177,7 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
   if (lvc.sep_acc_cyc) {
     //for cyclic ASCC probing we need to know the current one, if any
     if (!tups.back().empty())
-      oldaccscc = lvc.auti->scc.at(tups.back().front());
+      oldaccscc = lvc.aut_scc->scc_of.at(tups.back().front());
   }
 
   //split out accepting scc successors for breakpoint construction sets
@@ -362,18 +362,18 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
             swap(sascc.front(), sascc.back()); //breakpoint (right was empty) -> just swap sets
 
             if (debug)
-              cout << "swapped ASCC buffer and stage set" << endl;
+              cout << "swapped ASCC buffer and active set" << endl;
 
           } else if (!sascc.front().empty()){ //put next scc in order into the set, if any
-            //TODO: cyclic update seems to have a bug still
+            //TODO: cyclic update seems to have a bug still FIXME
             auto tmp = sascc.front();
             stable_sort(begin(tmp), end(tmp),
                  [&](state_t const& a, state_t const& b){
-                 return lvc.auti->scc.at(a) < lvc.auti->scc.at(b); });
+                 return lvc.aut_scc->scc_of.at(a) < lvc.aut_scc->scc_of.at(b); });
             int nextscc = -1;
             //take first bigger
             for (auto st : tmp) {
-              int stscc = lvc.auti->scc.at(st);
+              int stscc = lvc.aut_scc->scc_of.at(st);
               if (stscc > oldaccscc) {
                 nextscc = stscc;
                 break;
@@ -381,11 +381,11 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
             }
             //or start cycle anew
             if (nextscc == -1 && !tmp.empty())
-              nextscc = lvc.auti->scc.at(tmp.front());
+              nextscc = lvc.aut_scc->scc_of.at(tmp.front());
 
             if (nextscc > -1) { //move just states of cyclically next scc into right set
               auto it = stable_partition(begin(tmp), end(tmp), [&lvc, &nextscc](auto s){
-                  return lvc.auti->scc.at(s) != (scc_t)nextscc; });
+                  return lvc.aut_scc->scc_of.at(s) != (unsigned)nextscc; });
               copy(it, end(tmp), back_inserter(sascc.back()));
               tmp.erase(it, end(tmp));
               sort(begin(tmp), end(tmp));

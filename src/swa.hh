@@ -2,7 +2,9 @@
 
 #include "common/bimap.hh"
 #include "common/util.hh"
-#include "common/parityacc.hh"
+#include "common/acceptance.hh"
+#include "common/scc.hh"
+#include "common/algo.hh"
 
 // #include <boost/variant.hpp>
 
@@ -41,13 +43,12 @@ inline vector<small_state_t> to_small_state_t(vector<state_t> const& v) {
 // inline vector<small_state_t> to_big_state_t(vector<small_state_t> const& v) { return vector<state_t>(cbegin(v),cend(v)); }
 
 
-enum class Acceptance { DYNAMIC, BUCHI, PARITY };
 
 // acceptance-labelled KS with tagged nodes, fixed alphabet
-template <Acceptance A,typename T,class tag_storage = naive_bimap<T, state_t>>
+template <typename T,class tag_storage = naive_bimap<T, state_t>>
 struct SWA {
-  using uptr =  unique_ptr<SWA<A, T, tag_storage>>;
-  using sptr =  shared_ptr<SWA<A, T, tag_storage>>;
+  using uptr =  unique_ptr<SWA<T, tag_storage>>;
+  using sptr =  shared_ptr<SWA<T, tag_storage>>;
   using tag_container =  bimap<T, state_t, tag_storage>;
   using tag_ptr = unique_ptr<tag_container>;
   using tag_printer = function<std::string(const T&)>;
@@ -56,7 +57,10 @@ struct SWA {
   bool normalized = true;
   string name;
 
-  const Acceptance acond;   //immutable acceptance condition type
+  public:
+  Acceptance acond;   //immutable acceptance condition type
+
+  private:
   PAType patype;
 
   vector<string> aps; //atomic props can be set just once
@@ -77,13 +81,14 @@ struct SWA {
   string const& get_name() const { return name; }
   void set_name(string const& n) { name = n; }
 
+  Acceptance get_acceptance() const { return acond; }
   vector<acc_t> get_accsets() const { return map_get_keys(accsets); }
   PAType get_patype() const {
-    assert(A==Acceptance::PARITY);
+    assert(acond==Acceptance::PARITY);
     return patype;
   }
   void set_patype(PAType t) {
-    assert(A==Acceptance::PARITY);
+    assert(acond==Acceptance::PARITY);
     patype = t;
   }
 
@@ -94,8 +99,10 @@ struct SWA {
   //TODO: state iterator wrapping map iterator instead of states()?
   //all sym iterator for beauty? wrapper outsym iterator instead of outsyms()?
 
-  SWA(string const& title="", vector<string> const& ap={}, vector<state_t> const& initial={})
-    : name(title), acond(A), aps(ap), tag(make_unique<tag_storage>()),
+  SWA() : tag(make_unique<tag_storage>()) {}
+
+  SWA(Acceptance cond, string const& title="", vector<string> const& ap={}, vector<state_t> const& initial={})
+    : name(title), acond(cond), aps(ap), tag(make_unique<tag_storage>()),
       tag_to_str([](T const&){ return "<?>"; })
     {
       for (auto const& v : initial)
@@ -160,9 +167,9 @@ struct SWA {
     assert(has_state(s)); // otherwise adding acceptance to non-exinting state
     assert(is_set_vec(a));
 
-    if (A==Acceptance::BUCHI)
+    if (acond==Acceptance::BUCHI)
       assert(a.empty() || a==vector<acc_t>{0});
-    else if (A==Acceptance::PARITY)
+    else if (acond==Acceptance::PARITY)
       assert(a.size()<2);
 
     // remove count of old, if any
@@ -274,7 +281,7 @@ struct SWA {
   }
 
   //stupidly paste another automaton (ignore initial status)
-  void insert(SWA<A,T,tag_storage> const& other) {
+  void insert(SWA<T,tag_storage> const& other) {
     assert(set_intersect(states(), other.states()).empty()); // no common states
     assert(get_aps() == other.get_aps()); //same alphabet and acceptance
     assert(acond == other.acond); //same alphabet and acceptance
@@ -296,16 +303,19 @@ struct SWA {
   // given set in sorted(!!) vector, merge states into one rep. merged mustnot be initial
   // after merge graph not normalized
   void merge_states(vector<state_t> const& others, state_t rep) {
-    if (others.empty()) return; //nothing to do
-
-    assert(is_set_vec(others));
     // cerr << seq_to_str(others) << endl;
     // cerr << seq_to_str(init) << endl;
     // cerr << seq_to_str(get_init()) << endl;
     // cerr << "intersect: " << seq_to_str(set_intersect(others, init)) << endl;
+
+    if (others.empty()) return; //nothing to do
+    // cerr << "nonempty others" << endl;
+
+    assert(is_set_vec(others));
     assert(set_intersect(others, init).empty());
     assert(!contains(others,rep));
     assert(has_state(rep));
+
     for (auto q : others)
       assert(has_state(q));
 
@@ -399,8 +409,8 @@ struct SWA {
 
 //common stuff working on any automaton
 
-template <Acceptance A, typename T, typename S>
-vector<small_state_t> powersucc(SWA<A, T> const& ks, std::vector<S> const& ps,
+template <typename T, typename S>
+vector<small_state_t> powersucc(SWA<T> const& ks, std::vector<S> const& ps,
                                 sym_t const& x, std::vector<small_state_t> const& asinks={}) {
   assert(is_set_vec(asinks));
   assert(is_set_vec(ps));
@@ -422,8 +432,8 @@ vector<small_state_t> powersucc(SWA<A, T> const& ks, std::vector<S> const& ps,
   return vector<small_state_t>(suc.cbegin(), suc.cend());
 }
 
-template <Acceptance A, typename T>
-bool is_deterministic(SWA<A,T> const& aut) {
+template <typename T>
+bool is_deterministic(SWA<T> const& aut) {
   if (aut.get_init().size() > 1)
     return false;
 
@@ -442,8 +452,8 @@ bool is_deterministic(SWA<A,T> const& aut) {
 }
 
 // each state is part of exactly one accset
-template <Acceptance A, typename T>
-bool is_colored(SWA<A,T> const& aut) {
+template <typename T>
+bool is_colored(SWA<T> const& aut) {
   for (auto const& p : aut.states()) {
     if (!aut.has_accs(p) || aut.get_accs(p).size() != 1)
       return false;
@@ -452,8 +462,8 @@ bool is_colored(SWA<A,T> const& aut) {
 }
 
 // each state has successors for each edge label
-template <Acceptance A, typename T>
-bool is_complete(SWA<A,T> const& aut) {
+template <typename T>
+bool is_complete(SWA<T> const& aut) {
   for (auto const& p : aut.states()) {
     for (auto i=0; i<aut.num_syms(); i++) {
       if (aut.succ(p,i).empty())
@@ -462,5 +472,44 @@ bool is_complete(SWA<A,T> const& aut) {
   }
   return true;
 }
+
+template<typename T>
+void make_complete(SWA<T>& aut) {
+  if (is_complete(aut) || aut.num_syms()==0)
+    return;
+
+  state_t rejsink = aut.num_states();
+  aut.add_state(rejsink);
+
+  if (aut.acond == Acceptance::PARITY) {
+    acc_t rejpri = pa_acc_is_even(aut.get_patype()) ? 1 : 0;
+    aut.set_accs(rejsink,{rejpri}); //rejecting prio
+  }
+
+  //missing edges -> edge to rejecting sink
+  for (auto st : aut.states()) {
+    for (auto i=0; i<aut.num_syms(); i++) {
+      if (aut.succ(st, i).empty())
+        aut.set_succs(st, i, {rejsink});
+    }
+  }
+}
+
+succ_fun<state_t> swa_succ(auto& aut) {
+  return [&aut](state_t p){ return aut.succ(p); };
+}
+
+succ_sym_fun<state_t, sym_t> swa_succ_sym(auto& aut) {
+  return [&aut](state_t p,sym_t x){ return aut.succ(p,x); };
+}
+
+outsym_fun<state_t, sym_t> swa_outsyms(auto& aut) {
+  return [&aut](state_t p){ return aut.outsyms(p); };
+}
+
+function<bool(state_t)> swa_ba_acc(auto& aut) {
+  return [&aut](state_t p){ return aut.has_accs(p); };
+}
+
 
 }  // namespace nbautils

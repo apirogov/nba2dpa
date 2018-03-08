@@ -5,15 +5,14 @@
 #include <vector>
 #include <ostream>
 
+#include "common/scc.hh"
+#include "common/algo.hh"
 #include "common/relorder.hh"
 #include "ps.hh"
-#include "scc.hh"
-#include "ba.hh"
 
 namespace nbautils {
 using namespace nbautils;
 
-using priority_t = unsigned int;
 
 enum class LevelUpdateMode { MUELLERSCHUPP, SAFRA, num };
 
@@ -24,8 +23,9 @@ struct LevelConfig {
   bool debug = false;
 
   // mandatory
-  BA const* aut = nullptr;
-  SCCInfo const* auti = nullptr;
+  SWA<string> const* aut = nullptr;
+  SCCDat<state_t> const* aut_scc = nullptr;
+  BaSccClassification const* aut_cl = nullptr;
 
   // with defaults
   vector<small_state_t> accsinks; //if non-empty, will be used
@@ -36,10 +36,9 @@ struct LevelConfig {
 
   // optional context information to refine separation
   // if remains nullptr, means that no context is used
-  BAPP const* ctx = nullptr;
-  SCCInfo const* ctxi = nullptr;
-
-  //TODO: parametrize rank_to_prio mapping? or leave level agnostic?
+  PP const* ctx = nullptr;
+  SCCDat<state_t> const* ctx_scc = nullptr;
+  BaSccClassification const* ctx_cl = nullptr;
 };
 
 // encodes a set of states as a tuple of disjoint subsets

@@ -4,6 +4,7 @@
 #include "common/graph.hh"
 
 #include <functional>
+#include <memory>
 #include <queue>
 #include <stack>
 #include <set>
@@ -18,6 +19,8 @@ using succ_scc_fun = succ_fun<unsigned>;
 
 template <typename Node>
 struct SCCDat {
+  using uptr = std::unique_ptr<SCCDat<Node>>;
+
   std::vector<std::vector<Node>> sccs;
   std::map<Node, unsigned> scc_of;
 };
@@ -29,8 +32,8 @@ struct SCCDat {
 // performs an SCC DFS traversal.
 // returns list of SCCs such that later SCCs can not reach earlier SCCs
 template <typename Node, typename F, typename G>
-SCCDat<Node> get_sccs(std::vector<Node> const& states, F get_succs, G scc_handler) {
-  SCCDat<Node> ret;
+typename SCCDat<Node>::uptr get_sccs(std::vector<Node> const& states, F get_succs, G scc_handler) {
+  auto ret = make_unique<SCCDat<Node>>();
 
   std::stack<Node> call;  // dfs call stack
   std::stack<Node> reps;  // scc representative stack
@@ -58,7 +61,7 @@ SCCDat<Node> get_sccs(std::vector<Node> const& states, F get_succs, G scc_handle
       for (auto const w : sucs) {  // process edges with any label
         if (!map_has_key(order, w)) {
           call.push(w);  // recursively explore nodes that have not been visited yet
-        } else if (!map_has_key(ret.scc_of, w)) {
+        } else if (!map_has_key(ret->scc_of, w)) {
           // if already visited, but not with assigned scc, we have found a loop
           // -> drop candidates, keep oldest on this loop as SCC representative
           while (order.at(reps.top()) > order.at(w)) reps.pop();
@@ -66,7 +69,7 @@ SCCDat<Node> get_sccs(std::vector<Node> const& states, F get_succs, G scc_handle
       }
 
     } else {
-      if (map_has_key(ret.scc_of, v)) {
+      if (map_has_key(ret->scc_of, v)) {
         //this node is already completed and uselessly visited
         call.pop();
         continue;
@@ -83,14 +86,14 @@ SCCDat<Node> get_sccs(std::vector<Node> const& states, F get_succs, G scc_handle
         do {
           tmp = open.top();
           open.pop();
-          ret.scc_of[tmp] = ret.sccs.size();
+          ret->scc_of[tmp] = ret->sccs.size();
           scc_states.push_back(tmp);
         } while (tmp != v);
 
-        ret.sccs.push_back({});
-        swap(ret.sccs.back(), scc_states);
+        ret->sccs.push_back({});
+        swap(ret->sccs.back(), scc_states);
 
-        bool go_on = scc_handler(ret);
+        bool go_on = scc_handler(*ret);
         if (!go_on) //can be used to abort on-the-fly scc search
           return ret;
 
@@ -103,7 +106,12 @@ SCCDat<Node> get_sccs(std::vector<Node> const& states, F get_succs, G scc_handle
     }
   }
 
-  return ret;
+  return std::move(ret);
+}
+
+template <typename Node, typename F>
+typename SCCDat<Node>::uptr get_sccs(std::vector<Node> const& states, F get_succs) {
+  return get_sccs(states, get_succs, const_true);
 }
 
 // takes SCC information and an SCC, returns successor SCCs

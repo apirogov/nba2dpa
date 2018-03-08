@@ -8,7 +8,8 @@ namespace spd = spdlog;
 #include <args.hxx>
 
 #include "io.hh"
-#include "scc.hh"
+#include "common/scc.hh"
+#include "common/algo.hh"
 
 
 using namespace nbautils;
@@ -68,8 +69,8 @@ void dot_header(int fontsize=12, string fontname="Verdana", bool compound=true) 
 }
 void dot_footer() { cout << "}" << endl; }
 
-void dot_state(state_t s, BA const& aut, set<state_t> const& unreach,
-       set<state_t> const& dead, set<state_t> const& accsinks, int nodeinfo=0) {
+void dot_state(state_t s, SWA<string> const& aut, vector<state_t> const& unreach,
+       set<state_t> const& dead, vector<state_t> const& accsinks, int nodeinfo=0) {
   vector<string> ps;
   auto initial = set<state_t>(cbegin(aut.get_init()), cend(aut.get_init()));
 
@@ -115,7 +116,7 @@ int main(int argc, char *argv[]) {
     spd::set_level(spd::level::debug);
 
   // now parse input automaton
-  auto auts = nbautils::parse_hoa_ba(args->file, log);
+  auto auts = nbautils::parse_hoa(args->file, log);
 
   if (auts.empty()) {
     log->error("Parsing NBAs from {} failed!", args->file.empty() ? "stdin" : args->file);
@@ -125,79 +126,83 @@ int main(int argc, char *argv[]) {
   if (auts.size() > 1)
     log->warn("More than one automaton supplied. Processing only first one!");
 
-  auto& aut = *auts.front();
+  auto& aut = auts.front();
 
-  SCCInfo::uptr auti = get_scc_info(aut, true);
-  auto deadscc = get_dead_sccs(aut, *auti);
+  function<vector<state_t>(state_t)> sucs = [&aut](state_t v){ return aut->succ(v); };
+  function<vector<state_t>(state_t,sym_t)> const xsucs = [&aut](state_t v,sym_t s){ return aut->succ(v,s); };
+  function<vector<sym_t>(state_t)> const outsyms = [&aut](state_t v){ return aut->outsyms(v); };
+  function<bool(state_t)> const ac = [&aut](state_t v){ return aut->has_accs(v); };
 
-  set<state_t> dead;
-  for (auto s : aut.states()) {
-    if (map_has_key(auti->scc, s)) {
-        if (contains(deadscc,auti->scc.at(s)))
-          dead.emplace(s);
-      }
-  }
+  auto states = aut->states();
+  auto const unreach = unreachable_states(states, aut->get_init().front(), sucs);
 
-  // detect accepting sinks (acc states with self loop for each sym)
-  set<state_t> accsinks;
-  auto tmp = get_accepting_sinks(aut);
-  accsinks = set<state_t>(cbegin(tmp),cend(tmp));
+
+  auto const accsinks = ba_get_accepting_sinks(states, aut->num_syms(), ac, outsyms, xsucs);
+
+  auto const scci = get_sccs(states, sucs, const_true);
+  auto const sucsccs = [&](unsigned num){ return succ_sccs(scci, num, sucs); };
+
+  auto const trivial = trivial_sccs(scci, sucs);
+  auto const bascl = ba_classify_sccs(scci, ac);
+
+  auto const dead = ba_get_dead_sccs(scci.sccs.size(), bascl.rejecting, trivial, sucsccs);
+
 
   dot_header();
 
-  auto states = aut.states();
-  auto it = partition(begin(states), end(states), [&](state_t const& a){ return !contains(auti->unreachable, a); });
+  auto it = partition(begin(states), end(states), [&](state_t const& a){ return !contains(unreach, a); });
   states.erase(it, end(states));
-  sort(begin(states), end(states), [&](state_t const& a, state_t const& b){
-      return auti->scc.at(a) > auti->scc.at(b);
+  sort(begin(states), end(states),
+      [&](state_t const& a, state_t const& b){
+        return scci.scc_of.at(a) > scci.scc_of.at(b);
       });
 
-  if (!auti->unreachable.empty()) {
+  if (!unreach.empty()) {
     cout << "subgraph cluster_unreach {" << endl;
-    cout << "label = <UNREACHABLE<BR/>(#st=" << auti->unreachable.size() << ")>;" << endl;
+    cout << "label = <UNREACHABLE<BR/>(#st=" << unreach.size() << ")>;" << endl;
     cout << "style = \"filled\"; fillcolor = \"gray\";" << endl;
-    for (auto s : auti->unreachable) {
-      dot_state(s, aut, auti->unreachable, dead, accsinks, args->nodeinfo);
+    for (auto s :unreach) {
+      dot_state(s, *aut, unreach, dead, accsinks, args->nodeinfo);
     }
     cout << "}" << endl;
   }
 
   int curscc = -1;
   for (auto s : states) {
-    int sscc = auti->scc.at(s);
+    int sscc = scci.scc_of.at(s);
     if (sscc != curscc) {
       if (curscc != -1)
         cout << "}" << endl;
       curscc = sscc;
       cout << "subgraph cluster_scc" << sscc << " {" << endl;
-      cout << "label = <<B>SCC " << sscc << "<BR/>(#st=" << auti->sccsz.at(sscc) << ")</B>>;" << endl;
-      if (contains(auti->accepting, sscc)) {
+      cout << "label = <<B>SCC " << sscc << "<BR/>(#st=" << scci.sccs.at(sscc).size() << ")</B>>;" << endl;
+      if (contains(bascl.accepting, sscc)) {
         cout << "color = \"green\";" << endl;
       }
-      if (contains(auti->rejecting, sscc)) {
+      if (contains(bascl.rejecting, sscc)) {
         cout << "color = \"red\";" << endl;
       }
     }
 
-    if (args->nodeinfo || auti->sccrep.at(curscc)==s)
-      dot_state(s, aut, auti->unreachable, dead, accsinks, args->nodeinfo);
+    if (args->nodeinfo || scci.sccs.at(curscc).front()==s)
+      dot_state(s, *aut, unreach, dead, accsinks, args->nodeinfo);
   }
   cout << "}" << endl;
 
   //node edges
   if (args->nodeinfo) {
-    for (auto p : aut.states()) {
-      for (auto q : aut.succ(p)) {
+    for (auto p : aut->states()) {
+      for (auto q : aut->succ(p)) {
         string lbl;
         if (args->edgeinfo) {
-          for (sym_t s : aut.outsyms(p)) {
-            auto pssuc = aut.succ(p,s);
+          for (sym_t s : aut->outsyms(p)) {
+            auto pssuc = aut->succ(p,s);
             if (find(begin(pssuc), end(pssuc), q) != end(pssuc)) {
               lbl += (lbl.empty() ? "" : ",");
               if (args->edgeinfo == 1)
                 lbl += to_string(s);
               else if (args->edgeinfo == 2)
-                lbl += sym_to_edgelabel(s, aut.get_aps(), true);
+                lbl += sym_to_edgelabel(s, aut->get_aps(), true);
             }
           }
         }
@@ -207,16 +212,18 @@ int main(int argc, char *argv[]) {
   }
 
   if (!args->nodeinfo) {
-    for (auto it : auti->sccrep) {
-      auto sccnum = it.first;
-      auto sccrep = it.second;
-      auto sucs = succ_sccs(aut, *auti, sccnum);
-      for (auto sucscc : sucs) {
-        auto sucrep = auti->sccrep.at(sucscc);
+    unsigned i=0;
+    for (auto it : scci.sccs) {
+      auto sccrep = it.front();
+      auto sucsccs = succ_sccs(scci, i, sucs);
+      for (auto sucscc : sucsccs) {
+        auto sucrep = scci.sccs.at(sucscc).front();
         cout << sccrep << " -> " << sucrep
-          << "[ltail=\"cluster_scc"<<sccnum
+          << "[ltail=\"cluster_scc"<<i
           <<"\",lhead=\"cluster_scc"<<sucscc<<"\"];" << endl;
       }
+
+      ++i;
     }
   }
 

@@ -10,7 +10,7 @@ set(nbautils-build_tests OFF CACHE BOOL "Whether to build tests")
 # Enable C++14
 set (CMAKE_CXX_STANDARD 14)
 
-set(CMAKE_CXX_FLAGS "-Wall -Wextra -O2")
+set(CMAKE_CXX_FLAGS "-Wall -Wextra -O")
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
 #set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
@@ -82,7 +82,7 @@ set(nbautils_SOURCE src/dev/memusage.h src/dev/memusage.c src/dev/bench.hh
                    src/common/triebimap.hh src/common/bimap.hh
                    src/common/algo.hh src/common/graph.hh src/common/scc.hh
                    src/swa.hh
-                   src/ba.hh src/ba.cc src/scc.hh
+                   src/ba.hh src/ba.cc
                    src/io.hh src/io.cc
                    src/ps.hh
                    src/level.hh src/level.cc
@@ -93,14 +93,14 @@ add_library(nbautils-lib STATIC ${nbautils_SOURCE})
 target_link_libraries(nbautils-lib ${CMAKE_THREAD_LIBS_INIT})
 add_dependencies(nbautils-lib cpphoafparser)
 
-add_executable(scratchpad EXCLUDE_FROM_ALL src/scratchpad.cc)
-target_link_libraries(scratchpad nbautils-lib ${CMAKE_THREAD_LIBS_INIT})
-
 add_executable(nbadet src/nbadet.cc)
 target_link_libraries(nbadet nbautils-lib ${CMAKE_THREAD_LIBS_INIT})
 
-add_executable(nba2dot src/nba2dot.cc)
+add_executable(nba2dot EXCLUDE_FROM_ALL src/nba2dot.cc)
 target_link_libraries(nba2dot nbautils-lib ${CMAKE_THREAD_LIBS_INIT})
+
+add_executable(scratchpad EXCLUDE_FROM_ALL src/scratchpad.cc)
+target_link_libraries(scratchpad nbautils-lib ${CMAKE_THREAD_LIBS_INIT})
 
 if (nbautils-build_tests)
     enable_testing()

@@ -173,7 +173,7 @@ TEST_CASE("testing partition refinement structure", "[part_refine]") {
 }
 
 TEST_CASE("minimize DFA") {
-  SWA<Acceptance::PARITY,string> aut("dfa",{"x","y"},{0});
+  SWA<string> aut(Acceptance::PARITY,"dfa",{"x","y"},{0});
   aut.add_state(1); aut.add_state(2); aut.add_state(3); aut.add_state(4);
   aut.set_accs(0, {0}); aut.set_accs(1, {1}); aut.set_accs(2, {2}); aut.set_accs(3, {2}); aut.set_accs(4, {1});
   aut.set_succs(0, 0, {1}); aut.set_succs(0, 1, {3}); aut.set_succs(0, 2, {4}); aut.set_succs(0, 3, {4});

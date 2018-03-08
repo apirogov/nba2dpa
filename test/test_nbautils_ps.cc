@@ -13,10 +13,15 @@ using namespace nbautils;
 string const filedir = "test/";
 
 TEST_CASE("Powerset construction") {
-  auto const bas = parse_hoa_ba(filedir+"ps_test.hoa");
+  auto const bas = parse_hoa(filedir+"ps_test.hoa");
   auto const& aut = bas.front();
   // auto const auti = get_scc_info(*aut, true);
-  auto const accsinks = get_accepting_sinks(*aut);
+
+  auto aut_st = aut->states();
+  function<bool(state_t)> aut_acc = [&aut](state_t v){ return aut->has_accs(v); };
+  succ_sym_fun<state_t, sym_t> const aut_xsucs = [&aut](state_t v,sym_t s){ return aut->succ(v,s); };
+  outsym_fun<state_t,sym_t> const aut_osyms = [&aut](state_t v){ return aut->outsyms(v); };
+  auto const accsinks = to_small_state_t(get_accepting_sinks(aut_st, aut->num_syms(), aut_acc, aut_osyms, aut_xsucs));
 
   SECTION("powerset without accepting sink collaps") {
     auto psa = powerset_construction(*aut, {});
@@ -74,7 +79,7 @@ TEST_CASE("Powerset construction") {
   }
 
   SECTION("edge cases") {
-    BA aut("edgecase",{"x"});
+    SWA<string> aut(Acceptance::BUCHI, "edgecase",{"x"});
     //empty -> emptyset
     auto psa = powerset_construction(aut, {});
     REQUIRE(psa->num_states() == 1);

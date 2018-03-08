@@ -7,7 +7,7 @@
 // #include "debug.hh"
 #include "swa.hh"
 #include "io.hh"
-#include "common/parityacc.hh"
+#include "common/acceptance.hh"
 #include "common/util.hh"
 
 using namespace nbautils;

@@ -6,8 +6,10 @@ namespace nbautils {
 
 // BFS-based determinization with supplied level update config
 PA::uptr determinize(LevelConfig const& lc, vector<small_state_t> const& startset, auto const& pred) {
+  assert(lc.aut->acond == Acceptance::BUCHI);
+
   // create automaton with same letters etc
-  auto pa = std::make_unique<PA>(lc.aut->get_name(), lc.aut->get_aps());
+  auto pa = std::make_unique<PA>(Acceptance::PARITY, lc.aut->get_name(), lc.aut->get_aps());
   pa->set_patype(PAType::MIN_EVEN);
   pa->tag_to_str = [](Level const& l){ return l.to_string(); };
 
@@ -43,7 +45,7 @@ PA::uptr determinize(LevelConfig const& lc, vector<small_state_t> const& startse
         pa->add_state(sucst);
       // assign priority according to resulting level
       if (!pa->has_accs(sucst))
-        pa->set_accs(sucst,{suclevel.prio});
+        pa->set_accs(sucst,{(unsigned)suclevel.prio});
       // create edge
       pa->set_succs(st, i, {sucst});
       // schedule for bfs
@@ -65,7 +67,7 @@ PA::uptr determinize(LevelConfig const& lu) {
 
 //input: automaton with sccinfo, a powerset that exists in the automaton
 //output: scc number of smallest terminal automaton containing that powerset
-scc_t get_min_term_scc_with_powerset(PA const& pa, SCCInfo const& pai, vector<small_state_t> const& s) {
+int get_min_term_scc_with_powerset(PA const& pa, SCCDat<state_t> const& pai, vector<small_state_t> const& s) {
     // get all levels with same powerset (take all, remove non-copies)
     auto copies = pa.states();
     copies.erase(remove_if(begin(copies), end(copies),
@@ -77,16 +79,17 @@ scc_t get_min_term_scc_with_powerset(PA const& pa, SCCInfo const& pai, vector<sm
 
     bool found = false;
 
-    scc_t mintermscc = 0;
+    int mintermscc = 0;
     size_t mintermsz = pa.num_states()+1;
 
     for (auto const s : copies) {
-      auto const sccnum = pai.scc.at(s);
-      auto const ssccsz = pai.sccsz.at(sccnum);
+      auto const sccnum = pai.scc_of.at(s);
+      auto const ssccsz = pai.sccs.at(sccnum).size();
 
       // cout << "in scc " << sccnum << " (size " << ssccsz << ")"<< " with succ sccs: ";
 
-      auto const sucsccs = succ_sccs(pa, pai, sccnum);
+      succ_fun<state_t> pa_sucs = [&pa](state_t s){ return pa.succ(s); };
+      auto const sucsccs = succ_sccs(pai, sccnum, pa_sucs);
 
       // for (auto v : sucsccs)
       //   cout << (int)v << ",";
@@ -104,16 +107,17 @@ scc_t get_min_term_scc_with_powerset(PA const& pa, SCCInfo const& pai, vector<sm
 }
 
 // determinization of each powerset component separately, then fusing
-PA::uptr determinize(LevelConfig const& lc, PS<Acceptance::BUCHI> const& psa, SCCInfo const& psai) {
+PA::uptr determinize(LevelConfig const& lc, PS const& psa, SCCDat<state_t> const& psai) {
   map<state_t, state_t> ps2pa;
-  auto ret = std::make_unique<PA>(lc.aut->get_name(), lc.aut->get_aps());
+  auto ret = std::make_unique<PA>(Acceptance::PARITY, lc.aut->get_name(), lc.aut->get_aps());
   ret->set_patype(PAType::MIN_EVEN);
   ret->tag_to_str = [](Level const& l){ return l.to_string(); };
 
   // for (auto &it : psai.sccrep) {
-  for (auto it=psai.sccrep.crbegin(); it!=psai.sccrep.crend(); ++it) {
-    auto const& scc = it->first;
-    auto const& rep = it->second;
+  unsigned i=psai.sccs.size()-1;
+  for (auto it=psai.sccs.crbegin(); it!=psai.sccs.crend(); ++it) {
+    auto const& scc = i;
+    auto const& rep = it->front();
 
     auto const repps = psa.tag->geti(rep); //powerset of scc representative
     if (repps.empty())
@@ -128,15 +132,16 @@ PA::uptr determinize(LevelConfig const& lc, PS<Acceptance::BUCHI> const& psa, SC
 
         auto s = psa.tag->get(pset);
         //don't explore levels with powerset in other scc
-        if (psai.scc.at(s) != scc)
+        if (psai.scc_of.at(s) != scc)
           return false;
         return true;
         });
 
-    auto const sccpai = get_scc_info(*sccpa);
+    auto const sccpai = get_sccs(sccpa->states(), swa_succ(*sccpa));
 
     auto const mintermscc = get_min_term_scc_with_powerset(*sccpa, *sccpai, repps);
-    auto const sccstates = scc_states(*sccpa, *sccpai, mintermscc);
+    auto sccstates = sccpai->sccs.at(mintermscc);
+    vec_to_set(sccstates);
     sccpa->remove_states(set_diff(sccpa->states(), sccstates));
     sccpa->normalize(ret->num_states());
 
@@ -161,7 +166,7 @@ PA::uptr determinize(LevelConfig const& lc, PS<Acceptance::BUCHI> const& psa, SC
         //add successor powerset states in same scc
         for (auto sym : psa.outsyms(st)) {
           for (auto sucst : psa.succ(st, sym)) {
-            if (map_has_key(ps2pa,sucst) || psai.scc.at(sucst) != psai.scc.at(st))
+            if (map_has_key(ps2pa,sucst) || psai.scc_of.at(sucst) != psai.scc_of.at(st))
               continue;
 
             auto psucst = sccpa->succ(pst, sym);
@@ -174,6 +179,7 @@ PA::uptr determinize(LevelConfig const& lc, PS<Acceptance::BUCHI> const& psa, SC
     });
     // cout << "after norm " << sccpa->num_states() << endl;
     // cout << mintermscc << " with " << sccpa->num_states() << endl;
+    --i;
   }
 
 #ifndef NDEBUG

@@ -3,7 +3,7 @@
 #include <functional>
 #include "swa.hh"
 #include "common/util.hh"
-#include "common/parityacc.hh"
+#include "common/acceptance.hh"
 #include "common/algo.hh"
 
 namespace nbautils {
@@ -12,21 +12,24 @@ using namespace nbautils;
 
 //map over the priorities (using a function obtained with other functions provided here)
 template<typename T>
-void transform_priorities(SWA<Acceptance::PARITY,T> &aut, function<acc_t(acc_t)> const& pf) {
+void transform_priorities(SWA<T> &aut, function<acc_t(acc_t)> const& pf) {
   assert(is_colored(aut));
+  assert(aut.acond == Acceptance::PARITY);
   for (auto const s : aut.states())
     aut.set_accs(s, {pf(aut.get_accs(s).front())});
 }
 
 //complement PA by flipping parity of states
 template<typename T>
-void complement_pa(SWA<Acceptance::PARITY,T> &aut, PAType pt) {
+void complement_pa(SWA<T> &aut, PAType pt) {
   transform_priorities(aut, [](int p){return p+1;});
 }
 
 //switch between different parity conditions
 template<typename T>
-void change_patype(SWA<Acceptance::PARITY,T> &aut, PAType pt) {
+void change_patype(SWA<T> &aut, PAType pt) {
+  assert(aut.acond == Acceptance::PARITY);
+
   auto const pris = aut.get_accsets();
   auto f = priority_transformer(aut.get_patype(), pt, pris.front(), pris.back());
   transform_priorities(aut, f);
@@ -34,8 +37,10 @@ void change_patype(SWA<Acceptance::PARITY,T> &aut, PAType pt) {
 }
 
 template<typename T>
-auto minimize_priorities(SWA<Acceptance::PARITY,T>& aut) {
+auto minimize_priorities(SWA<T>& aut) {
   assert(is_colored(aut));
+  assert(aut.acond == Acceptance::PARITY);
+
   auto const orig_patype = aut.get_patype();
 
   function<vector<state_t>(state_t)> const sucs = [&](state_t v){ return aut.succ(v); };
@@ -64,23 +69,5 @@ auto minimize_priorities(SWA<Acceptance::PARITY,T>& aut) {
   return primap;
 }
 
-template<typename T>
-void make_complete(SWA<Acceptance::PARITY,T>& aut) {
-  if (is_complete(aut) || aut.num_syms()==0)
-    return;
-
-  state_t rejsink = aut.num_states();
-  aut.add_state(rejsink);
-  acc_t rejpri = pa_acc_is_even(aut.get_patype()) ? 1 : 0;
-  aut.set_accs(rejsink,{rejpri}); //rejecting prio
-
-  //missing edges -> edge to rejecting sink
-  for (auto st : aut.states()) {
-    for (auto i=0; i<aut.num_syms(); i++) {
-      if (aut.succ(st, i).empty())
-        aut.set_succs(st, i, {rejsink});
-    }
-  }
-}
 
 }

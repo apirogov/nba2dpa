@@ -44,24 +44,24 @@ bool eval_expr(BooleanExpression<AtomLabel>::ptr expr, sym_t val) {
 }
 
 // our "parser client" constructing automata from parser events
-class NBAConsumer : public HOAConsumer {
+class MyConsumer : public HOAConsumer {
  public:
   AcceptanceRepositoryStandard acrep;
   std::unique_ptr<ImplicitEdgeHelper> helper;
 
   std::shared_ptr<spdlog::logger> log;
 
-  vector<BA::uptr> auts;
+  vector<typename SWA<std::string>::uptr> auts;
   std::map<state_t, std::map<sym_t, std::set<state_t>>> edges;
 
 
-  NBAConsumer(std::shared_ptr<spdlog::logger> l) : log(l) {};
+  MyConsumer(std::shared_ptr<spdlog::logger> l) : log(l) {};
 
   virtual bool parserResolvesAliases() override { return true; }
 
   virtual void notifyHeaderStart(const std::string &version) override {
     ignore = version;
-    auts.push_back(move(make_unique<BA>()));
+    auts.push_back(move(make_unique<SWA<std::string>>()));
     auts.back()->tag_to_str = [](auto const& str){return str;};
   }
 
@@ -84,6 +84,7 @@ class NBAConsumer : public HOAConsumer {
 
   virtual void setAcceptanceCondition(unsigned int numSets,
                                       acceptance_expr::ptr accExpr) override {
+    //TODO: read parity too
     if (numSets != 1)
       throw std::runtime_error("There must be exactly one accepting set!");
     ignore = accExpr;
@@ -91,9 +92,13 @@ class NBAConsumer : public HOAConsumer {
 
   virtual void provideAcceptanceName(const std::string &name,
                                      const std::vector<IntOrString> &extraInfo) override {
+    //TODO: read parity too
     ignore = extraInfo;
-    if (name != acrep.ACC_BUCHI)
+    if (name == acrep.ACC_BUCHI)
+      auts.back()->acond = Acceptance::BUCHI;
+    else
       throw std::runtime_error("Automaton does not have Büchi acceptance!");
+
   }
 
   virtual void setName(const std::string &name) override { auts.back()->set_name(name); }
@@ -137,7 +142,7 @@ class NBAConsumer : public HOAConsumer {
   virtual void addEdgeImplicit(unsigned int stateId, const int_list &conjSuccessors,
                                std::shared_ptr<int_list> accSignature) override {
     if (accSignature)
-      throw std::runtime_error("State-based NBA can not have edge acceptance!");
+      throw std::runtime_error("State-based automaton can not have edge acceptance!");
     if (!auts.back()->num_syms())
       throw std::runtime_error("Edge list, but no atomic propositions!");
 
@@ -151,7 +156,7 @@ class NBAConsumer : public HOAConsumer {
                                 const int_list &conjSuccessors,
                                 std::shared_ptr<int_list> accSignature) override {
     if (accSignature)
-      throw std::runtime_error("State-based NBA can not have edge acceptance!");
+      throw std::runtime_error("State-based automaton can not have edge acceptance!");
     if (!auts.back()->num_syms())
       throw std::runtime_error("Edge list, but no atomic propositions!");
 
@@ -195,9 +200,9 @@ class NBAConsumer : public HOAConsumer {
 namespace nbautils {
 
 // Try to read an arbitrary number of NBAs from given stream. If anything goes wrong, return nothing.
-vector<BA::uptr> parse_hoa_ba(istream& instream, std::shared_ptr<spdlog::logger> log) {
+vector<typename SWA<std::string>::uptr> parse_hoa(istream& instream, std::shared_ptr<spdlog::logger> log) {
   try {
-    auto nc = make_shared<NBAConsumer>(log);
+    auto nc = make_shared<MyConsumer>(log);
     while (instream.good()) {
       HOAParser::parse(instream, nc);
       //hack required, as parser consumes a token from next automaton too, for some reason Oo
@@ -218,12 +223,12 @@ vector<BA::uptr> parse_hoa_ba(istream& instream, std::shared_ptr<spdlog::logger>
 }
 
 //empty string as input file -> read stdin
-vector<BA::uptr> parse_hoa_ba(string const &filename, std::shared_ptr<spdlog::logger> log) {
+vector<SWA<std::string>::uptr> parse_hoa(string const &filename, std::shared_ptr<spdlog::logger> log) {
   bool givenfile = !filename.empty();
   ifstream fin;
   if (givenfile) fin = ifstream(filename.c_str(), ifstream::in);
   auto& instream = givenfile ? fin : cin;
-  return parse_hoa_ba(instream, log);
+  return parse_hoa(instream, log);
 }
 
 std::string sym_to_edgelabel(sym_t s, std::vector<std::string> const& aps,bool as_aps) {

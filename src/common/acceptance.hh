@@ -2,6 +2,15 @@
 
 namespace nbautils {
 
+enum class Acceptance { UNKNOWN, BUCHI, PARITY };
+
+inline constexpr bool is_buchi(Acceptance a) { return a==Acceptance::BUCHI; }
+inline constexpr bool is_parity(Acceptance a) { return a==Acceptance::PARITY; }
+
+// ----------------------------------------------------------------------------
+
+using priority_t = int;
+
 enum class PAType { MIN_EVEN, MIN_ODD, MAX_EVEN, MAX_ODD };
 
 inline constexpr PAType opposite_parity(PAType pt) {

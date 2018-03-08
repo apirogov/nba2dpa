@@ -5,15 +5,15 @@
 #include <set>
 #include <vector>
 #include "level.hh"
-#include "scc.hh"
+#include "common/scc.hh"
 #include "swa.hh"
 
 namespace nbautils {
 
-using PA = SWA<Acceptance::PARITY, Level>;
+using PA = SWA<Level>;
 
 PA::uptr determinize(LevelConfig const& lu);
 
-PA::uptr determinize(LevelConfig const& lu, PS<Acceptance::BUCHI> const& psa, SCCInfo const& psai);
+PA::uptr determinize(LevelConfig const& lu, PS const& psa, SCCDat<state_t> const& psai);
 
 }  // namespace nbautils

@@ -5,9 +5,10 @@
 #include "common/part_refinement.hh"
 #include "common/scc.hh"
 
-#include <range/v3/all.hpp>
+// #include <range/v3/all.hpp>
 
 #include <functional>
+#include <memory>
 #include <set>
 #include <map>
 
@@ -16,33 +17,35 @@ using namespace std;
 using namespace nbautils;
 
 template <typename Node,typename Sym>
-using outsym_fun = function<vector<Sym>(Node)> const&;
+using outsym_fun = function<vector<Sym>(Node)>;
 
 template <typename Node,typename Sym>
-using succ_sym_fun = function<vector<Node>(Node,Sym)> const&;
+using succ_sym_fun = function<vector<Node>(Node,Sym)>;
 
 struct BaSccClassification {
+  using uptr = unique_ptr<BaSccClassification>;
+
   set<unsigned> accepting;  // tags an scc as fully accepting
   set<unsigned> rejecting;  // tags an scc as fully rejecting
 };
 
 // classify sccs as accepting or rejecting
 template <typename Node>
-BaSccClassification ba_classify_sccs(SCCDat<Node> const& scci,
+BaSccClassification::uptr ba_classify_sccs(SCCDat<Node> const& scci,
     function<bool(Node)> const& is_acc) {
-  BaSccClassification ret;
+  auto ret = make_unique<BaSccClassification>();
 
   auto const conj = [](bool a, bool b){return a&&b;};
-  ret.accepting = mapbool_to_set(fold_sccs<Node,bool>(scci, true, is_acc, conj));
-  ret.rejecting = mapbool_to_set(fold_sccs<Node,bool>(scci, true,
+  ret->accepting = mapbool_to_set(fold_sccs<Node,bool>(scci, true, is_acc, conj));
+  ret->rejecting = mapbool_to_set(fold_sccs<Node,bool>(scci, true,
         [&is_acc](Node v){ return !is_acc(v); }, conj));
 
-  return ret;
+  return std::move(ret);
 }
 
 //returns sorted list of accepting sinks (acc. states with self-loop for each sym)
 template <typename Node, typename Sym>
-vector<Node> ba_get_accepting_sinks(vector<Node> const& states, int num_syms,
+vector<Node> get_accepting_sinks(vector<Node> const& states, int num_syms,
     function<bool(Node)> is_acc,
     outsym_fun<Node,Sym> get_outsyms,
     succ_sym_fun<Node,Sym> get_xsuccs) {
@@ -97,7 +100,6 @@ inline set<unsigned> ba_get_dead_sccs(int num_sccs,
   return ret;
 }
 
-
 // ----------------------------------------------------------------------------
 
 template <typename T>
@@ -111,14 +113,14 @@ int max_chain(function<int(T)> const& oldpri, map<T,int>& newpri,
 
   // maximal essential subsets = non-trivial SCCs in restricted graph
   succ_fun<T> succs_in_p = [&](auto v) { return set_intersect(get_succs(v), p); };
-  auto scci = get_sccs(p, succs_in_p, return_const<bool,true>);
-  auto triv = trivial_sccs(scci, succs_in_p);
+  auto scci = get_sccs(p, succs_in_p);
+  auto triv = trivial_sccs(*scci, succs_in_p);
 
   // lift priority map to state sets
-  auto strongest_oldpri = fold_sccs<T,int>(scci, 0, oldpri, [](auto a, auto b){return max(a,b);});
+  auto strongest_oldpri = fold_sccs<T,int>(*scci, 0, oldpri, [](auto a, auto b){return max(a,b);});
 
   int i=0;
-  for (auto const& scc : scci.sccs) {
+  for (auto const& scc : scci->sccs) {
     // cout << "scc " << seq_to_str(scc) << endl;
 
     if (contains(triv,i)) {
@@ -174,9 +176,9 @@ map<T, int> pa_minimize_priorities(vector<T> const& states,
 // ----------------------------------------------------------------------------
 
 template <typename Node,typename Sym>
-using det_succ_sym_fun = function<Node(Node,Sym)> const&;
+using det_succ_sym_fun = function<Node(Node,Sym)>;
 template <typename Node,typename Val>
-using node_prop_fun = function<Val(Node)> const&;
+using node_prop_fun = function<Val(Node)>;
 
 // https://en.wikipedia.org/wiki/DFA_minimization
 //
@@ -189,17 +191,17 @@ vector<vector<T>> dfa_equivalent_states(vector<T> const& states, node_prop_fun<T
   vector<T> sorted = states;
 
   // prepare initial partitions = different colors
-  ranges::sort(sorted, [&](T a, T b){ return color(a) < color(b); });
-  vector<vector<T>> startsets = sorted
-    | ranges::view::group_by([&](T a, T b){ return color(a) == color(b); });
-  // sort(begin(sorted), end(sorted), [&](T a, T b){ return color(a) < color(b); });
-  // vector<vector<T>> startsets = group_by(sorted, [&](T a, T b){ return color(a) == color(b); });
+  // ranges::sort(sorted, [&](T a, T b){ return color(a) < color(b); });
+  sort(begin(sorted), end(sorted), [&](T a, T b){ return color(a) < color(b); });
+
+  // vector<vector<T>> startsets = sorted
+  //   | ranges::view::group_by([&](T a, T b){ return color(a) == color(b); });
+  vector<vector<T>> startsets = group_by(sorted, [&](T a, T b){ return color(a) == color(b); });
 
   // cerr << "starter sets:" << endl;
   // for (auto  s : startsets) {
   //   cerr << seq_to_str(s) << endl;
   // }
-  // cerr << endl;
 
   PartitionRefiner<T> p(startsets);
   auto w=p.get_set_ids();
@@ -208,19 +210,26 @@ vector<vector<T>> dfa_equivalent_states(vector<T> const& states, node_prop_fun<T
 
   while (!w.empty()) {
     auto const a = w.back();
-    // cerr << "separator " << seq_to_str(p.get_elements_of(a)) << endl;
     w.pop_back();
+    auto sepset = p.get_elements_of(a); //need to take a copy, as it is modified in loop
+    // cerr << "separator " << seq_to_str(p.get_elements_of(a)) << endl;
 
     for (auto i=0; i<num_syms; i++) {
-      auto const succ_in_a = [&](T st){ return p.get_set_of(get_xsucc(st, i)) == a; };
+      // cerr << "\tsym " << i << endl;
+      // auto const succ_in_a = [&](T st){ return p.get_set_of(get_xsucc(st, i)) == a; };
+      auto const succ_in_a = [&](T st){ return sorted_contains(sepset, get_xsucc(st, i)); };
 
       for (auto y : p.get_set_ids()) {
+        // cerr << "\t\tchecking " << seq_to_str(p.get_elements_of(y)) << endl;
         auto const z = p.separate(y, succ_in_a);
         if (z) { //separation happened
+          // cerr << "\t\tseparated " << seq_to_str(p.get_elements_of(y)) << " and "
+                               // << seq_to_str(p.get_elements_of(*z)) << endl;
           //TODO: w is vector, this is slow
           if (contains(w, y)) //if y is in w, its symbol still is, and we need the other set
             w.push_back(*z);
           else { //if y is not in w, take smaller part as separator
+            //NOTE: does not seem to work correctly?
             if (p.get_set_size(y) <= p.get_set_size(*z)) {
               w.push_back(y);
             } else {

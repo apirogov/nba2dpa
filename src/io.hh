@@ -2,20 +2,35 @@
 
 #include <string>
 #include <iostream>
-#include "ba.hh"
+#include <fstream>
+#include <memory>
+
+#include "swa.hh"
 #include "det.hh"
 
 #include <spdlog/spdlog.h>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#include "cpphoafparser/consumer/hoa_consumer_print.hh"
+#include "cpphoafparser/parser/hoa_parser.hh"
+#include "cpphoafparser/util/implicit_edge_helper.hh"
+#pragma GCC diagnostic pop
+
+
 namespace nbautils {
 
-std::vector<BA::uptr> parse_hoa_ba(std::string const& filename, std::shared_ptr<spdlog::logger> log=nullptr);
+using namespace std;
+using namespace cpphoafparser;
 
+vector<SWA<std::string>::uptr> parse_hoa(string const &filename, std::shared_ptr<spdlog::logger> log=nullptr);
+
+// bool eval_expr(BooleanExpression<AtomLabel>::ptr expr, sym_t val);
 std::string sym_to_edgelabel(sym_t s, std::vector<std::string> const& aps, bool as_aps=false);
 
 //output automaton in HOA format
-template<Acceptance A, typename T>
-void print_hoa(SWA<A,T> const& aut, ostream &out = cout) {
+template<typename T>
+void print_hoa(SWA<T> const& aut, ostream &out = cout) {
   out << "HOA: v1" << endl;
   out << "name: \"" << aut.get_name() << "\"" << endl;
   out << "States: " << aut.num_states() << endl;
@@ -25,9 +40,9 @@ void print_hoa(SWA<A,T> const& aut, ostream &out = cout) {
     out << " \"" << ap << "\"";
   out << endl;
 
-  if (A==Acceptance::BUCHI) {
+  if (aut.acond==Acceptance::BUCHI) {
     out << "acc-name: " << "Buchi" << endl << "Acceptance: 1 Inf(0)" << endl;
-  } else if (A==Acceptance::PARITY) {
+  } else if (aut.acond==Acceptance::PARITY) {
     vector<acc_t> accs = aut.get_accsets();
     int pris = accs.back() + 1;
     out << "acc-name: " << "parity min even " << pris << endl;

@@ -12,23 +12,19 @@ namespace nbautils {
 using namespace std;
 
 using ps_tag = vector<small_state_t>;
-template <Acceptance A>
-using PS = SWA<A, ps_tag>;
 // 2^A for some A
-using BAPS = PS<Acceptance::BUCHI>;
+using PS = SWA<ps_tag>;
 
 using pp_tag = pair<vector<small_state_t>, small_state_t>;
-template <Acceptance A>
-using PP = SWA<A, pp_tag>;
 // 2^AxA for some A
-using BAPP = PP<Acceptance::BUCHI>;
+using PP = SWA<pp_tag>;
 
 // BA -> 2^BA (as reachable from initial state)
-template <Acceptance A, typename T>
-typename PS<A>::uptr powerset_construction(SWA<A, T> const& ks, vector<small_state_t> const& sinks={}) {
+template <typename T>
+typename PS::uptr powerset_construction(SWA<T> const& ks, vector<small_state_t> const& sinks={}) {
   // create aut, add initial state, associate with initial states in original aut
   state_t const myinit = 0;
-  auto pks = std::make_unique<PS<A>>(ks.get_name(), ks.get_aps(), vector<state_t>{myinit});
+  auto pks = std::make_unique<PS>(Acceptance::UNKNOWN, ks.get_name(), ks.get_aps(), vector<state_t>{myinit});
   pks->tag_to_str = [](auto const& vec){ return "{" + seq_to_str(vec) +"}"; };
   pks->tag->put(to_small_state_t(ks.get_init()), myinit);
 
@@ -56,14 +52,14 @@ typename PS<A>::uptr powerset_construction(SWA<A, T> const& ks, vector<small_sta
 }
 
 // BA -> 2^BA x BA, returns basically blown-up original nondet automaton with context annot
-template <Acceptance A, typename T>
-typename PP<A>::uptr powerset_product(SWA<A, T> const& ks) {
+template <typename T>
+typename PP::uptr powerset_product(SWA<T> const& ks) {
   assert(ks.get_init().size()==1); //2^BA x BA makes only sense with one initial state!
 
   auto ksinit = ks.get_init().front(); //take unique initial state of original system
   // add initial state, keep acceptance of initial state
   state_t myinit = 0;
-  auto pks = std::make_unique<PP<A>>(ks.get_name(), ks.get_aps(), vector<state_t>{myinit});
+  auto pks = std::make_unique<PP>(ks.acond, ks.get_name(), ks.get_aps(), vector<state_t>{myinit});
   pks->tag_to_str = [](auto const& t){ return "({" + seq_to_str(t.first) +"}, "+to_string(t.second)+")"; };
 
   if (ks.has_accs(ksinit))
