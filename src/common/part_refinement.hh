@@ -84,19 +84,48 @@ private:
     return set_of.at(el);
   }
 
+private:
+  //split on nonempty intersection and difference
+  unique_ptr<sym_set> split_set(sym_set& set, vec_it const& mid) {
+    if (mid == set->first || mid == set->second)
+      return nullptr;
+    auto newset = make_unique<sym_set>(sets.insert(set, make_pair(set->first, mid)));
+    for (auto it=(*newset)->first; it!=(*newset)->second; ++it)
+      set_of[*it] = *newset; //update element -> set mapping
+    set->first = mid;
+    return move(newset);
+  }
+
+public:
+
   //separate given set into satisfying and not satisfying predicate
   //if both are nonempty, returns token of second set, otherwise returns nullptr
   unique_ptr<sym_set> separate(sym_set& set, function<bool(T)> const& pred) {
-    auto mid = stable_partition(set->first, set->second, pred);
-    //nonempty intersection and difference -> split
-    if (mid != set->first && mid != set->second) {
-      auto newset = make_unique<sym_set>(sets.insert(set, make_pair(set->first, mid)));
-      for (auto it=(*newset)->first; it!=(*newset)->second; ++it)
-        set_of[*it] = *newset; //update element -> set mapping
-      set->first = mid;
-      return newset;
-    }
-    return nullptr;
+    auto const mid = stable_partition(set->first, set->second, pred);
+    return move(split_set(set, mid));
+  }
+
+  //TODO: test this
+  unique_ptr<sym_set> separate(sym_set& set, vector<T> const& cutset) {
+    vector<T> tmp;
+    tmp.reserve(get_set_size(set));
+
+    //first get intersection
+    set_intersection(set->first, set->second, cbegin(cutset), cend(cutset), back_inserter(tmp));
+    int num = tmp.size();
+
+    if (num==0 || num==(int)get_set_size(set))
+      return nullptr;
+
+    //if both intersection and difference nontrivial, get the other
+    set_difference(set->first, set->second, cbegin(cutset), cend(cutset), back_inserter(tmp));
+
+    //replace old ordering with new
+    copy(cbegin(tmp), cend(tmp), set->first);
+    //get mid
+    auto const mid = set->first+num;
+
+    return move(split_set(set, mid));
   }
 };
 

@@ -1,3 +1,4 @@
+#include <iostream>
 #include "ba.hh"
 
 #include "swa.hh"

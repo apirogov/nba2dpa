@@ -70,8 +70,22 @@ std::vector<T> vec_filter(std::vector<T> const& v, F const& f) {
 
 //TODO: make one abstract for these
 
-//TODO: make set_intersect_empty without full calc.
-//and replace all set_intersect(..).empty()
+template<typename T>
+inline bool set_intersect_empty(std::vector<T> const& v,
+                                          std::vector<T> const& w) {
+  // assert(is_set_vec(v)); assert(is_set_vec(w));
+  auto i = v.cbegin();
+  auto j = w.cbegin();
+  while (i != v.cend() && j != w.cend()) {
+    if (*i == *j)
+      return false;
+    else if (*i < *j)
+      ++i;
+    else
+      ++j;
+  }
+  return true;
+}
 
 template<typename T>
 inline std::vector<T> set_intersect(std::vector<T> const& v,

@@ -20,11 +20,15 @@ PA::uptr determinize(LevelConfig const& lc, vector<small_state_t> const& startse
   pa->set_accs(myinit, {0}); // initial state priority does not matter
   pa->tag->put(Level(lc, startset), myinit); // initial state tag
 
+  int numvis=0;
   bfs(myinit, [&](auto const& st, auto const& visit, auto const&) {
     // get inner states of current ps state
     auto const curlevel = pa->tag->geti(st);
 
     // cout << "visit " << curlevel.to_string() << endl;
+    ++numvis;
+    if (numvis % 5000 == 0) //progress indicator
+      cerr << numvis << endl;
 
     for (auto i = 0; i < pa->num_syms(); i++) {
       // calculate successor level
@@ -53,6 +57,7 @@ PA::uptr determinize(LevelConfig const& lc, vector<small_state_t> const& startse
     }
   });
 
+  // cerr << "determinized to " << pa->num_states() << " states" << endl;
   return move(pa);
 }
 
@@ -75,10 +80,18 @@ int get_min_term_scc_with_powerset(PA const& pa, SCCDat<state_t> const& pai, vec
 
     assert(!copies.empty()); // provided powerset contained in automaton
 
-    // cout << "num copies: " << copies.size() << endl;
+    //keep one copy per SCC (we need to check each candidate SCC only once)
+    sort(begin(copies), end(copies), [&](state_t s, state_t t){
+        return pai.scc_of.at(s) < pai.scc_of.at(t); });
+    auto it = unique(begin(copies), end(copies), [&](state_t s, state_t t){
+        return pai.scc_of.at(s) == pai.scc_of.at(t); });
+    copies.erase(it, end(copies));
 
+#ifndef NDEBUG
     bool found = false;
+#endif
 
+    //find smallest bottom SCC (bottom ensures that all powersets in PS SCC are reachable)
     int mintermscc = 0;
     size_t mintermsz = pa.num_states()+1;
 
@@ -86,7 +99,7 @@ int get_min_term_scc_with_powerset(PA const& pa, SCCDat<state_t> const& pai, vec
       auto const sccnum = pai.scc_of.at(s);
       auto const ssccsz = pai.sccs.at(sccnum).size();
 
-      // cout << "in scc " << sccnum << " (size " << ssccsz << ")"<< " with succ sccs: ";
+      // cerr << "in scc " << sccnum << " (size " << ssccsz << ")"<< " with succ sccs: ";
 
       succ_fun<state_t> pa_sucs = [&pa](state_t s){ return pa.succ(s); };
       auto const sucsccs = succ_sccs(pai, sccnum, pa_sucs);
@@ -96,13 +109,17 @@ int get_min_term_scc_with_powerset(PA const& pa, SCCDat<state_t> const& pai, vec
       // cout << endl;
 
       if (sucsccs.empty() && ssccsz < mintermsz) {
+#ifndef NDEBUG
         found = true;
+#endif
         mintermscc = sccnum;
         mintermsz  = ssccsz;
       }
     }
 
+#ifndef NDEBUG
     assert(found); //there must be a bottom SCC with this powerset by construction
+#endif
     return mintermscc;
 }
 
@@ -123,7 +140,7 @@ PA::uptr determinize(LevelConfig const& lc, PS const& psa, SCCDat<state_t> const
     if (repps.empty())
       continue;
 
-    // cout << "scc " << scc <<" (" << psai.sccsz.at(scc) << " states:" << seq_to_str(repps) << ") -> ";
+    // cerr << "determinize called on SCC with statenumber " << psai.sccs.at(i).size() << endl;
 
     auto sccpa = determinize(lc, repps, [&psa,&psai,&scc](Level const& l){
         auto const pset = l.states();
@@ -177,7 +194,7 @@ PA::uptr determinize(LevelConfig const& lc, PS const& psa, SCCDat<state_t> const
           }
         }
     });
-    // cout << "after norm " << sccpa->num_states() << endl;
+    // cerr << "after norm " << sccpa->num_states() << endl;
     // cout << mintermscc << " with " << sccpa->num_states() << endl;
     --i;
   }

@@ -137,15 +137,15 @@ int main(int argc, char *argv[]) {
   auto const unreach = unreachable_states(states, aut->get_init().front(), sucs);
 
 
-  auto const accsinks = ba_get_accepting_sinks(states, aut->num_syms(), ac, outsyms, xsucs);
+  auto const accsinks = get_accepting_sinks(states, aut->num_syms(), ac, outsyms, xsucs);
 
   auto const scci = get_sccs(states, sucs, const_true);
-  auto const sucsccs = [&](unsigned num){ return succ_sccs(scci, num, sucs); };
+  auto const sucsccs = [&](unsigned num){ return succ_sccs(*scci, num, sucs); };
 
-  auto const trivial = trivial_sccs(scci, sucs);
-  auto const bascl = ba_classify_sccs(scci, ac);
+  auto const trivial = trivial_sccs(*scci, sucs);
+  auto const bascl = ba_classify_sccs(*scci, ac);
 
-  auto const dead = ba_get_dead_sccs(scci.sccs.size(), bascl.rejecting, trivial, sucsccs);
+  auto const dead = ba_get_dead_sccs(scci->sccs.size(), bascl->rejecting, trivial, sucsccs);
 
 
   dot_header();
@@ -154,7 +154,7 @@ int main(int argc, char *argv[]) {
   states.erase(it, end(states));
   sort(begin(states), end(states),
       [&](state_t const& a, state_t const& b){
-        return scci.scc_of.at(a) > scci.scc_of.at(b);
+        return scci->scc_of.at(a) > scci->scc_of.at(b);
       });
 
   if (!unreach.empty()) {
@@ -169,22 +169,22 @@ int main(int argc, char *argv[]) {
 
   int curscc = -1;
   for (auto s : states) {
-    int sscc = scci.scc_of.at(s);
+    int sscc = scci->scc_of.at(s);
     if (sscc != curscc) {
       if (curscc != -1)
         cout << "}" << endl;
       curscc = sscc;
       cout << "subgraph cluster_scc" << sscc << " {" << endl;
-      cout << "label = <<B>SCC " << sscc << "<BR/>(#st=" << scci.sccs.at(sscc).size() << ")</B>>;" << endl;
-      if (contains(bascl.accepting, sscc)) {
+      cout << "label = <<B>SCC " << sscc << "<BR/>(#st=" << scci->sccs.at(sscc).size() << ")</B>>;" << endl;
+      if (contains(bascl->accepting, sscc)) {
         cout << "color = \"green\";" << endl;
       }
-      if (contains(bascl.rejecting, sscc)) {
+      if (contains(bascl->rejecting, sscc)) {
         cout << "color = \"red\";" << endl;
       }
     }
 
-    if (args->nodeinfo || scci.sccs.at(curscc).front()==s)
+    if (args->nodeinfo || scci->sccs.at(curscc).front()==s)
       dot_state(s, *aut, unreach, dead, accsinks, args->nodeinfo);
   }
   cout << "}" << endl;
@@ -213,11 +213,11 @@ int main(int argc, char *argv[]) {
 
   if (!args->nodeinfo) {
     unsigned i=0;
-    for (auto it : scci.sccs) {
+    for (auto it : scci->sccs) {
       auto sccrep = it.front();
-      auto sucsccs = succ_sccs(scci, i, sucs);
+      auto sucsccs = succ_sccs(*scci, i, sucs);
       for (auto sucscc : sucsccs) {
-        auto sucrep = scci.sccs.at(sucscc).front();
+        auto sucrep = scci->sccs.at(sucscc).front();
         cout << sccrep << " -> " << sucrep
           << "[ltail=\"cluster_scc"<<i
           <<"\",lhead=\"cluster_scc"<<sucscc<<"\"];" << endl;

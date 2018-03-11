@@ -13,14 +13,15 @@ namespace nbautils {
 
 string Level::to_string() const {
   stringstream ss;
-  ss << "Lvl ";
   for (int i=0; i<(int)tups.size(); i++) {
-    ss << "({";
-    for (auto st : tups[i])
-      ss << (int)st << ",";
-    ss <<"}," << (i<(int)tupo.size() ? 1+tupo[i] : 0) << "), ";
+    ss << "({" << seq_to_str(tups[i]);
+    ss <<"}," << (i<(int)tupo.size() ? 1+tupo[i] : 0) << ")";
+    if (i<(int)tups.size()-1)
+      ss << ",";
+    ss << " ";
   }
-  ss << " : " << (int)prio;
+
+  ss << ": " << (int)prio;
   return ss.str();
 }
 
@@ -53,8 +54,7 @@ vector<Level::state_t> Level::states() const {
 Level::hash_t add_powerset_hash(SWA<string> const& ba, Level const& lv) {
   Level::hash_t ret(0);
 
-  set<Level::state_t> pset;
-  for (auto& tup : lv.tups) copy(begin(tup), end(tup), inserter(pset, end(pset)));
+  auto const pset = lv.states();
   if (pset.empty())
     return ret;
 
@@ -126,7 +126,7 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
   auto sucpset = xsucc(states()); //successor powerset (without structure)
 
   //check for accepting sinks (then we're happily done)
-  if (!set_intersect(sucpset,lvc.accsinks).empty()) {
+  if (!set_intersect_empty(sucpset,lvc.accsinks)) {
     if (debug) {
       cout << "reached accepting sink. returning accepting sink level!" << endl;
     }

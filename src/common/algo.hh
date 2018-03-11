@@ -204,32 +204,36 @@ vector<vector<T>> dfa_equivalent_states(vector<T> const& states, node_prop_fun<T
   // }
 
   PartitionRefiner<T> p(startsets);
+
+  // set seems not to make a difference :/
+  /*
+  auto const wvec=p.get_set_ids();
+  auto const sym_set_cmp = [](auto const& a, auto const& b) {
+        return lexicographical_compare(a->first, a->second, b->first, b->second);
+      };
+  auto w=set<typename PartitionRefiner<T>::sym_set, decltype(sym_set_cmp)>(cbegin(wvec), cend(wvec), sym_set_cmp);
+  */
+
   auto w=p.get_set_ids();
 
-  // cerr << "starting refinement" << endl;
-
   while (!w.empty()) {
-    auto const a = w.back();
-    w.pop_back();
-    auto sepset = p.get_elements_of(a); //need to take a copy, as it is modified in loop
-    // cerr << "separator " << seq_to_str(p.get_elements_of(a)) << endl;
+    auto const a = w.back(); w.pop_back();
+    // auto const a = *w.begin(); w.erase(w.begin());
+
+    auto const sepset = p.get_elements_of(a); //need to take a copy, as it is modified in loop
 
     for (auto i=0; i<num_syms; i++) {
-      // cerr << "\tsym " << i << endl;
-      // auto const succ_in_a = [&](T st){ return p.get_set_of(get_xsucc(st, i)) == a; };
       auto const succ_in_a = [&](T st){ return sorted_contains(sepset, get_xsucc(st, i)); };
 
       for (auto y : p.get_set_ids()) {
-        // cerr << "\t\tchecking " << seq_to_str(p.get_elements_of(y)) << endl;
+        //TODO: try to precalculate sep X subset of Y set instead of using predicate?
         auto const z = p.separate(y, succ_in_a);
+
         if (z) { //separation happened
-          // cerr << "\t\tseparated " << seq_to_str(p.get_elements_of(y)) << " and "
-                               // << seq_to_str(p.get_elements_of(*z)) << endl;
           //TODO: w is vector, this is slow
           if (contains(w, y)) //if y is in w, its symbol still is, and we need the other set
             w.push_back(*z);
           else { //if y is not in w, take smaller part as separator
-            //NOTE: does not seem to work correctly?
             if (p.get_set_size(y) <= p.get_set_size(*z)) {
               w.push_back(y);
             } else {

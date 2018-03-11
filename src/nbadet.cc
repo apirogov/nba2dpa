@@ -28,6 +28,8 @@ struct Args {
   int verbose;
 
   bool trim;
+  bool split;
+
   bool detaccsinks;
 
   LevelUpdateMode lvupdate;
@@ -77,9 +79,8 @@ Args::uptr parse_args(int argc, char *argv[]) {
   args::Flag topo(parser, "topo", "Use powerset SCCs to guide determinization", {'t', "topological"});
 
   // iterated product construction based determinization
-  // args::Flag split(parser, "split", "Determinize all NBA SCCs separately, then
-  // combine", {'p', "split"}); args::Flag rabin(parser, "rabin", "Return a smaller Rabin
-  // automaton", {'r', "split"});
+  args::Flag split(parser, "split", "Determinize all NBA SCCs separately, then combine", {'i', "split"});
+  //args::Flag rabin(parser, "rabin", "Return a smaller Rabin // automaton", {'r', "split"});
 
   // postprocessing
   args::Flag minpri(parser, "minpri", "Minimize number of priorities", {'p', "minimize-priorities"});
@@ -112,6 +113,7 @@ Args::uptr parse_args(int argc, char *argv[]) {
   if (input) args->file = args::get(input);
   args->verbose = args::get(verbose);
   args->trim = trim;
+  args->split = split;
 
   args->lvupdate = static_cast<LevelUpdateMode>(args::get(update));
   args->detaccsinks = detaccsinks;
@@ -136,6 +138,153 @@ LevelConfig::uptr levelconfig_from_args(Args const &args) {
   lc->sep_acc = args.sepacc;
   lc->sep_acc_cyc = args.cyclicbrk;
   return move(lc);
+}
+
+auto determinize_nba(Args const &args, SWA<string>& aut, std::shared_ptr<spdlog::logger> log) {
+    auto aut_st = aut.states();
+    succ_fun<state_t> const aut_sucs = [&aut](state_t v){ return aut.succ(v); };
+    function<bool(state_t)> const aut_acc = [&aut](state_t v){ return aut.has_accs(v); };
+    succ_sym_fun<state_t, sym_t> const aut_xsucs = [&aut](state_t v,sym_t s){ return aut.succ(v,s); };
+    outsym_fun<state_t,sym_t> const aut_osyms = [&aut](state_t v){ return aut.outsyms(v); };
+
+    // calculate SCCs of NBA if needed
+    SCCDat<state_t>::uptr aut_scc = nullptr;
+    BaSccClassification::uptr aut_cl = nullptr;
+    if (args.sepacc || args.seprej) {
+      aut_scc = get_sccs(aut_st, aut_sucs);
+      aut_cl = ba_classify_sccs(*aut_scc, aut_acc);
+      log->info("number of SCCs in A: {}", aut_scc->sccs.size());
+    }
+
+    // detect accepting sinks (acc states with self loop for each sym)
+    vector<small_state_t> accsinks;
+    if (args.detaccsinks) {
+      accsinks = to_small_state_t(get_accepting_sinks(aut_st, aut.num_syms(), aut_acc, aut_osyms, aut_xsucs));
+      log->info("found {} accepting sinks", accsinks.size());
+    }
+
+    // calculate 2^A to guide and optimize determinization
+    PS::uptr ps = nullptr;
+    SCCDat<state_t>::uptr psi = nullptr;
+    if (args.topo) {
+      ps = bench(log, "powerset_construction", WRAP(powerset_construction(aut, accsinks)));
+      succ_fun<state_t> pssucs = [&ps](state_t v){ return ps->succ(v); };
+      psi = bench(log, "get_scc_info",          WRAP(get_sccs(ps->states(), pssucs)));
+      log->info("number of states in 2^A: {}", ps->num_states());
+      log->info("number of SCCs in 2^A: {}", psi->sccs.size());
+      assert(is_deterministic(*ps));
+    }
+
+    // calculate A x 2^A as context information
+    PP::uptr ctx = nullptr;
+    SCCDat<state_t>::uptr ctx_scc = nullptr;
+    BaSccClassification::uptr ctx_cl = nullptr;
+    if (args.context) {
+      ctx = bench(log, "powerset_product", WRAP(powerset_product(aut)));
+      succ_fun<state_t> ctxsucs = [&ctx](state_t v){ return ctx->succ(v); };
+      function<bool(state_t)> ctx_acc = [&ctx](state_t v){ return ctx->has_accs(v); };
+      auto ctxst = ctx->states();
+
+      ctx_scc = bench(log, "get_scc_info", WRAP(get_sccs(ctxst, ctxsucs)));
+      ctx_cl = bench(log, "classify_sccs", WRAP(ba_classify_sccs(*ctx_scc, ctx_acc)));
+      log->info("number of states in Ax2^A: {}", ctx->num_states());
+      log->info("number of SCCs in Ax2^A: {}", ctx_scc->sccs.size());
+    }
+
+    // configure level update:
+    auto lc = levelconfig_from_args(args);
+    //set the accepting sink states
+    lc->accsinks = accsinks;
+    // set reference to underlying NBA
+    lc->aut = &aut;
+    lc->aut_scc = aut_scc.get();
+    lc->aut_cl = aut_cl.get();
+
+    // set reference to context NBA
+    lc->ctx = ctx.get();
+    lc->ctx_scc = ctx_scc.get();
+    lc->ctx_cl = ctx_cl.get();
+
+    PA::uptr pa;
+    if (!args.topo)
+      pa = bench(log, "determinize", WRAP(determinize(*lc)));
+    else
+      pa = bench(log, "determinize_topo", WRAP(determinize(*lc, *ps, *psi)));
+
+    make_complete(*pa);
+
+    log->info("number of states in parity automaton: {}", pa->num_states());
+
+    //sanity checks
+    assert(pa->get_name() == aut.get_name());
+    assert(pa->get_aps() == aut.get_aps());
+    assert(pa->get_init().size() == 1);
+    assert(is_deterministic(*pa));
+    assert(is_colored(*pa));
+    assert(is_complete(*pa));
+
+    if (args.minpri) {
+      bench(log, "minimize number of priorities", WRAP(minimize_priorities(*pa)));
+      log->info("resulting number of priorities: {}", pa->get_accsets().size());
+    }
+
+    if (args.mindfa) {
+      bench(log, "minimize number of states", WRAP(minimize_pa(*pa)));
+      log->info("number of states after minimization: {}", pa->num_states());
+    }
+
+    return move(pa);
+}
+
+//TODO: allow splitting each accepting state or on SCCs
+vector<SWA<string>::uptr> split_nba(SWA<string> const& aut) {
+  vector<SWA<string>::uptr> ret;
+
+  auto const aut_st = aut.states();
+  auto const aut_sucs = swa_succ(aut);
+  auto const aut_acc = swa_ba_acc(aut);
+
+  auto const aut_scc = get_sccs(aut_st, aut_sucs);
+  auto const aut_cl = ba_classify_sccs(*aut_scc, aut_acc);
+  unsigned i=0;
+  for (auto const& scc : aut_scc->sccs) {
+    if (contains(aut_cl->rejecting, i)) {
+      ++i;
+      continue;
+    }
+
+    //get accepting states of scc
+    vector<state_t> sccacc = scc;
+    auto it = partition(begin(sccacc), end(sccacc), aut_acc);
+    sccacc.erase(it, end(sccacc));
+    sort(begin(sccacc), end(sccacc));
+
+    // cerr << seq_to_str(sccacc) << endl;
+
+    //unmark all other accepting states in copy
+    ret.push_back(make_unique<SWA<string>>(aut));
+
+    // cerr << "copied" << endl;
+
+    auto& curaut = ret.back();
+    for (auto const s : aut_st) {
+      // if (curaut->has_accs(s))
+        if (!contains(sccacc, s))
+          curaut->set_accs(s, {});
+    }
+
+    // cerr << "unmarked" << endl;
+
+    //throw everything else away
+    trim_ba(*curaut);
+    // curaut->normalize();
+
+    // cerr << "trimmed" << endl;
+
+    ++i;
+  }
+
+  return ret;
 }
 
 int main(int argc, char *argv[]) {
@@ -186,150 +335,24 @@ int main(int argc, char *argv[]) {
     //---------------------------
     auto starttime = get_time();
 
-    if (args->trim) {
-      auto numtrimmed = trim_ba(*aut);
+    if (args->trim) { // just in case... usually input is already trim
+      auto const numtrimmed = trim_ba(*aut);
+      aut->normalize();
       log->info("removed {} useless states", numtrimmed);
-      log->info("number of states in trimmed A: {}", aut->num_states());
     }
 
-    succ_fun<state_t> aut_sucs = [&aut](state_t v){ return aut->succ(v); };
-    function<bool(state_t)> aut_acc = [&aut](state_t v){ return aut->has_accs(v); };
-    auto aut_st = aut->states();
-
-    // calculate SCCs of NBA if needed
-    SCCDat<state_t>::uptr aut_scc = nullptr;
-    BaSccClassification::uptr aut_cl = nullptr;
-    if (args->sepacc || args->seprej) {
-      aut_scc = bench(log, "get_scc_info", WRAP(get_sccs(aut_st, aut_sucs)));
-      aut_cl = bench(log, "classify_sccs", WRAP(ba_classify_sccs(*aut_scc, aut_acc)));
-      log->info("number of SCCs in A: {}", aut_scc->sccs.size());
-    }
-
-    // detect accepting sinks (acc states with self loop for each sym)
-    vector<small_state_t> accsinks;
-    if (args->detaccsinks) {
-      succ_sym_fun<state_t, sym_t> const aut_xsucs = [&aut](state_t v,sym_t s){ return aut->succ(v,s); };
-      outsym_fun<state_t,sym_t> const aut_osyms = [&aut](state_t v){ return aut->outsyms(v); };
-      accsinks = to_small_state_t(get_accepting_sinks(aut_st, aut->num_syms(), aut_acc, aut_osyms, aut_xsucs));
-      log->info("found {} accepting sinks", accsinks.size());
-    }
-
-    // calculate 2^A to guide and optimize determinization
-    PS::uptr ps = nullptr;
-    SCCDat<state_t>::uptr psi = nullptr;
-    if (args->topo) {
-      ps =  bench(log, "powerset_construction", WRAP(powerset_construction(*aut, accsinks)));
-      succ_fun<state_t> pssucs = [&ps](state_t v){ return ps->succ(v); };
-      psi = bench(log, "get_scc_info",          WRAP(get_sccs(ps->states(), pssucs)));
-      log->info("number of states in 2^A: {}", ps->num_states());
-      log->info("number of SCCs in 2^A: {}", psi->sccs.size());
-      assert(is_deterministic(*ps));
-    }
-
-    // calculate A x 2^A as context information
-    PP::uptr ctx = nullptr;
-    SCCDat<state_t>::uptr ctx_scc = nullptr;
-    BaSccClassification::uptr ctx_cl = nullptr;
-    if (args->context) {
-      ctx =  bench(log, "powerset_product", WRAP(powerset_product(*aut)));
-      succ_fun<state_t> ctxsucs = [&ctx](state_t v){ return ctx->succ(v); };
-      function<bool(state_t)> ctx_acc = [&ctx](state_t v){ return ctx->has_accs(v); };
-      auto ctxst = ctx->states();
-
-      ctx_scc = bench(log, "get_scc_info", WRAP(get_sccs(ctxst, ctxsucs)));
-      ctx_cl = bench(log, "classify_sccs", WRAP(ba_classify_sccs(*ctx_scc, ctx_acc)));
-      log->info("number of states in Ax2^A: {}", ctx->num_states());
-      log->info("number of SCCs in Ax2^A: {}", ctx_scc->sccs.size());
-    }
-
-    // configure level update:
-    auto lc = levelconfig_from_args(*args);
-    //set the accepting sink states
-    lc->accsinks = accsinks;
-    // set reference to underlying NBA
-    lc->aut = aut.get();
-    lc->aut_scc = aut_scc.get();
-    lc->aut_cl = aut_cl.get();
-
-    // set reference to context NBA
-    lc->ctx = ctx.get();
-    lc->ctx_scc = ctx_scc.get();
-    lc->ctx_cl = ctx_cl.get();
-
-    PA::uptr pa;
-    if (!args->topo)
-      pa = bench(log, "determinize", WRAP(determinize(*lc)));
-    else
-      pa = bench(log, "determinize_topo", WRAP(determinize(*lc, *ps, *psi)));
-
-    log->info("number of states in resulting automaton: {}", pa->num_states());
-
-    //sanity checks
-    assert(pa->get_name() == aut->get_name());
-    assert(pa->get_aps() == aut->get_aps());
-    assert(pa->get_init().size() == 1);
-    assert(is_deterministic(*pa));
-    assert(is_colored(*pa));
-    // assert(get_scc_info(*pa)->unreachable.empty());
-
-    //make complete here. so added rej. sink gets optimized away later eventually
-    // if (args->mindfa) {
-    make_complete(*pa);
-    assert(is_complete(*pa));
-    // print_hoa(*pa);
-    // }
-
-    if (args->minpri) {
-      // auto oldpris = pa->get_accsets();
-      // auto pf = bench(log, "heuristic minimize priorities", WRAP(heuristic_minimize_priorities(*pa)));
-      bench(log, "minimize number of priorities", WRAP(minimize_priorities(*pa)));
-      // for (auto a : oldpris)
-      //   cout << a << " -> " << pf(a) << endl;
-      // transform_priorities(*pa, pf);
-    }
-
-    if (args->mindfa) {
-      function<acc_t(state_t)> colors = [&](auto s){return pa->get_accs(s).front();};
-      function<state_t(state_t,sym_t)> xsucc = [&](auto p, auto s){return pa->succ(p,s).front();};
-      auto equiv = dfa_equivalent_states(pa->states(), colors, pa->num_syms(), xsucc);
-      log->info("number of states after minimization: {}", equiv.size());
-
-      // print_hoa(*pa);
-      // for (auto const& v : equiv) {
-      //   cerr << seq_to_str(v) << endl;
-      // }
-
-      assert(pa->get_init().size()==1);
-      auto initial = pa->get_init().front();
-
-      // cerr << "init: " << initial << endl;
-
-      bool seenini = false;
-      for (auto ecl : equiv) {
-        // cerr << seq_to_str(ecl) << endl;
-
-        auto rep = ecl.back();
-        if (!seenini) {
-          auto it = lower_bound(begin(ecl), end(ecl), initial);
-          if (it != end(ecl) && *it == initial) {
-            ecl.erase(it);
-            rep = initial;
-            seenini = true;
-            // cerr << "found and removed initial" << endl;
-          } else {
-            ecl.pop_back();
-          }
-        } else {
-          ecl.pop_back();
-        }
-
-        // cerr << seq_to_str(ecl) << " , " << rep << endl;
-        // cerr << "init before merge: " << seq_to_str(pa->get_init()) << endl;
-        pa->merge_states(ecl, rep);
+    SWA<Level>::uptr pa = nullptr;
+    if (!args->split) { //determinize in one piece
+      pa = determinize_nba(*args, *aut, log);
+    } else {
+      auto subauts = split_nba(*aut);
+      for (auto const& subaut : subauts) {
+        log->info("number of states in subA: {}", subaut->num_states());
+        auto subpa = determinize_nba(*args, *subaut, log);
+        print_hoa(*subpa);
       }
     }
 
-    pa->normalize();
     log->info("completed automaton in {:.3f} seconds", get_secs_since(starttime));
     //---------------------------
 

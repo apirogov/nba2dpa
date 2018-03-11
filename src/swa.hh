@@ -101,6 +101,19 @@ struct SWA {
 
   SWA() : tag(make_unique<tag_storage>()) {}
 
+  SWA(SWA const& other) : tag(make_unique<tag_storage>()) {
+    name = other.name;
+    acond = other.acond;
+    patype = other.patype;
+    normalized = other.normalized;
+    aps = other.aps;
+    *tag = *other.tag;
+    init = other.init;
+    accsets = other.accsets;
+    acc = other.acc;
+    adj = other.adj;
+  }
+
   SWA(Acceptance cond, string const& title="", vector<string> const& ap={}, vector<state_t> const& initial={})
     : name(title), acond(cond), aps(ap), tag(make_unique<tag_storage>()),
       tag_to_str([](T const&){ return "<?>"; })
@@ -144,9 +157,11 @@ struct SWA {
   }
 
   void set_init(vector<state_t> const& initial) {
+#ifndef NDEBUG
     assert(is_set_vec(initial));
     for (auto &v : initial)
       assert(has_state(v));
+#endif
 
     init = initial;
   }
@@ -164,13 +179,14 @@ struct SWA {
 
   vector<acc_t> get_accs(state_t const& s) const { if (!has_accs(s)) return {}; else return acc.at(s); }
   void set_accs(state_t const& s, vector<acc_t> const& a) {
+#ifndef NDEBUG
     assert(has_state(s)); // otherwise adding acceptance to non-exinting state
     assert(is_set_vec(a));
-
     if (acond==Acceptance::BUCHI)
       assert(a.empty() || a==vector<acc_t>{0});
     else if (acond==Acceptance::PARITY)
       assert(a.size()<2);
+#endif
 
     // remove count of old, if any
     if (has_accs(s))
@@ -187,7 +203,8 @@ struct SWA {
       for (auto as : acc.at(s))
         accsets[as]++;
     } else { //remove if empty
-      acc.erase(acc.find(s));
+      if (has_accs(s))
+        acc.erase(acc.find(s));
     }
   }
 
@@ -204,10 +221,10 @@ struct SWA {
   }
 
   void set_succs(state_t const& p, sym_t const& x, vector<state_t> const& v) {
+#ifndef NDEBUG
     assert(has_state(p));
     assert(x < num_syms());
     assert(is_set_vec(v));
-#ifndef NDEBUG
     for (auto q : v)
       assert(has_state(q));
 #endif
@@ -222,11 +239,14 @@ struct SWA {
   vector<state_t> const& succ_raw(state_t const& p, sym_t const& x) const { return adj.at(p).at(x); }
 
   // x-label edge successors
-  vector<state_t> succ(state_t const& p, sym_t const& x) const {
+private:
+  vector<state_t> emptysucc;
+public:
+  vector<state_t> const& succ(state_t const& p, sym_t const& x) const {
     // if (!has_state(p)) return {};
     assert(has_state(p));
     auto const& edges = adj.at(p);
-    if (!map_has_key(edges, x)) return {};
+    if (!map_has_key(edges, x)) return emptysucc;
     return edges.at(x);
   }
 
@@ -247,9 +267,11 @@ struct SWA {
 
   // given set in sorted(!!) vector, kill states
   void remove_states(vector<state_t> const& tokill) {
+#ifndef NDEBUG
     assert(is_set_vec(tokill));
     for (auto s : tokill)
       assert(has_state(s));
+#endif
     // cerr << "removing " << seq_to_str(tokill) << endl;
 
     for (auto const& it : tokill) {
@@ -270,6 +292,7 @@ struct SWA {
       for (auto& jt : it.second) {
         auto res = set_diff(jt.second, tokill);
         jt.second = res;
+        // cerr << (int)it.first << "," << (int)jt.first << " -> " << seq_to_str(jt.second) << endl;
       }
     }
 
@@ -311,6 +334,7 @@ struct SWA {
     if (others.empty()) return; //nothing to do
     // cerr << "nonempty others" << endl;
 
+#ifndef NDEBUG
     assert(is_set_vec(others));
     assert(set_intersect(others, init).empty());
     assert(!contains(others,rep));
@@ -318,6 +342,7 @@ struct SWA {
 
     for (auto q : others)
       assert(has_state(q));
+#endif
 
     // add outgoing edges from all class members to representative
     for (auto i=0; i<num_syms(); i++) {
@@ -412,24 +437,42 @@ struct SWA {
 template <typename T, typename S>
 vector<small_state_t> powersucc(SWA<T> const& ks, std::vector<S> const& ps,
                                 sym_t const& x, std::vector<small_state_t> const& asinks={}) {
+#ifndef NDEBUG
   assert(is_set_vec(asinks));
   assert(is_set_vec(ps));
+  for (auto p : ps)
+    assert(ks.has_state(p));
+#endif
 
-  std::set<small_state_t> suc;
+  // std::set<small_state_t> suc;
+  std::vector<bool> suc(ks.states().back()+1, 0);
+
   for (auto const& p : ps) {
-    if (!ks.has_state(p))
-      continue;
     if (!ks.state_has_outsym(p,x))
       continue;
     auto const& qs = to_small_state_t(ks.succ(p, x));
 
     //an edge leads into accepting sink state -> return accepting sink PS
-    if (!asinks.empty() && !set_intersect(qs, asinks).empty())
-      return vector<small_state_t>(cbegin(asinks), cend(asinks));
+    if (!set_intersect_empty(qs, asinks))
+      return asinks; //vector<small_state_t>(cbegin(asinks), cend(asinks));
 
-    std::copy(qs.cbegin(), qs.cend(), std::inserter(suc, suc.end()));
+    // std::copy(qs.cbegin(), qs.cend(), std::inserter(suc, suc.end()));
+    for (auto const q : qs) {
+      suc[q] = 1;
+    }
   }
-  return vector<small_state_t>(suc.cbegin(), suc.cend());
+
+  vector<small_state_t> ret;
+  int const sucsz = suc.size();
+  ret.reserve(sucsz);
+  for (int i=0; i<sucsz; ++i) {
+    // cerr << "bit " << i << endl;
+    if (suc[i]) {
+      // cerr << "succ " << i << endl;
+      ret.push_back(i);
+    }
+  }
+  return ret; //vector<small_state_t>(suc.cbegin(), suc.cend());
 }
 
 template <typename T>
