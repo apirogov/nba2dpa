@@ -27,6 +27,8 @@ private:
   list<bounds> sets;  //set boundaries over elements as iterator pairs
   map<T, sym_set> set_of; //map from states back to iterator pair
 
+  vector<sym_set> sym_sets; //symbolic representation of sets (not ordered)
+
  public:
   size_t num_sets() const { return sets.size(); }
   size_t get_set_size(sym_set const& ref) const { return ref->second - ref->first; }
@@ -48,6 +50,7 @@ private:
       // cout << "add backmap" << endl;
       auto sym = sets.end();
       --sym;
+      sym_sets.push_back(sym);
       for (auto el : s)
         set_of[el] = sym;
 
@@ -58,8 +61,10 @@ private:
 
   //a set is identified by the iterator to the bound pair
   vector<sym_set> get_set_ids() {
+    // return sym_sets;
     vector<sym_set> ret;
-    for (auto it=sets.begin(); it!=sets.end(); ++it)
+    ret.reserve(sets.size());
+    for (auto it=begin(sets); it!=end(sets); ++it)
       ret.push_back(it);
     return ret;
   }
@@ -72,8 +77,9 @@ private:
     return ret;
   }
 
-  vector<T> get_elements_of(sym_set const& ref) const {
+  vector<T> get_elements_of(sym_set const& ref) {
     vector<T> ret;
+    ret.reserve(get_set_size(ref));
     for (auto it=ref->first; it!=ref->second; ++it)
       ret.push_back(*it);
     return ret;
@@ -90,6 +96,7 @@ private:
     if (mid == set->first || mid == set->second)
       return nullptr;
     auto newset = make_unique<sym_set>(sets.insert(set, make_pair(set->first, mid)));
+    sym_sets.push_back(*newset);
     for (auto it=(*newset)->first; it!=(*newset)->second; ++it)
       set_of[*it] = *newset; //update element -> set mapping
     set->first = mid;
