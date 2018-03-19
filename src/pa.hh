@@ -10,7 +10,7 @@ namespace nbautils {
 using namespace std;
 using namespace nbautils;
 
-//TODO: interpreting BA as PA and checking whether BA \ PA = emptyset
+//TODO: interpreting BA as PA and vice versa and checking whether BA \ PA = emptyset (BA <= PA)
 
 //TODO
 struct PAProdState {
