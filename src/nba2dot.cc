@@ -131,7 +131,10 @@ int main(int argc, char *argv[]) {
   function<vector<state_t>(state_t)> sucs = [&aut](state_t v){ return aut->succ(v); };
   function<vector<state_t>(state_t,sym_t)> const xsucs = [&aut](state_t v,sym_t s){ return aut->succ(v,s); };
   function<vector<sym_t>(state_t)> const outsyms = [&aut](state_t v){ return aut->outsyms(v); };
-  function<bool(state_t)> const ac = [&aut](state_t v){ return aut->has_accs(v); };
+  function<bool(state_t)> ac = [&aut](state_t v){ return aut->has_accs(v); };
+  if (aut->acond == Acceptance::PARITY) {
+    ac = [&aut](state_t v){ return good_priority(aut->get_patype(), aut->get_accs(v).front()); };
+  }
 
   auto states = aut->states();
   auto const unreach = unreachable_states(states, aut->get_init().front(), sucs);
@@ -175,7 +178,11 @@ int main(int argc, char *argv[]) {
         cout << "}" << endl;
       curscc = sscc;
       cout << "subgraph cluster_scc" << sscc << " {" << endl;
-      cout << "label = <<B>SCC " << sscc << "<BR/>(#st=" << scci->sccs.at(sscc).size() << ")</B>>;" << endl;
+      set<unsigned> acs;
+      for (auto st : scci->sccs.at(sscc))
+        acs.emplace(aut->get_accs(st).front());
+      vector<unsigned> acvec(begin(acs), end(acs));
+      cout << "label = <<B>SCC " << sscc << "<BR/>(#st=" << scci->sccs.at(sscc).size() << ", pris: " << seq_to_str(acvec) << ")</B>>;" << endl;
       if (contains(bascl->accepting, sscc)) {
         cout << "color = \"green\";" << endl;
       }

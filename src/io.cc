@@ -84,9 +84,9 @@ class MyConsumer : public HOAConsumer {
 
   virtual void setAcceptanceCondition(unsigned int numSets,
                                       acceptance_expr::ptr accExpr) override {
-    //TODO: read parity too
-    if (numSets != 1)
-      throw std::runtime_error("There must be exactly one accepting set!");
+    // if (numSets != 1)
+    //   throw std::runtime_error("There must be exactly one accepting set!");
+    ignore = numSets;
     ignore = accExpr;
   }
 
@@ -96,8 +96,16 @@ class MyConsumer : public HOAConsumer {
     ignore = extraInfo;
     if (name == acrep.ACC_BUCHI)
       auts.back()->acond = Acceptance::BUCHI;
-    else
-      throw std::runtime_error("Automaton does not have Büchi acceptance!");
+    else if (name == acrep.ACC_PARITY) {
+      auts.back()->acond = Acceptance::PARITY;
+      PAType pat = PAType::MIN_EVEN;
+      if (extraInfo.at(0).getString() != "min")
+        pat = opposite_polarity(pat);
+      if (extraInfo.at(1).getString() != "even")
+        pat = opposite_parity(pat);
+      auts.back()->set_patype(pat);
+    } else
+      throw std::runtime_error("Automaton does not have Büchi or Parity acceptance!");
 
   }
 
@@ -127,8 +135,9 @@ class MyConsumer : public HOAConsumer {
       auts.back()->add_state(id);
     }
 
-    if (accSignature)
-      auts.back()->set_accs(id,{0});
+    if (accSignature) {
+      auts.back()->set_accs(id,*accSignature);
+    }
 
     if (info) {
       auts.back()->tag->put(*info, id);

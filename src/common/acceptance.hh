@@ -20,6 +20,7 @@ inline constexpr PAType opposite_parity(PAType pt) {
     case PAType::MAX_EVEN: return PAType::MAX_ODD;
     case PAType::MAX_ODD:  return PAType::MAX_EVEN;
   }
+  return PAType::MAX_EVEN; //to mute warning
 }
 
 inline constexpr PAType opposite_polarity(PAType pt) {
@@ -29,6 +30,7 @@ inline constexpr PAType opposite_polarity(PAType pt) {
     case PAType::MAX_EVEN: return PAType::MIN_EVEN;
     case PAType::MAX_ODD:  return PAType::MIN_ODD;
   }
+  return PAType::MAX_ODD; //to mute warning
 }
 
 inline constexpr bool pa_acc_is_min(PAType a) {
