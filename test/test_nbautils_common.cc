@@ -279,8 +279,10 @@ void test_bimap_interface(bimap<string,int,Impl>& sbm) {
 
 TEST_CASE("Test naive bimap interface", "[bimap-interface-naive]")
 {
-  auto sbmp(new naive_bimap<string,int>());
+  auto sbmp(new naive_ordered_bimap<string,int>());
   test_bimap_interface(*sbmp);
+  auto sbmp2(new naive_unordered_bimap<string,int>());
+  test_bimap_interface(*sbmp2);
 }
 
 TEST_CASE("Test trie bimap interface", "[bimap-interface-trie]")

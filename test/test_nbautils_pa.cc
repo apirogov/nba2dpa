@@ -7,6 +7,7 @@
 // #include "debug.hh"
 #include "swa.hh"
 #include "io.hh"
+#include "pa.hh"
 #include "common/acceptance.hh"
 #include "common/util.hh"
 
@@ -53,4 +54,26 @@ TEST_CASE("Parity condition transforms") {
   SECTION("minimization preserves parity and relative order") {
     //TODO
   }
+}
+
+TEST_CASE("Parity Product states") {
+  PAProdState ps(10, 1, 5, 11, 2, 6);
+  REQUIRE(ps.a == 10);
+  REQUIRE(ps.b == 11);
+  REQUIRE(ps.prio == 0);
+  REQUIRE(ps.priord == vector<pair<bool,int>>{{false,2},{false,4},{false,6},{true,2},{true,4},{true,6}});
+
+  // cout << ps.to_string();
+  ps = ps.succ(12, 3, 13, 2);
+  // cout << ps.to_string();
+  REQUIRE(ps.a == 12);
+  REQUIRE(ps.b == 13);
+  REQUIRE(ps.prio == 3);
+  REQUIRE(ps.priord == vector<pair<bool,int>>{{false,2},{true,2},{true,4},{true,6},{false,4},{false,6}});
+  ps = ps.succ(0, 4, 0, 2);
+  REQUIRE(ps.prio == 4);
+  REQUIRE(ps.priord == vector<pair<bool,int>>{{false,2},{true,2},{true,4},{true,6},{false,4},{false,6}});
+  ps = ps.succ(0, 3, 0, 3);
+  REQUIRE(ps.prio == 5);
+  REQUIRE(ps.priord == vector<pair<bool,int>>{{false,2},{true,2},{false,4},{false,6},{true,4},{true,6}});
 }

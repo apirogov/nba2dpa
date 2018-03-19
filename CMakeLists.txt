@@ -84,6 +84,7 @@ set(nbautils_SOURCE src/dev/memusage.h src/dev/memusage.c src/dev/bench.hh
                    src/swa.hh
                    src/ba.hh src/ba.cc
                    src/io.hh src/io.cc
+                   src/pa.hh src/pa.cc
                    src/ps.hh
                    src/level.hh src/level.cc
                    src/det.hh src/det.cc

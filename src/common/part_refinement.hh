@@ -62,11 +62,13 @@ private:
   //a set is identified by the iterator to the bound pair
   vector<sym_set> get_set_ids() {
     // return sym_sets;
+    // /*
     vector<sym_set> ret;
     ret.reserve(sets.size());
     for (auto it=begin(sets); it!=end(sets); ++it)
       ret.push_back(it);
     return ret;
+    // */
   }
   //convenience function - returns all sets
   vector<vector<T>> get_refined_sets() {
@@ -108,7 +110,10 @@ public:
   //separate given set into satisfying and not satisfying predicate
   //if both are nonempty, returns token of second set, otherwise returns nullptr
   unique_ptr<sym_set> separate(sym_set& set, function<bool(T)> const& pred) {
-    auto const mid = stable_partition(set->first, set->second, pred);
+    // auto const mid = stable_partition(set->first, set->second, pred);
+    auto const mid = partition(set->first, set->second, pred);
+    sort(set->first, mid);
+    sort(mid, set->second);
     return move(split_set(set, mid));
   }
 

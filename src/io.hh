@@ -29,8 +29,8 @@ vector<SWA<std::string>::uptr> parse_hoa(string const &filename, std::shared_ptr
 std::string sym_to_edgelabel(sym_t s, std::vector<std::string> const& aps, bool as_aps=false);
 
 //output automaton in HOA format
-template<typename T>
-void print_hoa(SWA<T> const& aut, ostream &out = cout) {
+template<typename T, template <typename... Args> class S>
+void print_hoa(SWA<T,S> const& aut, ostream &out = cout) {
   out << "HOA: v1" << endl;
   out << "name: \"" << aut.get_name() << "\"" << endl;
   out << "States: " << aut.num_states() << endl;

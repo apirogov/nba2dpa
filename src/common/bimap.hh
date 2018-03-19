@@ -1,6 +1,7 @@
 #pragma once
 #include <functional>
 #include <map>
+#include <unordered_map>
 #include <memory>
 #include <iostream>
 #include "triebimap.hh"
@@ -50,8 +51,8 @@ class generic_trie_bimap : public bimap<T, V, generic_trie_bimap<T, K, V>> {
   void erase(V const& v) { m.erase(v); }
 };
 
-template <typename K, typename V>
-class naive_bimap : public bimap<K, V, naive_bimap<K, V>> {
+template <typename K, typename V, template <typename... Args> class M>
+class naive_bimap : public bimap<K, V, naive_bimap<K, V, M>> {
   map<K, V> ktov;
   map<V, K> vtok;
 
@@ -81,6 +82,11 @@ class naive_bimap : public bimap<K, V, naive_bimap<K, V>> {
     vtok.erase(vtok.find(v));
   }
 };
+
+template <typename K, typename V>
+using naive_ordered_bimap = naive_bimap<K,V,map>;
+template <typename K, typename V>
+using naive_unordered_bimap = naive_bimap<K,V,unordered_map>;
 
 //TODO: add boost bimap as possibility?
 

@@ -66,4 +66,31 @@ vector<Node> unreachable_states(std::vector<Node> const& allstates, Node from,
   return set_diff(allstates, reachable_states(from, get_succ));
 }
 
+
+//returns a Node sequence with start and target included, if a path is found
+template <typename Node>
+vector<Node> find_path_from_to(Node from, Node to, succ_fun<Node> get_succ) {
+  map<Node, Node> pred;
+  bfs(from, [&](Node const& st, auto const& visit, auto const&) {
+      for (Node q : get_succ(st)) {
+        if (!map_has_key(pred, q)) {
+          pred[q] = st;
+          visit(q);
+        }
+      }
+  });
+
+  if (!map_has_key(pred, to))
+    return {};
+
+  vector<Node> res;
+  res.push_back(to);
+  res.push_back(pred.at(to));
+  while (res.back() != from) {
+    res.push_back(pred.at(res.back()));
+  }
+  reverse(begin(res),end(res));
+  return res;
+}
+
 }

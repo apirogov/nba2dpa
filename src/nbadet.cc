@@ -28,7 +28,7 @@ struct Args {
   int verbose;
 
   bool trim;
-  bool split;
+  int split;
 
   bool detaccsinks;
 
@@ -79,8 +79,7 @@ Args::uptr parse_args(int argc, char *argv[]) {
   args::Flag topo(parser, "topo", "Use powerset SCCs to guide determinization", {'t', "topological"});
 
   // iterated product construction based determinization
-  args::Flag split(parser, "split", "Determinize all NBA SCCs separately, then combine", {'i', "split"});
-  //args::Flag rabin(parser, "rabin", "Return a smaller Rabin // automaton", {'r', "split"});
+  args::CounterFlag split(parser, "split", "Determinize all NBA SCCs separately, then combine", {'i', "split"});
 
   // postprocessing
   args::Flag minpri(parser, "minpri", "Minimize number of priorities", {'p', "minimize-priorities"});
@@ -113,7 +112,7 @@ Args::uptr parse_args(int argc, char *argv[]) {
   if (input) args->file = args::get(input);
   args->verbose = args::get(verbose);
   args->trim = trim;
-  args->split = split;
+  args->split = args::get(split);
 
   args->lvupdate = static_cast<LevelUpdateMode>(args::get(update));
   args->detaccsinks = detaccsinks;
@@ -236,8 +235,7 @@ auto determinize_nba(Args const &args, SWA<string>& aut, std::shared_ptr<spdlog:
     return move(pa);
 }
 
-//TODO: allow splitting each accepting state or on SCCs
-vector<SWA<string>::uptr> split_nba(SWA<string> const& aut) {
+vector<SWA<string>::uptr> split_nba(SWA<string> const& aut, bool each_acc_separated) {
   vector<SWA<string>::uptr> ret;
 
   auto const aut_st = aut.states();
@@ -262,22 +260,35 @@ vector<SWA<string>::uptr> split_nba(SWA<string> const& aut) {
     // cerr << seq_to_str(sccacc) << endl;
 
     //unmark all other accepting states in copy
-    ret.push_back(make_unique<SWA<string>>(aut));
+    auto cur = make_unique<SWA<string>>(aut);
 
     // cerr << "copied" << endl;
 
-    auto& curaut = ret.back();
     for (auto const s : aut_st) {
       // if (curaut->has_accs(s))
         if (!contains(sccacc, s))
-          curaut->set_accs(s, {});
+          cur->set_accs(s, {});
     }
 
     // cerr << "unmarked" << endl;
 
     //throw everything else away
-    trim_ba(*curaut);
+    trim_ba(*cur);
     // curaut->normalize();
+
+    if (!each_acc_separated) {
+      ret.push_back(move(cur));
+    } else {
+      for (int i=0; i<(int)sccacc.size(); ++i) {
+        auto subcur = make_unique<SWA<string>>(*cur);
+        for (int j=0; j<(int)sccacc.size(); ++j) {
+          if (i!=j)
+            subcur->set_accs(sccacc[j], {});
+        }
+        // print_hoa(*subcur);
+        ret.push_back(move(subcur));
+      }
+    }
 
     // cerr << "trimmed" << endl;
 
@@ -341,23 +352,45 @@ int main(int argc, char *argv[]) {
       log->info("removed {} useless states", numtrimmed);
     }
 
-    SWA<Level>::uptr pa = nullptr;
-    if (!args->split) { //determinize in one piece
-      pa = determinize_nba(*args, *aut, log);
+    if (args->split==0) { //determinize in one piece
+      auto pa = determinize_nba(*args, *aut, log);
+
+      log->info("completed automaton in {:.3f} seconds", get_secs_since(starttime));
+      if (!args->nooutput)
+        print_hoa(*pa);
+
     } else {
-      auto subauts = split_nba(*aut);
+      log->info("splitting NBA");
+      auto subauts = split_nba(*aut, args->split > 1);
+      log->info("number of subNBAs: {}", subauts.size());
+      SWA<PAProdState,naive_unordered_bimap>::uptr res = nullptr;
+
       for (auto const& subaut : subauts) {
         log->info("number of states in subA: {}", subaut->num_states());
         auto subpa = determinize_nba(*args, *subaut, log);
-        print_hoa(*subpa);
+        // print_hoa(*subpa);
+
+        log->info("calculating union...");
+        if (res == nullptr) {
+          auto tmp = empty_pa<bool,naive_unordered_bimap>(subpa->get_aps());
+          res = pa_union(*tmp, *subpa);
+        } else {
+          auto tmp = pa_union(*res, *subpa);
+          res = move(tmp);
+        }
+
+        log->info("completed union. current union size: {}", res->num_states());
+        log->info("optimizing union...");
+        minimize_priorities(*res);
+        minimize_pa(*res);
+        log->info("optimized union. current union size: {}", res->num_states());
+
+        //check language containment to abort earlier
       }
-    }
 
-    log->info("completed automaton in {:.3f} seconds", get_secs_since(starttime));
-    //---------------------------
-
-    if (!args->nooutput) {
-      print_hoa(*pa);
+      log->info("completed automaton in {:.3f} seconds", get_secs_since(starttime));
+      if (!args->nooutput)
+        print_hoa(*res);
     }
 
   }

@@ -45,10 +45,11 @@ inline vector<small_state_t> to_small_state_t(vector<state_t> const& v) {
 
 
 // acceptance-labelled KS with tagged nodes, fixed alphabet
-template <typename T,class tag_storage = naive_bimap<T, state_t>>
+template <typename T,template <typename... Args> class S = naive_ordered_bimap>
 struct SWA {
-  using uptr =  unique_ptr<SWA<T, tag_storage>>;
-  using sptr =  shared_ptr<SWA<T, tag_storage>>;
+  using tag_storage = S<T, state_t>;
+  using uptr =  unique_ptr<SWA<T, S>>;
+  using sptr =  shared_ptr<SWA<T, S>>;
   using tag_container =  bimap<T, state_t, tag_storage>;
   using tag_ptr = unique_ptr<tag_container>;
   using tag_printer = function<std::string(const T&)>;
@@ -304,7 +305,7 @@ public:
   }
 
   //stupidly paste another automaton (ignore initial status)
-  void insert(SWA<T,tag_storage> const& other) {
+  void insert(SWA<T,S> const& other) {
     assert(set_intersect(states(), other.states()).empty()); // no common states
     assert(get_aps() == other.get_aps()); //same alphabet and acceptance
     assert(acond == other.acond); //same alphabet and acceptance
@@ -475,8 +476,8 @@ vector<small_state_t> powersucc(SWA<T> const& ks, std::vector<S> const& ps,
   return ret; //vector<small_state_t>(suc.cbegin(), suc.cend());
 }
 
-template <typename T>
-bool is_deterministic(SWA<T> const& aut) {
+template<typename T, template <typename... Args> class S>
+bool is_deterministic(SWA<T,S> const& aut) {
   if (aut.get_init().size() > 1)
     return false;
 
@@ -495,8 +496,8 @@ bool is_deterministic(SWA<T> const& aut) {
 }
 
 // each state is part of exactly one accset
-template <typename T>
-bool is_colored(SWA<T> const& aut) {
+template<typename T, template <typename... Args> class S>
+bool is_colored(SWA<T,S> const& aut) {
   for (auto const& p : aut.states()) {
     if (!aut.has_accs(p) || aut.get_accs(p).size() != 1)
       return false;
@@ -505,8 +506,8 @@ bool is_colored(SWA<T> const& aut) {
 }
 
 // each state has successors for each edge label
-template <typename T>
-bool is_complete(SWA<T> const& aut) {
+template<typename T, template <typename... Args> class S>
+bool is_complete(SWA<T,S> const& aut) {
   for (auto const& p : aut.states()) {
     for (auto i=0; i<aut.num_syms(); i++) {
       if (aut.succ(p,i).empty())
@@ -516,8 +517,8 @@ bool is_complete(SWA<T> const& aut) {
   return true;
 }
 
-template<typename T>
-void make_complete(SWA<T>& aut) {
+template<typename T, template <typename... Args> class S>
+void make_complete(SWA<T,S>& aut) {
   if (is_complete(aut) || aut.num_syms()==0)
     return;
 
