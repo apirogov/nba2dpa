@@ -116,9 +116,10 @@ inline priority_t rank_to_prio(RelOrder::ord_t r, bool good) {
 
 Level Level::succ(LevelConfig const& lvc, sym_t x) const {
   bool const& debug = lvc.debug;
+  // bool const& debug = true;
   Level tmplv;
   if (debug) {
-    cout << "begin succ of: " << to_string() << endl;
+    cerr << "begin succ of: " << to_string() << endl;
   }
 
   //successor helper
@@ -128,7 +129,7 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
   //check for accepting sinks (then we're happily done)
   if (!set_intersect_empty(sucpset,lvc.accsinks)) {
     if (debug) {
-      cout << "reached accepting sink. returning accepting sink level!" << endl;
+      cerr << "reached accepting sink. returning accepting sink level!" << endl;
     }
     auto ret = Level(lvc,lvc.accsinks);
     ret.prio = 0; //must accept
@@ -190,7 +191,7 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
   if (debug) {
     tmplv.tupo = tupo; tmplv.tups = suctups;
     copy(begin(sascc), end(sascc), back_inserter(tmplv.tups));
-    cout << "after powersucc: " << tmplv.to_string() << endl;
+    cerr << "after powersucc: " << tmplv.to_string() << endl;
   }
 
   // ----------------------------------------------------------------
@@ -224,7 +225,7 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
     if (debug) {
       tmplv.tupo = tupo; tmplv.tups = suctups;
       copy(begin(sascc), end(sascc), back_inserter(tmplv.tups));
-      cout << "reduced ASCCs:" << tmplv.to_string() << endl;
+      cerr << "reduced ASCCs:" << tmplv.to_string() << endl;
     }
   }
 
@@ -263,7 +264,7 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
     tmplv = suclvl;
     copy(begin(sascc), end(sascc), back_inserter(tmplv.tups));
     if (lvc.sep_acc) tmplv.tupo.push_back(tupo.back());
-    cout << "left-reduce + split:" << tmplv.to_string() << endl;
+    cerr << "left-reduce + split:" << tmplv.to_string() << endl;
   }
 
   // ----------------------------------------------------------------
@@ -287,7 +288,7 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
       tmplv = suclvl;
       copy(begin(sascc), end(sascc), back_inserter(tmplv.tups));
       if (lvc.sep_acc) tmplv.tupo.push_back(tupo.back());
-      cout << "after relocating NSCC-states into root:" << tmplv.to_string() << endl;
+      cerr << "after relocating NSCC-states into root:" << tmplv.to_string() << endl;
     }
   }
 
@@ -310,7 +311,7 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
       tmplv = suclvl;
       copy(begin(sascc), end(sascc), back_inserter(tmplv.tups));
       if (lvc.sep_acc) tmplv.tupo.push_back(tupo.back());
-      cout << "after relocating ASCC-states into extra set:" << tmplv.to_string() << endl;
+      cerr << "after relocating ASCC-states into extra set:" << tmplv.to_string() << endl;
     }
   }
 
@@ -322,10 +323,10 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
   tie(p,l) = unflatten(suclvl.tupo);
 
   if (debug) {
-    cout << "calculated parent + left sibling:" << endl;
+    cerr << "calculated parent + left sibling:" << endl;
     for (auto i=0; i<(int)p.size(); i++) {
-      cout << "p[" << i <<"] =" << p[i] << ", ";
-      cout << "l[" << i <<"] =" << l[i] << endl;
+      cerr << "p[" << i <<"] =" << p[i] << ", ";
+      cerr << "l[" << i <<"] =" << l[i] << endl;
     }
   }
 
@@ -346,7 +347,7 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
   suclvl.prio = rank_to_prio(n, false);
 
   if (debug) {
-    cout << "def prio: " << suclvl.prio << endl;
+    cerr << "def prio: " << suclvl.prio << endl;
   }
 
   if (lvc.sep_acc) {
@@ -356,17 +357,22 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
           suclvl.prio = min(suclvl.prio, rank_to_prio(ascc_ord, false));
 
           if (debug)
-            cout << "reached ASCC breakpoint" << endl;
+            cerr << "reached ASCC breakpoint" << endl;
 
           if (!lvc.sep_acc_cyc) {
             swap(sascc.front(), sascc.back()); //breakpoint (right was empty) -> just swap sets
 
             if (debug)
-              cout << "swapped ASCC buffer and active set" << endl;
+              cerr << "swapped ASCC buffer and active set" << endl;
 
           } else if (!sascc.front().empty()){ //put next scc in order into the set, if any
             //TODO: cyclic update seems to have a bug still FIXME
-            auto tmp = sascc.front();
+            //possible problem/fix: need to put _succs_ of next SCC in order (sort on pred SCC)
+
+            // auto tmp = sascc.front();
+
+            auto tmp = *(end(tups)-2);
+
             stable_sort(begin(tmp), end(tmp),
                  [&](state_t const& a, state_t const& b){
                  return lvc.aut_scc->scc_of.at(a) < lvc.aut_scc->scc_of.at(b); });
@@ -383,23 +389,37 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
             if (nextscc == -1 && !tmp.empty())
               nextscc = lvc.aut_scc->scc_of.at(tmp.front());
 
+            // get the predecessors with the next SCC
+            tmp = states();
+            auto it = stable_partition(begin(tmp), end(tmp), [&lvc, &nextscc](auto s){
+                return lvc.aut_scc->scc_of.at(s) == (unsigned)nextscc; });
+            tmp.erase(it, end(tmp));
+
             if (nextscc > -1) { //move just states of cyclically next scc into right set
+
+              // separate successors of preds and non-successors
+              auto const predsuc = xsucc(tmp);
+              sascc.back() = set_intersect(sascc.front(), predsuc);
+              sascc.front() = set_diff(sascc.front(), predsuc);
+
+              /*
               auto it = stable_partition(begin(tmp), end(tmp), [&lvc, &nextscc](auto s){
                   return lvc.aut_scc->scc_of.at(s) != (unsigned)nextscc; });
               copy(it, end(tmp), back_inserter(sascc.back()));
               tmp.erase(it, end(tmp));
               sort(begin(tmp), end(tmp));
               sascc.front() = tmp;
+              */
 
               if (debug)
-                cout << "as ASCC " << oldaccscc << " died, now it's the turn of states from ASCC " << nextscc << endl;
+                cerr << "as ASCC " << oldaccscc << " died, now it's the turn of states from ASCC " << nextscc << endl;
             } else {
               if (debug)
-                cout << "no states in buffering ASCC set" << endl;
+                cerr << "no states in buffering ASCC set" << endl;
             }
 
           }
-          // cout << seq_to_str(sascc.front()) << " , " << seq_to_str(sascc.back()) << endl;
+          // cerr << seq_to_str(sascc.front()) << " , " << seq_to_str(sascc.back()) << endl;
     } else {
           suclvl.prio = min(suclvl.prio, rank_to_prio(ascc_ord, true));
     }
@@ -408,7 +428,7 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
       tmplv = suclvl;
       copy(begin(sascc), end(sascc), back_inserter(tmplv.tups));
       tmplv.tupo = rord.to_ranks(tupranks);
-      cout << "after updating ASCC set:" << tmplv.to_string() << endl;
+      cerr << "after updating ASCC set:" << tmplv.to_string() << endl;
     }
   }
 
@@ -429,7 +449,7 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
     if (hostempty) { //some good or bad event
       if (node_saturated[i]) { //saturated node
         if (debug)
-          cout << i << " strd ";
+          cerr << i << " strd ";
 
         suclvl.prio = min(suclvl.prio, rank_to_prio(suclvl.tupo[i], true));
 
@@ -452,7 +472,7 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
         }
       } else { //dead node, kill rank
         if (debug)
-          cout << i << " dead ";
+          cerr << i << " dead ";
 
         suclvl.prio = min(suclvl.prio, rank_to_prio(suclvl.tupo[i], false));
         rord.kill(tupranks[i]);
@@ -465,12 +485,12 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
   }
 
   if (debug) {
-    cout << endl;
+    cerr << endl;
 
     tmplv = suclvl;
     copy(begin(sascc), end(sascc), back_inserter(tmplv.tups));
     tmplv.tupo = rord.to_ranks(tupranks);
-    cout << "after completed merges:" << tmplv.to_string() << endl;
+    cerr << "after completed merges:" << tmplv.to_string() << endl;
   }
 
   // ----------------------------------------------------------------
@@ -496,7 +516,7 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
   suclvl.tupo = rord.to_ranks(tupranks);
 
   if (debug) {
-    cout << "after cleanup:" << suclvl.to_string() << endl;
+    cerr << "after cleanup:" << suclvl.to_string() << endl;
   }
 
   // ----------------------------------------------------------------
@@ -506,7 +526,7 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
   suclvl.powerset = add_powerset_hash(*lvc.aut, suclvl);
 
   if (debug) {
-    cout << "completed succ" << endl;
+    cerr << "completed succ" << endl;
   }
 
   return suclvl;

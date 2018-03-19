@@ -1,2 +1,2 @@
 #!/bin/sh
-cat $1 | autfilt --complement | autfilt --complement --small --high -S -C
+cat $1 | autfilt -D -S -C -p

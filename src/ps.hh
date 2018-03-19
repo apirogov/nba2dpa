@@ -22,6 +22,7 @@ using PP = SWA<pp_tag>;
 // BA -> 2^BA (as reachable from initial state)
 template <typename T>
 typename PS::uptr powerset_construction(SWA<T> const& ks, vector<small_state_t> const& sinks={}) {
+  assert(ks.get_init().size()==1); //2^BA x BA makes only sense with one initial state!
   // create aut, add initial state, associate with initial states in original aut
   state_t const myinit = 0;
   auto pks = std::make_unique<PS>(Acceptance::UNKNOWN, ks.get_name(), ks.get_aps(), vector<state_t>{myinit});
