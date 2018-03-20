@@ -70,8 +70,15 @@ PAProdState::PAProdState(state_t l, int lmin, int lmax, state_t r, int rmin, int
 PAProdState::PAProdState(PAProdState const& other) : a(other.a), b(other.b), prio(other.prio), priord(other.priord) {}
 
 // get new state from current with given new component states (and their prio) and adapted priorities
-PAProdState PAProdState::succ(state_t l, int pl, state_t r, int pr) const {
+PAProdState PAProdState::succ(state_t l, int pl, state_t r, int pr, bool intersect) const {
   PAProdState s(*this);
+
+  //TODO: is this correct for intersection?
+  bool good = pl%2 == 0;
+  if (intersect)
+    good = good && (pr%2 == 0);
+  else
+    good = good || (pr%2 == 0);
 
   //update state pair
   s.a = l;
@@ -82,7 +89,10 @@ PAProdState PAProdState::succ(state_t l, int pl, state_t r, int pr) const {
   while (it != s.priord.end()) {
     int p = it->first ? pr : pl;
     if (it->second == p) { //good priority fires -> we're done
-      s.prio = 2*(i+1); //fire good
+      if (good)
+        s.prio = 2*(i+1); //fire good
+      else
+        s.prio = 2*i+1;  // fire bad
       break;
     } else if (it->second-1 == p) { //bad priority fires -> need shifting stuff
       s.prio = 2*i+1;  // fire bad
@@ -113,6 +123,7 @@ PAProdState PAProdState::succ(state_t l, int pl, state_t r, int pr) const {
     ++i;
   }
 
+  // cout << l << ":" << pl << " ^ " << r << ":" << pr << " -> " << s.prio << endl;
   return s;
 }
 

@@ -178,11 +178,15 @@ int main(int argc, char *argv[]) {
         cout << "}" << endl;
       curscc = sscc;
       cout << "subgraph cluster_scc" << sscc << " {" << endl;
-      set<unsigned> acs;
-      for (auto st : scci->sccs.at(sscc))
-        acs.emplace(aut->get_accs(st).front());
-      vector<unsigned> acvec(begin(acs), end(acs));
-      cout << "label = <<B>SCC " << sscc << "<BR/>(#st=" << scci->sccs.at(sscc).size() << ", pris: " << seq_to_str(acvec) << ")</B>>;" << endl;
+      cout << "label = <<B>SCC " << sscc << "<BR/>(#st=" << scci->sccs.at(sscc).size();
+      if (aut->acond==Acceptance::PARITY) {
+        set<unsigned> acs;
+        for (auto st : scci->sccs.at(sscc))
+          acs.emplace(aut->get_accs(st).front());
+        vector<unsigned> acvec(begin(acs), end(acs));
+        cout << ", pris: " << seq_to_str(acvec);
+      }
+      cout << ")</B>>;" << endl;
       if (contains(bascl->accepting, sscc)) {
         cout << "color = \"green\";" << endl;
       }

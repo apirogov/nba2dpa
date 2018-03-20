@@ -372,6 +372,31 @@ public:
     remove_states(others);
   }
 
+  void quotient(vector<vector<state_t>> const& equiv) {
+    assert(get_init().size()==1);
+    //assert setvec, disjoint, etc
+
+    auto initial = get_init().front();
+    bool seenini = false;
+    for (auto ecl : equiv) {
+      auto rep = ecl.back();
+      if (!seenini) {
+        auto it = lower_bound(begin(ecl), end(ecl), initial);
+        if (it != end(ecl) && *it == initial) {
+          ecl.erase(it);
+          rep = initial;
+          seenini = true;
+        } else {
+          ecl.pop_back();
+        }
+      } else {
+        ecl.pop_back();
+      }
+
+      merge_states(ecl, rep);
+    }
+  }
+
   //renumber all states continuously starting from offset
   //TODO: maybe don't do anything for id-mapped nodes? is this optimization realistic?
   map<state_t, state_t> normalize(state_t offset=0) {

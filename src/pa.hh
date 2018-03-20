@@ -3,6 +3,7 @@
 #include <functional>
 #include <unordered_map>
 #include "swa.hh"
+#include "io.hh"
 #include "common/util.hh"
 #include "common/acceptance.hh"
 #include "common/algo.hh"
@@ -26,7 +27,7 @@ struct PAProdState {
   PAProdState();
 
   // get new state from current with given new component states (and their prio) and adapted priorities
-  PAProdState succ(state_t l, int pl, state_t r, int pr) const;
+  PAProdState succ(state_t l, int pl, state_t r, int pr, bool intersect) const;
 
   string to_string() const;
   bool operator<(PAProdState const& other) const;
@@ -80,10 +81,12 @@ vector<state_t> find_acc_pa_scc(SWA<T,S> const& aut) {
   assert(aut.get_patype() == PAType::MIN_EVEN);
 
   auto const st = aut.states();
+  function<unsigned(state_t)> const get_pri = [&](state_t v){return aut.get_accs(v).front(); };
 
   for (auto const p : aut.get_accsets()) {
     if (p%2==1)
       continue;
+    // cout << "check " << p << endl;
 
     // for each good priority, in descending importance order,
     // try to find non-trivial SCC that never needs to visit any stronger priority
@@ -96,13 +99,16 @@ vector<state_t> find_acc_pa_scc(SWA<T,S> const& aut) {
 
     // get SCCs s.t. lower priorities are forbidden
     auto const scci = get_sccs(st, restricted_succ);
+    auto const best_pri = fold_sccs<state_t,unsigned>(*scci, aut.get_accsets().back(), get_pri,
+                            [](auto a, auto b){return min(a,b);});
     auto const triv = trivial_sccs(*scci, restricted_succ);
     if (scci->sccs.size() == triv.size())
       continue;
 
     // return any non-trivial good subscc where an acc cycle can be found
+    // with current priority
     for (int i=0; i<(int)scci->sccs.size(); i++)
-      if (!contains(triv, i))
+      if (!contains(triv, i) && best_pri.at(i)==p)
         return scci->sccs.at(i);
   }
   return {};
@@ -148,7 +154,7 @@ pair<vector<state_t>,vector<state_t>> get_acc_pa_run(SWA<T,S> const& aut) {
 //TODO: lang. containment check
 using PAP = SWA<PAProdState,naive_unordered_bimap>;
 template<typename A, typename B, template <typename... Args1> class SA, template <typename... Args2> class SB>
-PAP::uptr pa_union(SWA<A, SA> const& aut_a, SWA<B, SB> const& aut_b) {
+PAP::uptr pa_prod(SWA<A, SA> const& aut_a, SWA<B, SB> const& aut_b, bool intersect) {
   assert(aut_a.acond == Acceptance::PARITY);
   assert(aut_b.acond == Acceptance::PARITY);
   assert(aut_a.get_patype() == PAType::MIN_EVEN);
@@ -164,21 +170,22 @@ PAP::uptr pa_union(SWA<A, SA> const& aut_a, SWA<B, SB> const& aut_b) {
   pa->tag_to_str = [](PAProdState const& s){ return s.to_string(); };
 
   int l    = aut_a.get_init().front();
-  int pl   = aut_a.get_accs(l).front();
+  // int pl   = aut_a.get_accs(l).front();
   int lmin = aut_a.get_accsets().front();
   int lmax = aut_a.get_accsets().back();
 
   int r    = aut_b.get_init().front();
-  int pr   = aut_b.get_accs(r).front();
+  // int pr   = aut_b.get_accs(r).front();
   int rmin = aut_b.get_accsets().front();
   int rmax = aut_b.get_accsets().back();
   PAProdState inittag(l, lmin, lmax, r, rmin, rmax);
-  inittag.succ(l, pl, r, pr);
-
+  // inittag = inittag.succ(l, pl, r, pr, intersect);
+  //TODO: the initial state is often in a trivial SCC and unneeded!
+  //
   state_t myinit = 0;
   pa->add_state(myinit);
   pa->set_init({myinit});
-  pa->set_accs(myinit, {0});
+  pa->set_accs(myinit, {(unsigned)inittag.prio});
   pa->tag->put(inittag, myinit);
 
   int numvis=0;
@@ -194,7 +201,7 @@ PAP::uptr pa_union(SWA<A, SA> const& aut_a, SWA<B, SB> const& aut_b) {
       auto const suca = aut_a.succ(curst.a, i).front();
       auto const sucb = aut_b.succ(curst.b, i).front();
       auto const sucprod = curst.succ(suca, aut_a.get_accs(suca).front(),
-                                      sucb, aut_b.get_accs(sucb).front());
+                                      sucb, aut_b.get_accs(sucb).front(), intersect);
 
       //check whether there is already a state in the graph with this label
       auto const sucst = pa->tag->put_or_get(sucprod, pa->num_states());
@@ -213,6 +220,64 @@ PAP::uptr pa_union(SWA<A, SA> const& aut_a, SWA<B, SB> const& aut_b) {
   });
 
   return move(pa);
+}
+
+//TODO: something is not right. either intersection or this is broken
+template<typename T, template <typename... Args> class S>
+vector<vector<state_t>> pa_equiv_states(SWA<T,S> const& aut) {
+  assert(aut.acond == Acceptance::PARITY);
+
+  //TODO: check each color separately, not each with each?
+
+  auto const sts = aut.states();
+  map<state_t, state_t> eq;
+  for (auto const st : sts)
+    eq[st] = st;
+
+  for (int i=0; i<(int)sts.size(); ++i) {
+    for (int j=i+1; j<(int)sts.size(); ++j) {
+      // cout << sts[i] << "," << sts[j] << endl;
+      if (aut.get_accs(sts[i]) != aut.get_accs(sts[j]))
+        continue; //different priorities can not be equivalent! TODO?
+      if (eq.at(sts[j]) != sts[j])
+        continue; //this one is already equiv to someone
+
+      auto aut_a(aut);
+      auto aut_b(aut);
+      aut_a.set_init({sts[i]});
+      aut_b.set_init({sts[j]});
+      complement_pa(aut_b);
+
+      auto a_times_not_b = pa_prod(aut_a, aut_b, true);
+
+      // cout << "a x not b:" << endl;
+      // print_hoa(*a_times_not_b);
+      // vector<state_t> pref;
+      // vector<state_t> cyc;
+      // tie(pref, cyc) = get_acc_pa_run(*a_times_not_b);
+      // cout << seq_to_str(pref) << " | " << seq_to_str(cyc) << endl;
+      // auto scc = find_acc_pa_scc(*a_times_not_b);
+      // cout << seq_to_str(scc) << endl;
+
+      if (!pa_is_empty(*a_times_not_b))
+        continue;
+
+      complement_pa(aut_a);
+      complement_pa(aut_b);
+      auto not_a_times_b = pa_prod(aut_a, aut_b, true);
+
+      // cout << "not a x b:" << endl;
+      // print_hoa(*not_a_times_b);
+
+      if (!pa_is_empty(*not_a_times_b))
+        continue;
+
+      // we're here so both are empty so states are equivalent
+      // cout << sts[i] << " ~ " << sts[j] << endl;
+      eq[sts[j]] = eq[sts[i]];
+    }
+  }
+  return group_by(sts, [&](state_t a, state_t b){ return eq.at(a)==eq.at(b); });
 }
 
 //interpret a BA as min even PA by setting missing priorities to 1
@@ -240,7 +305,7 @@ void transform_priorities(SWA<T,S> &aut, function<acc_t(acc_t)> const& pf) {
 
 //complement PA by flipping parity of states
 template<typename T, template <typename... Args> class S>
-void complement_pa(SWA<T,S> &aut, PAType pt) {
+void complement_pa(SWA<T,S> &aut) {
   transform_priorities(aut, [](int p){return p+1;});
 }
 
@@ -274,6 +339,7 @@ auto minimize_priorities(SWA<T,S>& aut) {
 
   for (auto it : primap) {
     aut.set_accs(it.first, {(acc_t)it.second});
+    // cout << it.first << " : " << it.second << endl;
   }
   aut.set_patype(PAType::MAX_ODD);
   change_patype(aut, orig_patype); //transform back
@@ -357,27 +423,7 @@ bool minimize_pa(SWA<T,S>& pa) {
   // auto equiv = dfa_equivalent_states(pa.states(), colors, pa.num_syms(), xsucc);
 
   auto equiv = get_equiv_states(pa);
-
-  auto initial = pa.get_init().front();
-  bool seenini = false;
-  for (auto ecl : equiv) {
-    auto rep = ecl.back();
-    if (!seenini) {
-      auto it = lower_bound(begin(ecl), end(ecl), initial);
-      if (it != end(ecl) && *it == initial) {
-        ecl.erase(it);
-        rep = initial;
-        seenini = true;
-      } else {
-        ecl.pop_back();
-      }
-    } else {
-      ecl.pop_back();
-    }
-
-    pa.merge_states(ecl, rep);
-  }
-
+  pa.quotient(equiv);
   pa.normalize();
 
   return true;

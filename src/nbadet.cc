@@ -348,7 +348,7 @@ int main(int argc, char *argv[]) {
 
     if (args->trim) { // just in case... usually input is already trim
       auto const numtrimmed = trim_ba(*aut);
-      aut->normalize();
+      // aut->normalize();
       log->info("removed {} useless states", numtrimmed);
     }
 
@@ -373,9 +373,9 @@ int main(int argc, char *argv[]) {
         log->info("calculating union...");
         if (res == nullptr) {
           auto tmp = empty_pa<bool,naive_unordered_bimap>(subpa->get_aps());
-          res = pa_union(*tmp, *subpa);
+          res = pa_prod(*tmp, *subpa, false);
         } else {
-          auto tmp = pa_union(*res, *subpa);
+          auto tmp = pa_prod(*res, *subpa, false);
           res = move(tmp);
         }
 
@@ -383,6 +383,9 @@ int main(int argc, char *argv[]) {
         log->info("optimizing union...");
         minimize_priorities(*res);
         minimize_pa(*res);
+        // auto equiv = pa_equiv_states(*res);
+        // res->quotient(equiv);
+        // res->normalize();
         log->info("optimized union. current union size: {}", res->num_states());
 
         //check language containment to abort earlier
