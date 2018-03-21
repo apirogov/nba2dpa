@@ -86,6 +86,7 @@ inline void mark_dead_sccs(set<unsigned> const& rejecting, set<unsigned> const& 
 }
 
 // run dfs that marks dead sccs (assuming sccs 0..num_sccs-1 exist)
+// TODO: accepting / rejecting SCCs are also possible in parity!
 inline set<unsigned> ba_get_dead_sccs(int num_sccs,
     set<unsigned> const& rejecting, set<unsigned> const& trivial,
     succ_scc_fun const& get_succs) {

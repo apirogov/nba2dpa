@@ -150,8 +150,6 @@ pair<vector<state_t>,vector<state_t>> get_acc_pa_run(SWA<T,S> const& aut) {
 // pair<vector<sym_t>,vector<sym_t>> get_acc_pa_word(SWA<T,S> const& aut) {
 // }
 
-//TODO: PA emptiness
-//TODO: lang. containment check
 using PAP = SWA<PAProdState,naive_unordered_bimap>;
 template<typename A, typename B, template <typename... Args1> class SA, template <typename... Args2> class SB>
 PAP::uptr pa_prod(SWA<A, SA> const& aut_a, SWA<B, SB> const& aut_b, bool intersect) {
@@ -169,19 +167,15 @@ PAP::uptr pa_prod(SWA<A, SA> const& aut_a, SWA<B, SB> const& aut_b, bool interse
   pa->set_patype(PAType::MIN_EVEN);
   pa->tag_to_str = [](PAProdState const& s){ return s.to_string(); };
 
-  int l    = aut_a.get_init().front();
-  // int pl   = aut_a.get_accs(l).front();
+  state_t l    = aut_a.get_init().front();
   int lmin = aut_a.get_accsets().front();
   int lmax = aut_a.get_accsets().back();
 
-  int r    = aut_b.get_init().front();
-  // int pr   = aut_b.get_accs(r).front();
+  state_t r    = aut_b.get_init().front();
   int rmin = aut_b.get_accsets().front();
   int rmax = aut_b.get_accsets().back();
   PAProdState inittag(l, lmin, lmax, r, rmin, rmax);
-  // inittag = inittag.succ(l, pl, r, pr, intersect);
-  //TODO: the initial state is often in a trivial SCC and unneeded!
-  //
+
   state_t myinit = 0;
   pa->add_state(myinit);
   pa->set_init({myinit});
@@ -218,16 +212,14 @@ PAP::uptr pa_prod(SWA<A, SA> const& aut_a, SWA<B, SB> const& aut_b, bool interse
       visit(sucst);
     }
   });
+  //TODO: keep deepest SCC-sub-tree-dag that has init1,init2 pair
 
   return move(pa);
 }
 
-//TODO: something is not right. either intersection or this is broken
 template<typename T, template <typename... Args> class S>
 vector<vector<state_t>> pa_equiv_states(SWA<T,S> const& aut) {
   assert(aut.acond == Acceptance::PARITY);
-
-  //TODO: check each color separately, not each with each?
 
   auto const sts = aut.states();
   map<state_t, state_t> eq;
@@ -237,8 +229,6 @@ vector<vector<state_t>> pa_equiv_states(SWA<T,S> const& aut) {
   for (int i=0; i<(int)sts.size(); ++i) {
     for (int j=i+1; j<(int)sts.size(); ++j) {
       // cout << sts[i] << "," << sts[j] << endl;
-      if (aut.get_accs(sts[i]) != aut.get_accs(sts[j]))
-        continue; //different priorities can not be equivalent! TODO?
       if (eq.at(sts[j]) != sts[j])
         continue; //this one is already equiv to someone
 

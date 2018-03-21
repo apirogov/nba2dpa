@@ -64,16 +64,16 @@ TEST_CASE("Parity Product states") {
   REQUIRE(ps.priord == vector<pair<bool,int>>{{false,2},{false,4},{false,6},{true,2},{true,4},{true,6}});
 
   // cout << ps.to_string();
-  ps = ps.succ(12, 3, 13, 2);
+  ps = ps.succ(12, 3, 13, 2, false);
   // cout << ps.to_string();
   REQUIRE(ps.a == 12);
   REQUIRE(ps.b == 13);
   REQUIRE(ps.prio == 3);
   REQUIRE(ps.priord == vector<pair<bool,int>>{{false,2},{true,2},{true,4},{true,6},{false,4},{false,6}});
-  ps = ps.succ(0, 4, 0, 2);
+  ps = ps.succ(0, 4, 0, 2, false);
   REQUIRE(ps.prio == 4);
   REQUIRE(ps.priord == vector<pair<bool,int>>{{false,2},{true,2},{true,4},{true,6},{false,4},{false,6}});
-  ps = ps.succ(0, 3, 0, 3);
+  ps = ps.succ(0, 3, 0, 3, false);
   REQUIRE(ps.prio == 5);
   REQUIRE(ps.priord == vector<pair<bool,int>>{{false,2},{true,2},{false,4},{false,6},{true,4},{true,6}});
 }
