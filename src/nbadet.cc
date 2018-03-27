@@ -373,9 +373,9 @@ int main(int argc, char *argv[]) {
         log->info("calculating union...");
         if (res == nullptr) {
           auto tmp = empty_pa<bool,naive_unordered_bimap>(subpa->get_aps());
-          res = pa_prod(*tmp, *subpa, false);
+          res = pa_union(*tmp, *subpa);
         } else {
-          auto tmp = pa_prod(*res, *subpa, false);
+          auto tmp = pa_union(*res, *subpa);
           res = move(tmp);
         }
 

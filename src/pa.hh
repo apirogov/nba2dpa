@@ -27,7 +27,7 @@ struct PAProdState {
   PAProdState();
 
   // get new state from current with given new component states (and their prio) and adapted priorities
-  PAProdState succ(state_t l, int pl, state_t r, int pr, bool intersect) const;
+  PAProdState succ(state_t l, int pl, state_t r, int pr, bool fulldown=true) const;
 
   string to_string() const;
   bool operator<(PAProdState const& other) const;
@@ -152,7 +152,7 @@ pair<vector<state_t>,vector<state_t>> get_acc_pa_run(SWA<T,S> const& aut) {
 
 using PAP = SWA<PAProdState,naive_unordered_bimap>;
 template<typename A, typename B, template <typename... Args1> class SA, template <typename... Args2> class SB>
-PAP::uptr pa_prod(SWA<A, SA> const& aut_a, SWA<B, SB> const& aut_b, bool intersect) {
+PAP::uptr pa_union(SWA<A, SA> const& aut_a, SWA<B, SB> const& aut_b) {
   assert(aut_a.acond == Acceptance::PARITY);
   assert(aut_b.acond == Acceptance::PARITY);
   assert(aut_a.get_patype() == PAType::MIN_EVEN);
@@ -195,7 +195,7 @@ PAP::uptr pa_prod(SWA<A, SA> const& aut_a, SWA<B, SB> const& aut_b, bool interse
       auto const suca = aut_a.succ(curst.a, i).front();
       auto const sucb = aut_b.succ(curst.b, i).front();
       auto const sucprod = curst.succ(suca, aut_a.get_accs(suca).front(),
-                                      sucb, aut_b.get_accs(sucb).front(), intersect);
+                                      sucb, aut_b.get_accs(sucb).front());
 
       //check whether there is already a state in the graph with this label
       auto const sucst = pa->tag->put_or_get(sucprod, pa->num_states());
@@ -212,7 +212,7 @@ PAP::uptr pa_prod(SWA<A, SA> const& aut_a, SWA<B, SB> const& aut_b, bool interse
       visit(sucst);
     }
   });
-  //TODO: keep deepest SCC-sub-tree-dag that has init1,init2 pair
+  //TODO: same topo stuff as with safra, using "raw" product
 
   return move(pa);
 }
@@ -238,7 +238,7 @@ vector<vector<state_t>> pa_equiv_states(SWA<T,S> const& aut) {
       aut_b.set_init({sts[j]});
       complement_pa(aut_b);
 
-      auto a_times_not_b = pa_prod(aut_a, aut_b, true);
+      auto a_times_not_b = pa_union(aut_a, aut_b);
 
       // cout << "a x not b:" << endl;
       // print_hoa(*a_times_not_b);
@@ -254,7 +254,7 @@ vector<vector<state_t>> pa_equiv_states(SWA<T,S> const& aut) {
 
       complement_pa(aut_a);
       complement_pa(aut_b);
-      auto not_a_times_b = pa_prod(aut_a, aut_b, true);
+      auto not_a_times_b = pa_union(aut_a, aut_b);
 
       // cout << "not a x b:" << endl;
       // print_hoa(*not_a_times_b);
