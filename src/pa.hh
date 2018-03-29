@@ -217,10 +217,13 @@ PAP::uptr pa_union(SWA<A, SA> const& aut_a, SWA<B, SB> const& aut_b) {
   return move(pa);
 }
 
-template<typename T, template <typename... Args> class S>
-vector<vector<state_t>> pa_equiv_states(SWA<T,S> const& aut) {
-  assert(aut.acond == Acceptance::PARITY);
+template<typename T, typename T2, template <typename... Args> class S,template <typename... Args2> class S2>
+// vector<vector<state_t>> pa_equiv(SWA<T,S> const& aut1, SWA<T,S> const& aut2) {
+bool pa_equivalent(SWA<T,S> const& aut1, SWA<T2,S2> const& aut2) {
+  assert(aut1.acond == Acceptance::PARITY);
+  assert(aut2.acond == Acceptance::PARITY);
 
+  /*
   auto const sts = aut.states();
   map<state_t, state_t> eq;
   for (auto const st : sts)
@@ -231,14 +234,16 @@ vector<vector<state_t>> pa_equiv_states(SWA<T,S> const& aut) {
       // cout << sts[i] << "," << sts[j] << endl;
       if (eq.at(sts[j]) != sts[j])
         continue; //this one is already equiv to someone
+        */
 
-      auto aut_a(aut);
-      auto aut_b(aut);
-      aut_a.set_init({sts[i]});
-      aut_b.set_init({sts[j]});
+      auto aut_a(aut1);
+      auto aut_b(aut2);
+      // aut_a.set_init({sts[i]});
+      // aut_b.set_init({sts[j]});
       complement_pa(aut_b);
 
       auto a_times_not_b = pa_union(aut_a, aut_b);
+      complement_pa(*a_times_not_b);
 
       // cout << "a x not b:" << endl;
       // print_hoa(*a_times_not_b);
@@ -250,24 +255,30 @@ vector<vector<state_t>> pa_equiv_states(SWA<T,S> const& aut) {
       // cout << seq_to_str(scc) << endl;
 
       if (!pa_is_empty(*a_times_not_b))
-        continue;
+        return false;
+        // continue;
 
       complement_pa(aut_a);
       complement_pa(aut_b);
       auto not_a_times_b = pa_union(aut_a, aut_b);
+      complement_pa(*not_a_times_b);
 
       // cout << "not a x b:" << endl;
       // print_hoa(*not_a_times_b);
 
       if (!pa_is_empty(*not_a_times_b))
-        continue;
+        return false;
+        // continue;
 
       // we're here so both are empty so states are equivalent
       // cout << sts[i] << " ~ " << sts[j] << endl;
-      eq[sts[j]] = eq[sts[i]];
+      // eq[sts[j]] = eq[sts[i]];
+      /*
     }
   }
-  return group_by(sts, [&](state_t a, state_t b){ return eq.at(a)==eq.at(b); });
+  */
+  return true;
+  // return group_by(sts, [&](state_t a, state_t b){ return eq.at(a)==eq.at(b); });
 }
 
 //interpret a BA as min even PA by setting missing priorities to 1

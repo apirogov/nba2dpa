@@ -32,7 +32,7 @@ PA::uptr determinize(LevelConfig const& lc, vector<small_state_t> const& startse
 
     for (auto i = 0; i < pa->num_syms(); i++) {
       // calculate successor level
-      auto const suclevel = curlevel.succ(lc, i);
+      auto suclevel = curlevel.succ(lc, i);
       // cout << "suc " << suclevel.to_string() << endl;
 
       if (suclevel.powerset == 0) //is an empty set -> invalid successor
@@ -40,6 +40,33 @@ PA::uptr determinize(LevelConfig const& lc, vector<small_state_t> const& startse
 
       if (!pred(suclevel)) //predicate not satisfied -> don't explore this node
         continue;
+
+      if (lc.optguarded) { //guarded priority optimization
+        //NOTE: this changes the priority sequence, i.e. can interfere with hopcroft
+
+        //must be a different tree. we can not apply this with same tree
+        //successor prio is guarded by current
+        if (//!pa->tag->has(suclevel) &&
+            !curlevel.same_tree(suclevel)
+            && suclevel.prio >= curlevel.prio) {
+          bool found = false;
+          auto const realprio = suclevel.prio;
+
+          //we can pick any less important state with same tree
+          //we pick the least important (so all dominating predecessors map to same state)
+          for (unsigned i=2*(startset.size()+1); i>(unsigned)curlevel.prio; --i) {
+            suclevel.prio = i;
+            if (pa->tag->has(suclevel)) {
+              found = true;
+              // cerr << "rewire " << realprio << " to " << i << endl;
+              break;
+            }
+          }
+
+          if (!found) //no success -> we use it as given
+            suclevel.prio = realprio;
+        }
+      }
 
       //check whether there is already a state in the graph with this label
       auto const sucst = pa->tag->put_or_get(suclevel, pa->num_states());

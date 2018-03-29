@@ -36,9 +36,11 @@ struct Args {
   bool seprej;
   bool sepacc;
   bool cyclicbrk;
+  bool pure;
   bool context;
 
   bool topo;
+  bool optguarded;
 
   bool minpri;
   bool mindfa;
@@ -69,6 +71,7 @@ Args::uptr parse_args(int argc, char *argv[]) {
   args::Flag seprej(parser, "seprej", "Separate states in non-accepting SCCs", {'n', "separate-rej"});
   args::Flag sepacc(parser, "sepacc", "Separate states in accepting SCCs", {'a', "separate-acc"});
   args::Flag cyclicbrk(parser, "cyclicbrk", "Separate states in accepting SCCs, cycle through SCCs", {'b', "cyclic-breakpoint"});
+  args::Flag pure(parser, "pure", "Accepting leaf normal form (acc. states in leaves only)", {'l', "pure"});
 
   // type of update
   args::ValueFlag<int> update(parser, "level-update", "Type of update", {'u', "level-update"});
@@ -77,6 +80,7 @@ Args::uptr parse_args(int argc, char *argv[]) {
 
   // used to weed out redundant SCCs in det. automaton
   args::Flag topo(parser, "topo", "Use powerset SCCs to guide determinization", {'t', "topological"});
+  args::Flag optguarded(parser, "optguarded", "Optimize states guarded by higher-priority states", {'g', "opt-guarded"});
 
   // iterated product construction based determinization
   args::CounterFlag split(parser, "split", "Determinize all NBA SCCs separately, then combine", {'i', "split"});
@@ -120,8 +124,10 @@ Args::uptr parse_args(int argc, char *argv[]) {
   args->cyclicbrk = cyclicbrk;
   args->seprej = seprej;
   args->context = context;
+  args->pure = pure;
 
   args->topo = topo;
+  args->optguarded = optguarded;
   args->minpri = minpri;
   args->mindfa = mindfa;
 
@@ -133,6 +139,8 @@ Args::uptr parse_args(int argc, char *argv[]) {
 LevelConfig::uptr levelconfig_from_args(Args const &args) {
   auto lc = make_unique<LevelConfig>(LevelConfig());
   lc->update = args.lvupdate;
+  lc->optguarded = args.optguarded;
+  lc->pure = args.pure;
   lc->sep_rej = args.seprej;
   lc->sep_acc = args.sepacc;
   lc->sep_acc_cyc = args.cyclicbrk;

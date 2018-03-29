@@ -34,6 +34,9 @@ struct LevelConfig {
   bool sep_acc_cyc = false;
   LevelUpdateMode update = LevelUpdateMode::MUELLERSCHUPP;
 
+  bool pure = false; //move accepting states always into leaves after merges
+  bool optguarded = false; //reuse trees if priority is guarded
+
   // optional context information to refine separation
   // if remains nullptr, means that no context is used
   PP const* ctx = nullptr;
@@ -62,6 +65,8 @@ struct Level {
   Level(LevelConfig const& lvc, std::vector<Level::state_t> const& qs);
   Level succ(LevelConfig const& lvc, sym_t x) const;
 
+  bool same_tree(Level const& other) const;
+  bool operator==(Level const& other) const;
   bool operator<(Level const& other) const;
   vector<state_t> states() const;
 

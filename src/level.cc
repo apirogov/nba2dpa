@@ -30,6 +30,16 @@ std::ostream& operator<<(std::ostream& os,Level const& l) {
   return os;
 }
 
+//same modulo priority
+bool Level::same_tree(Level const& other) const {
+  return tups==other.tups && tupo==other.tupo;
+}
+
+//componentwise equality
+bool Level::operator==(Level const& other) const {
+  return same_tree(other) && prio == other.prio;
+}
+
 //compare lexicographically
 bool Level::operator<(Level const& other) const {
   if (tups == other.tups) {
@@ -115,8 +125,8 @@ inline priority_t rank_to_prio(RelOrder::ord_t r, bool good) {
 }
 
 Level Level::succ(LevelConfig const& lvc, sym_t x) const {
-  bool const& debug = lvc.debug;
-  // bool const& debug = true;
+  // bool const& debug = lvc.debug;
+  bool const& debug = true;
   Level tmplv;
   if (debug) {
     cerr << "begin succ of: " << to_string() << endl;
@@ -469,6 +479,19 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
             rord.kill(tupranks[j]);
           }
           sort(begin(suclvl.tups[i]), end(suclvl.tups[i]));
+
+          //TODO: find rare bug
+          if (lvc.pure) { //push out accepting back into a leaf
+            auto it = stable_partition(begin(suclvl.tups[i]), end(suclvl.tups[i]),
+                [&is_acc](state_t s){ return !is_acc(s);});
+            if (it != begin(suclvl.tups[i]) && it != end(suclvl.tups[i])) { // if node is mixed
+              if (debug)
+                cerr << i << " purified ";
+              //separate accepting back out into child
+              suclvl.tups[i-1] = vector<small_state_t>(it, end(suclvl.tups[i]));
+              suclvl.tups[i].erase(it, suclvl.tups[i].end());
+            }
+          }
         }
       } else { //dead node, kill rank
         if (debug)
