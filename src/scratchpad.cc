@@ -127,8 +127,8 @@ pair<bool,pair<bool,bool>> equiv(auto const& aut, auto const& scci, pair<state_t
   tie(a,pa) = cur.first;
   tie(b,pb) = cur.second;
 
-  int ca = aut.get_accs(a).front();
-  int cb = aut.get_accs(b).front();
+  // int ca = aut.get_accs(a).front();
+  // int cb = aut.get_accs(b).front();
 
   // for (int i=0; i<k; ++i)
     // cerr << " ";
@@ -138,7 +138,6 @@ pair<bool,pair<bool,bool>> equiv(auto const& aut, auto const& scci, pair<state_t
 
   //good or bad cycle. if it is priority preserving and potentially another equivalence pair, assume it's good
   if (contains(vis, cur)) {
-    // vis.erase(cur);
 
     // successful self-reduction (preserved pris and reached a combination of the current candidate pair)
     // NOTE: subsumed by next case... just for conceptual clarity
@@ -147,22 +146,21 @@ pair<bool,pair<bool,bool>> equiv(auto const& aut, auto const& scci, pair<state_t
 
     // this is a candidate state without violations that we've already seen. we can assume
     // here that it is good. it still can be falsified above
-    if (pa == pb && ca == cb)
-      return triv_true;
+    // if (pa == pb && ca == cb)
+    //   return triv_true;
 
     //a bad cycle that can not be resolved (i.e. we reached an incompatible pair again or
     //did not preserve the priorities)
-    if ((ca!=cb || pa!=pb))
+    // if ((ca!=cb || pa!=pb))
       return triv_false;
   }
-
-  //if we haven't marked this state, mark to detect cycles
-  vis.emplace(cur);
 
   //pri preserved + converged -> witness for future (simplest good case)
   if (a==b && pa==pb)
     return triv_true;
 
+  //if we haven't marked this state, mark to detect cycles
+  vis.emplace(cur);
 
   // if (a==start.first || a==start.second || b==start.first || b==start.second)
   //   if (aut.get_accs(a).front()!=aut.get_accs(b).front())
@@ -190,26 +188,31 @@ pair<bool,pair<bool,bool>> equiv(auto const& aut, auto const& scci, pair<state_t
     //pri preserved, compatible pair of states other than the current investigated
     //-> might also be a witness pair?
     auto tmp = triv_false;
+    /*
     if (pa==pb && ca==cb && ((suca!=start.first && suca!=start.second) || (sucb!=start.first && sucb!=start.second))) {
       // cerr << "recur" << endl;
       state_t norm_a = suca; //min(a,b);
       state_t norm_b = sucb; //max(a,b);
       tmp = equiv(aut, scci, make_pair(norm_a,norm_b), vis, make_pair(make_pair(norm_a,sucpa),make_pair(norm_b,sucpb)), k+1);
     }
+    */
 
     if (!tmp.first) {
       tmp = equiv(aut, scci, start, vis, make_pair(make_pair(suca, min(pa, sucpa)),
                                          make_pair(sucb, min(pb, sucpb))), k+1);
     }
 
-    if (!tmp.first)
+    if (!tmp.first) {
+      vis.erase(cur);
       return triv_false;
+    }
 
     ret.second.first = ret.second.first && tmp.second.first;
     ret.second.second = ret.second.second && tmp.second.second;
     // cerr << "-> " << suca << "," << sucb << " " << sucpa << ":" << sucpb << endl;
   }
 
+  vis.erase(cur);
   return ret;
 }
 
@@ -235,10 +238,10 @@ vector<vector<state_t>> pa_equiv(auto& aut, auto const& scci) {
       //   continue; //leave initial state alone (for now)
 
       //some state merged already
-      // if (!aut.has_state(sts[i]))
-      //   break;
-      // if (!aut.has_state(sts[j]))
-      //   continue;
+      if (!aut.has_state(sts[i]))
+        break;
+      if (!aut.has_state(sts[j]))
+        continue;
 
       if (aut.get_accs(sts[i]) != aut.get_accs(sts[j]))
         continue; //different priorities can not be color-equivalent

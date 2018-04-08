@@ -138,6 +138,7 @@ Args::uptr parse_args(int argc, char *argv[]) {
 
 LevelConfig::uptr levelconfig_from_args(Args const &args) {
   auto lc = make_unique<LevelConfig>(LevelConfig());
+  lc->debug = args.verbose > 2;
   lc->update = args.lvupdate;
   lc->optguarded = args.optguarded;
   lc->pure = args.pure;

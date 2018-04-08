@@ -125,8 +125,8 @@ inline priority_t rank_to_prio(RelOrder::ord_t r, bool good) {
 }
 
 Level Level::succ(LevelConfig const& lvc, sym_t x) const {
-  // bool const& debug = lvc.debug;
-  bool const& debug = true;
+  bool const& debug = lvc.debug;
+  // bool const& debug = true;
   Level tmplv;
   if (debug) {
     cerr << "begin succ of: " << to_string() << endl;
@@ -476,7 +476,8 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
                 end(suclvl.tups[j]),
                 back_inserter(suclvl.tups[i]));
             suclvl.tups[j].clear();
-            rord.kill(tupranks[j]);
+            if (!lvc.pure || j!=i-1)
+              rord.kill(tupranks[j]);
           }
           sort(begin(suclvl.tups[i]), end(suclvl.tups[i]));
 
@@ -490,6 +491,8 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
               //separate accepting back out into child
               suclvl.tups[i-1] = vector<small_state_t>(it, end(suclvl.tups[i]));
               suclvl.tups[i].erase(it, suclvl.tups[i].end());
+            } else {
+              rord.kill(tupranks[i-1]);
             }
           }
         }
