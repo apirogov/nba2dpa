@@ -5,7 +5,7 @@ Start: 0
 AP: 3 "#" "a" "b"
 acc-name: Buchi
 Acceptance: 1 Inf(0)
-properties: trans-labels explicit-labels state-acc stutter-invariant
+properties: trans-labels explicit-labels state-acc
 --BODY--
 State: 0
 [t] 2
