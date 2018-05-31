@@ -449,6 +449,8 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
   vector<bool> node_saturated(2*realn, false);
   vector<int> rightmost_ne_child(2*realn, -1); //for müller schupp update
 
+  if (lvc.update != LevelUpdateMode::FULLMERGE) {
+
   for (auto i=0; i<2*realn; i++) {
     auto const hostempty = suclvl.tups[i].empty();
     if (!hostempty || !node_empty[i]) //me or children non-empty -> parent non-empty
@@ -481,7 +483,7 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
           }
           sort(begin(suclvl.tups[i]), end(suclvl.tups[i]));
 
-          //TODO: find rare bug
+          //TODO: find rare bug, make it work with full collapse too
           if (lvc.pure) { //push out accepting back into a leaf
             auto it = stable_partition(begin(suclvl.tups[i]), end(suclvl.tups[i]),
                 [&is_acc](state_t s){ return !is_acc(s);});
@@ -509,10 +511,55 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
     if (!suclvl.tups[i].empty() && p[i]!=i)
       rightmost_ne_child[p[i]] = i;
   }
-
-  if (debug) {
+  if (debug)
     cerr << endl;
 
+  } else {
+    unsigned int active_rk = 2*realn;
+    // unsigned int active_ix = 2*realn;
+
+    // find most important rank
+    for (auto i=0; i<2*realn; i++) {
+      auto const hostempty = suclvl.tups[i].empty();
+        if (debug)
+          cerr << i << " with rank " << *tupranks[i] << endl;
+      if (hostempty && *tupranks[i] < active_rk) {
+        if (debug)
+          cerr << "empty " << i << " with better rank " << *tupranks[i] << endl;
+        // active_ix = i;
+        active_rk = *tupranks[i];
+      }
+    }
+    if (debug)
+      cerr << "active rank: " << active_rk << endl;
+
+    // merge regions
+    if (active_rk < (unsigned int)2*realn) {
+      for (auto i=0; i<2*realn-1; i++) {
+        if (*tupranks[i] > active_rk && *tupranks[i+1] >= active_rk) { //push stuff through region
+          if (*tupranks[i] < *tupranks[i+1]) //push smaller rank forward
+            swap(tupranks[i], tupranks[i+1]);
+          rord.kill(tupranks[i]); //kill bigger rank
+          //collect states
+          copy(begin(suclvl.tups[i]), end(suclvl.tups[i]), back_inserter(suclvl.tups[i+1]));
+          suclvl.tups[i].clear();
+        } else if (*tupranks[i] == active_rk || (*tupranks[i]>active_rk && *tupranks[i+1] < active_rk)) { //right border of region
+            if (suclvl.tups[i].empty()) {
+              suclvl.prio = min(suclvl.prio, rank_to_prio(*tupranks[i], false));
+              rord.kill(tupranks[i]);
+            } else {
+              suclvl.prio = min(suclvl.prio, rank_to_prio(*tupranks[i], true));
+              sort(begin(suclvl.tups[i]), end(suclvl.tups[i]));
+            }
+        }
+      }
+      sort(begin(suclvl.tups[2*realn-1]), end(suclvl.tups[2*realn-1]));
+      if (active_rk == *tupranks[2*realn-1])
+        suclvl.prio = min(suclvl.prio, rank_to_prio(*tupranks[2*realn-1], true));
+    }
+  }
+
+  if (debug) {
     tmplv = suclvl;
     copy(begin(sascc), end(sascc), back_inserter(tmplv.tups));
     tmplv.tupo = rord.to_ranks(tupranks);

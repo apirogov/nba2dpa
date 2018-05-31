@@ -365,6 +365,18 @@ int main(int argc, char *argv[]) {
       auto pa = determinize_nba(*args, *aut, log);
 
       log->info("completed automaton in {:.3f} seconds", get_secs_since(starttime));
+
+      map<vector<small_state_t>, int> numsets;
+      int mx=0;
+      for (auto const st : pa->states()) {
+        auto const psh = pa->tag->geti(st).states();
+        numsets[psh]++;
+        if (mx < numsets[psh])
+          mx = numsets[psh];
+      }
+      log->info("{} states, {} different psets, each at most {} times", pa->num_states(),
+          numsets.size(), mx);
+
       if (!args->nooutput)
         print_hoa(*pa);
 
@@ -401,6 +413,7 @@ int main(int argc, char *argv[]) {
       }
 
       log->info("completed automaton in {:.3f} seconds", get_secs_since(starttime));
+
       if (!args->nooutput)
         print_hoa(*res);
     }

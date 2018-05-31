@@ -14,7 +14,7 @@ namespace nbautils {
 using namespace nbautils;
 
 
-enum class LevelUpdateMode { MUELLERSCHUPP, SAFRA, num };
+enum class LevelUpdateMode { MUELLERSCHUPP, SAFRA, FULLMERGE, num };
 
 struct LevelConfig {
   typedef std::unique_ptr<LevelConfig> uptr;
