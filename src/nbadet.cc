@@ -26,6 +26,7 @@ struct Args {
 
   string file;
   int verbose;
+  bool stats;
 
   bool trim;
   int split;
@@ -57,6 +58,7 @@ Args::uptr parse_args(int argc, char *argv[]) {
 
   // logging level -v, -vv, etc.
   args::CounterFlag verbose(parser, "verbose", "Show verbose information", {'v', "verbose"});
+  args::CounterFlag stats(parser, "stats", "Output stats", {'o', "output-stats"});
 
   args::Flag nooutput(parser, "nooutput", "Do not print resulting automaton", {'x', "no-output"});
 
@@ -115,6 +117,7 @@ Args::uptr parse_args(int argc, char *argv[]) {
   auto args = make_unique<Args>(Args());
   if (input) args->file = args::get(input);
   args->verbose = args::get(verbose);
+  args->stats = stats;
   args->trim = trim;
   args->split = args::get(split);
 
@@ -158,7 +161,7 @@ auto determinize_nba(Args const &args, SWA<string>& aut, std::shared_ptr<spdlog:
     // calculate SCCs of NBA if needed
     SCCDat<state_t>::uptr aut_scc = nullptr;
     BaSccClassification::uptr aut_cl = nullptr;
-    if (args.sepacc || args.seprej) {
+    if (args.sepacc || args.seprej || args.stats) {
       aut_scc = get_sccs(aut_st, aut_sucs);
       aut_cl = ba_classify_sccs(*aut_scc, aut_acc);
       log->info("number of SCCs in A: {}", aut_scc->sccs.size());
@@ -166,9 +169,14 @@ auto determinize_nba(Args const &args, SWA<string>& aut, std::shared_ptr<spdlog:
 
     // detect accepting sinks (acc states with self loop for each sym)
     vector<small_state_t> accsinks;
-    if (args.detaccsinks) {
+    if (args.detaccsinks || args.stats) {
       accsinks = to_small_state_t(get_accepting_sinks(aut_st, aut.num_syms(), aut_acc, aut_osyms, aut_xsucs));
       log->info("found {} accepting sinks", accsinks.size());
+    }
+
+    if (args.stats) {
+      int msccs = aut_scc->sccs.size() - aut_cl->accepting.size() - aut_cl->rejecting.size();
+      cerr << "ASCCs: " << aut_cl->accepting.size() << "\tNSCCs: " << aut_cl->rejecting.size() << "\tMSCCs: " << msccs << "\tAsinks: " << accsinks.size() << endl;
     }
 
     // calculate 2^A to guide and optimize determinization
@@ -366,16 +374,20 @@ int main(int argc, char *argv[]) {
 
       log->info("completed automaton in {:.3f} seconds", get_secs_since(starttime));
 
+    if (args->stats) {
       map<vector<small_state_t>, int> numsets;
       int mx=0;
       for (auto const st : pa->states()) {
+        if (!pa->tag->hasi(st))
+          continue;
+
         auto const psh = pa->tag->geti(st).states();
         numsets[psh]++;
         if (mx < numsets[psh])
           mx = numsets[psh];
       }
-      log->info("{} states, {} different psets, each at most {} times", pa->num_states(),
-          numsets.size(), mx);
+      cerr << pa->num_states() << " states, " << numsets.size() << " psets, each at most " << mx << " times" << endl;
+    }
 
       if (!args->nooutput)
         print_hoa(*pa);
