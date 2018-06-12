@@ -100,6 +100,9 @@ target_link_libraries(nbadet nbautils-lib ${CMAKE_THREAD_LIBS_INIT})
 add_executable(nba2dot EXCLUDE_FROM_ALL src/nba2dot.cc)
 target_link_libraries(nba2dot nbautils-lib ${CMAKE_THREAD_LIBS_INIT})
 
+add_executable(nbasccinfo EXCLUDE_FROM_ALL src/nbasccinfo.cc)
+target_link_libraries(nbasccinfo nbautils-lib ${CMAKE_THREAD_LIBS_INIT})
+
 add_executable(scratchpad EXCLUDE_FROM_ALL src/scratchpad.cc)
 target_link_libraries(scratchpad nbautils-lib ${CMAKE_THREAD_LIBS_INIT})
 
