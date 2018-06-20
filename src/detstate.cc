@@ -1,88 +1,88 @@
-#include "level.hh"
+#include "aut.hh"
+#include "detstate.hh"
+#include "common/util.hh"
 #include <iostream>
 #include <algorithm>
 #include <bitset>
 #include <iostream>
 #include <sstream>
 #include <vector>
-#include "common/relorder.hh"
 using namespace std;
 using namespace nbautils;
 
 namespace nbautils {
 
-string Level::to_string() const {
-  stringstream ss;
-  for (int i=0; i<(int)tups.size(); i++) {
-    ss << "({" << seq_to_str(tups[i]);
-    ss <<"}," << (i<(int)tupo.size() ? 1+tupo[i] : 0) << ")";
-    if (i<(int)tups.size()-1)
-      ss << ",";
-    ss << " ";
-  }
+std::ostream& operator<<(std::ostream& os, DetConf const& dc) {
+  os << "DetConf {" << endl;
+  os << "aut_mat: " << !dc.aut_mat.empty() << endl;
+  os << "aut_states: " << pretty_bitset(dc.aut_states) << endl;
+  os << "aut_acc: "    << pretty_bitset(dc.aut_acc) << endl;
+  os << "aut_asinks: " << pretty_bitset(dc.aut_asinks) << endl;
+  os << "ctx: "        << !dc.ctx.empty() << endl;
 
-  ss << ": " << (int)prio;
-  return ss.str();
-}
-
-std::ostream& operator<<(std::ostream& os,Level const& l) {
-  os << l.to_string();
+  os << "nscc_states: " <<  pretty_bitset(dc.nscc_states) << endl;
+  os << "ascc_states: " <<  pretty_bitset(dc.ascc_states) << endl;
+  for (auto const& as : dc.asccs_states)
+    os << "\tascc: " <<  pretty_bitset(as) << endl;
+  os << "dscc_states: " <<  pretty_bitset(dc.dscc_states) << endl;
+  os << "msccs:";
+  for (auto const& ms : dc.msccs_states)
+    os << "\t" <<  pretty_bitset(ms) << endl;
+  os << "update: " << (int)dc.update << endl;
+  os << "options: ";
+  if (dc.sep_rej)     os << "seprej ";
+  if (dc.sep_acc)     os << "sepacc ";
+  if (dc.sep_acc_cyc) os << "sepacccyc ";
+  if (dc.sep_mix)     os << "sepmix ";
+  if (dc.opt_det)     os << "optdet ";
+  if (dc.weaksat)     os << "weaksat ";
+  if (dc.puretrees)   os << "puretrees ";
+  os << endl;
+  os << "}" << endl;
   return os;
 }
 
-//same modulo priority
-bool Level::same_tree(Level const& other) const {
-  return tups==other.tups && tupo==other.tupo;
+std::ostream& operator<<(std::ostream& os, DetState const& s) {
+  os << "N: " << pretty_bitset(s.nsccs)
+    << "\t(AC: " << pretty_bitset(s.asccs)
+    << ", AB: " << pretty_bitset(s.asccs_buf) << "):" << s.asccs_pri
+    << "\tD: (";
+  vector<string> tmp;
+  for (auto const& dscc : s.dsccs)
+    tmp.push_back(pretty_bitset(dscc.first) + ":" + to_string(dscc.second));
+  os << seq_to_str(tmp, ", ") << ")";
+  os << "\tM: (";
+  for (auto const& mscc : s.msccs) {
+    vector<string> tmp2;
+    for (auto const& ms : mscc) {
+      tmp2.push_back(pretty_bitset(ms.first) + ":" + to_string(ms.second));
+    }
+    tmp.push_back(seq_to_str(tmp2, ", "));
+  }
+  os << seq_to_str(tmp, " | ") << ")";
+  return os;
 }
+
+string DetState::to_string() const {
+  stringstream ss;
+  ss << *this;
+  return ss.str();
+}
+
 
 //componentwise equality
-bool Level::operator==(Level const& other) const {
-  return same_tree(other) && prio == other.prio;
+bool DetState::operator==(DetState const& o) const {
+  return powerset == o.powerset
+    &&      nsccs == o.nsccs
+    &&  asccs_buf == o.asccs_buf
+    &&      asccs == o.asccs
+    &&  asccs_pri == o.asccs_pri
+    &&      dsccs == o.dsccs
+    &&      msccs == o.msccs
+    ;
 }
 
-//compare lexicographically
-bool Level::operator<(Level const& other) const {
-  if (tups == other.tups) {
-    if (tupo == other.tupo) {
-      return prio < other.prio;
-    }
-    return tupo < other.tupo;
-  }
-  return tups < other.tups;
-}
-
-//get the powerset represented in this level
-vector<Level::state_t> Level::states() const {
-  vector<state_t> ret;
-  for (auto const& tup : tups)
-    copy(cbegin(tup),cend(tup),back_inserter(ret));
-  sort(begin(ret),end(ret));
-  return ret;
-}
-
-//encode powerset as bitset for quick comparisons
-Level::hash_t add_powerset_hash(SWA<string> const& ba, Level const& lv) {
-  Level::hash_t ret(0);
-
-  auto const pset = lv.states();
-  if (pset.empty())
-    return ret;
-
-  // traverse states in order, check which are present and set bits
-  int num = 0;
-  auto pit = pset.begin();
-  for (auto const& v : ba.states()) {
-    if (v == *pit) {
-      ret.set(num);
-      if (++pit == end(pset)) break;
-    }
-    num++;
-  }
-
-  return ret;
-}
-
-pair<vector<int>,vector<int>> unflatten(vector<RelOrder::ord_t> const& rank) {
+pair<vector<int>,vector<int>> unflatten(vector<pri_t> const& rank) {
   int const n = rank.size();
   pair<vector<int>,vector<int>> ret = make_pair(vector<int>(n),vector<int>(n));
   stack<int> s;
@@ -105,33 +105,197 @@ pair<vector<int>,vector<int>> unflatten(vector<RelOrder::ord_t> const& rank) {
   return ret;
 }
 
-Level::Level() {}
+DetState::DetState() {}
 
-Level::Level(LevelConfig const& lvc, std::vector<Level::state_t> const& qs) {
-  tups.push_back(qs);
-  tupo.push_back(0);
-
-  if (lvc.sep_acc) {
-    tups.push_back({}); //pre-breakpoint
-    tups.push_back({}); //after-breakpoint
-    tupo.push_back(1);
-  }
-
-  powerset = add_powerset_hash(*lvc.aut, *this);
+//put everything into one set... in later steps it will differentiate
+DetState::DetState(DetConf const& dc, nba_bitset const& qs) {
+  msccs.resize(dc.msccs_states.size());
+  msccs.at(0) = {make_pair(qs, 1)};
+  powerset = qs;
 }
 
-inline priority_t rank_to_prio(RelOrder::ord_t r, bool good) {
+//convert a rank + event to corresponding fired prio
+inline pri_t rank_to_prio(pri_t r, bool good) {
   return 2*(r+1)-(good ? 0 : 1);
 }
 
-Level Level::succ(LevelConfig const& lvc, sym_t x) const {
-  bool const& debug = lvc.debug;
+//apply successor set function on each set separately, inplace
+void successorize_all(DetConf const& dc, DetState& s, sym_t const x) {
+  auto const psucc = [&dc,x](auto const& bset){
+    return powersucc(dc.aut_mat, bset, x, dc.aut_asinks); };
+
+  s.powerset  = psucc(s.powerset);
+  s.nsccs     = psucc(s.nsccs);
+  s.asccs_buf = psucc(s.asccs_buf);
+  s.asccs     = psucc(s.asccs);
+  for (auto i : ranges::view::ints(0, (int)s.dsccs.size()))
+    s.dsccs[i].first = psucc(s.dsccs[i].first);
+  for (auto i : ranges::view::ints(0, (int)s.msccs.size()))
+    for (auto j : ranges::view::ints(0, (int)s.msccs[i].size()))
+      s.msccs[i][j].first = psucc(s.msccs[i][j].first);
+}
+
+//remove wrong located states, return their collection
+nba_bitset extract_switchers(DetConf const& dc, DetState& s) {
+  nba_bitset switchers;
+  switchers |= s.nsccs     & (~dc.nscc_states & dc.aut_states);
+  switchers |= s.asccs     & (~dc.ascc_states & dc.aut_states);
+  switchers |= s.asccs_buf & (~dc.ascc_states & dc.aut_states);
+  s.nsccs     &= dc.nscc_states;
+  s.asccs     &= dc.ascc_states;
+  s.asccs_buf &= dc.ascc_states;
+  for (auto i : ranges::view::ints(0, (int)s.dsccs.size())) {
+    switchers |= s.dsccs[i].first & (~dc.dscc_states & dc.aut_states);
+    s.dsccs[i].first &= dc.dscc_states;
+  }
+  for (auto i : ranges::view::ints(0, (int)s.msccs.size()))
+    for (auto j : ranges::view::ints(0, (int)s.msccs[i].size())) {
+      switchers |= s.msccs[i][j].first & (~dc.msccs_states[i] & dc.aut_states);
+      s.msccs[i][j].first &= dc.msccs_states[i];
+    }
+  return switchers;
+}
+
+void expand_row(DetConf const& dc, vector<pair<nba_bitset, pri_t>>& row, pri_t& cur_fresh) {
+  vector<pair<nba_bitset, pri_t>> nrow;
+  nrow.reserve(2*row.size());
+  for (auto& it : row) {
+    nrow.push_back(make_pair(it.first &  dc.aut_acc, cur_fresh++));
+    nrow.push_back(make_pair(it.first & ~dc.aut_acc, it.second));
+  }
+  nrow.shrink_to_fit();
+  swap(row, nrow);
+}
+
+//split acc successors into extra nodes for tree-organized sets (MSCCs)
+void expand_trees(DetConf const& dc, DetState &s, pri_t& cur_fresh) {
+  for (auto& mscc : s.msccs)
+    expand_row(dc, mscc, cur_fresh);
+}
+
+void left_normalize_row(vector<pair<nba_bitset, pri_t>>& row) {
+  nba_bitset seen = 0;
+  for (auto& s : row) {
+    s.first &= ~seen;
+    seen |= s.first;
+  }
+}
+
+//keep leftmost occurence of each state
+void left_normalize(DetState &s) {
+  s.asccs_buf &= ~s.asccs; //keep in buffer only ones not already reached in active
+  left_normalize_row(s.dsccs);
+  for (auto& mscc : s.msccs)
+    left_normalize_row(mscc);
+}
+
+//integrate states that needed to switch SCCs into corresponding buckets
+//create new priorities if necessary
+void integrate_switchers(DetConf const& dc, DetState& s,
+    nba_bitset const& switchers, pri_t& cur_fresh) {
+  s.nsccs     |= switchers & dc.nscc_states;
+  s.asccs_buf |= switchers & dc.ascc_states;
+
+  nba_bitset const detswitchers = switchers & dc.dscc_states;
+  if (detswitchers != 0)
+    s.dsccs.push_back(make_pair(detswitchers, cur_fresh++));
+
+  if (dc.sep_mix) { //if MSCCs separately, add new tree root for switchers
+    for (auto i : ranges::view::ints(0, (int)s.msccs.size())) {
+      nba_bitset const mswitchers = switchers & dc.msccs_states[i];
+      if (mswitchers != 0)
+        s.msccs[i].push_back(make_pair(mswitchers, cur_fresh++));
+    }
+  } else {
+    //if MSCC root was not present (due to cleanup e.g.)
+    nba_bitset const mswitchers = switchers & dc.msccs_states[0];
+    if (s.msccs.empty() && mswitchers != 0)
+      s.msccs.push_back({make_pair(mswitchers, cur_fresh++)});
+    else //just merge into existing root
+      s.msccs[0].back().first |= mswitchers;
+  }
+}
+
+
+// remove unnecessary empty sets (in dscc and mscc)
+void cleanup_empty(DetState &s) {
+  auto const is_empty = [](auto const& it){ return it.first == 0; };
+  s.dsccs.erase(std::remove_if(begin(s.dsccs), end(s.dsccs), is_empty), end(s.dsccs));
+  for (auto& mscc : s.msccs)
+    mscc.erase(std::remove_if(begin(mscc), end(mscc), is_empty), end(mscc));
+}
+
+// normalize priorities (0..<=n consecutively)
+void normalize_prios(DetState &s) {
+  //collect
+  vector<pri_t> used_pris;
+  used_pris.push_back(s.asccs_pri);
+  for (auto const& it : s.dsccs)
+    used_pris.push_back(it.second);
+  for (auto const& mscc : s.msccs)
+    for (auto const& it : mscc)
+      used_pris.push_back(it.second);
+
+  //get new numbering
+  ranges::sort(used_pris);
+  map<pri_t, pri_t> f;
+  for (auto i : ranges::view::ints(0, (int)used_pris.size())) {
+    f[used_pris[i]] = i;
+  }
+  auto const update_pri = [&f](pri_t& old){ old = f[old]; }; //change prio inplace
+
+  //apply
+  update_pri(s.asccs_pri);
+  for (auto& it : s.dsccs)
+    update_pri(it.second);
+  for (auto& mscc : s.msccs)
+    for (auto& it : mscc)
+      update_pri(it.second);
+}
+
+pair<DetState, pri_t> DetState::succ(DetConf const& dc, sym_t x) const {
+  bool const& debug = dc.debug;
   // bool const& debug = true;
-  Level tmplv;
   if (debug) {
-    cerr << "begin succ of: " << to_string() << endl;
+    cerr << "begin succ of: " << *this << endl;
   }
 
+  DetState ret(*this); //clone current state
+  pri_t cur_fresh = 2*max_nba_states+1; //some for sure unused rank
+
+  successorize_all(dc, ret, x);
+
+  //check for acc sink reach
+  if ((ret.powerset & dc.aut_asinks) != 0) {
+    DetState sink(dc, dc.aut_asinks);
+    return make_pair(sink, 0); //good priority fired, sink reached
+  }
+
+  // -- in any order --
+  left_normalize(ret);
+  // cerr << pretty_bitset(s.powerset) << endl;
+  nba_bitset const switchers = extract_switchers(dc, ret);
+  expand_trees(dc, ret, cur_fresh);
+  // -- end of in any order --
+  cerr << "extracted switchers: " << pretty_bitset(switchers) << endl;
+  cerr << "half-step: " << ret << endl;
+
+  // half-transition done. now check saturation stuff, get best active, kill ranks...
+  pri_t const active_pri = 0; //= get_vip_active(dc, ret) ; //some default worst case priority
+
+  //TODO: perform breakpoints, detect saturation/death etc
+
+  // finalize by reintegrating states that switched and fixing priorities
+  integrate_switchers(dc, ret, switchers, cur_fresh);
+  cerr << "integrated switchers: " << ret << endl;
+  cleanup_empty(ret);
+  cerr << "cleaned up: " << ret << endl;
+  normalize_prios(ret);
+  return make_pair(ret, active_pri);
+}
+
+/*
+DetState DetState::succ(DetState const& dc, sym_t x) const {
   //successor helper
   auto xsucc = [&lvc,&x](auto const& ps){ return powersucc(*lvc.aut, ps, x); };
   auto sucpset = xsucc(states()); //successor powerset (without structure)
@@ -412,14 +576,12 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
               sascc.back() = set_intersect(sascc.front(), predsuc);
               sascc.front() = set_diff(sascc.front(), predsuc);
 
-              /*
-              auto it = stable_partition(begin(tmp), end(tmp), [&lvc, &nextscc](auto s){
-                  return lvc.aut_scc->scc_of.at(s) != (unsigned)nextscc; });
-              copy(it, end(tmp), back_inserter(sascc.back()));
-              tmp.erase(it, end(tmp));
-              sort(begin(tmp), end(tmp));
-              sascc.front() = tmp;
-              */
+              // auto it = stable_partition(begin(tmp), end(tmp), [&lvc, &nextscc](auto s){
+              //     return lvc.aut_scc->scc_of.at(s) != (unsigned)nextscc; });
+              // copy(it, end(tmp), back_inserter(sascc.back()));
+              // tmp.erase(it, end(tmp));
+              // sort(begin(tmp), end(tmp));
+              // sascc.front() = tmp;
 
               if (debug)
                 cerr << "as ASCC " << oldaccscc << " died, now it's the turn of states from ASCC " << nextscc << endl;
@@ -604,5 +766,6 @@ Level Level::succ(LevelConfig const& lvc, sym_t x) const {
 
   return suclvl;
 }
+*/
 
 }  // namespace nbautils

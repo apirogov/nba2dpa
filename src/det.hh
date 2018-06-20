@@ -4,16 +4,16 @@
 #include <queue>
 #include <set>
 #include <vector>
-#include "level.hh"
+#include "detstate.hh"
 #include "common/scc.hh"
-#include "swa.hh"
+#include "aut.hh"
 
 namespace nbautils {
 
-using PA = SWA<Level>;
+using PA = Aut<DetState>;
 
-PA::uptr determinize(LevelConfig const& lu);
+PA determinize(DetConf const& lu);
 
-PA::uptr determinize(LevelConfig const& lu, PS const& psa, SCCDat<state_t> const& psai);
+PA determinize(DetConf const& lu, PS const& psa, SCCDat const& psai);
 
 }  // namespace nbautils

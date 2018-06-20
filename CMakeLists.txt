@@ -13,7 +13,6 @@ set (CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_FLAGS "-Wall -Wextra -O2 ") #-DNDEBUG
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
 #set(CMAKE_CXX_FLAGS_RELEASE "-O3")
-
 #if(NOT CMAKE_BUILD_TYPE)
 #  set(CMAKE_BUILD_TYPE Release)
 #endif()
@@ -77,33 +76,35 @@ include_directories(${source_dir}/include)
 
 include_directories(src)
 
-set(nbautils_SOURCE src/dev/memusage.h src/dev/memusage.c src/dev/bench.hh
-                   src/common/util.hh src/common/relorder.hh src/common/relorder.cc
-                   src/common/triebimap.hh src/common/bimap.hh
-                   src/common/algo.hh src/common/graph.hh src/common/scc.hh
-                   src/swa.hh
-                   src/ba.hh src/ba.cc
+set(nbautils_SOURCE
+                   src/metrics/memusage.h src/metrics/memusage.c src/metrics/bench.hh
+                   src/common/bimap.hh src/common/util.hh src/common/scc.hh
+                   src/common/relorder.hh src/common/relorder.cc
                    src/io.hh src/io.cc
-                   src/pa.hh src/pa.cc
-                   src/ps.hh
-                   src/level.hh src/level.cc
-                   src/det.hh src/det.cc
+                   src/aut.hh
+                   src/detstate.hh src/detstate.cc
+#                  src/pa.hh src/pa.cc
+#                  src/ps.hh
+#                  src/det.hh src/det.cc
                    )
 
 add_library(nbautils-lib STATIC ${nbautils_SOURCE})
 target_link_libraries(nbautils-lib ${CMAKE_THREAD_LIBS_INIT})
 add_dependencies(nbautils-lib cpphoafparser)
 
-add_executable(nbadet src/nbadet.cc)
+add_executable(nbadet src/tools/nbadet.cc)
 target_link_libraries(nbadet nbautils-lib ${CMAKE_THREAD_LIBS_INIT})
 
-add_executable(nba2dot EXCLUDE_FROM_ALL src/nba2dot.cc)
-target_link_libraries(nba2dot nbautils-lib ${CMAKE_THREAD_LIBS_INIT})
+#add_executable(nba2dot EXCLUDE_FROM_ALL src/nba2dot.cc)
+#target_link_libraries(nba2dot nbautils-lib ${CMAKE_THREAD_LIBS_INIT})
 
-add_executable(nbasccinfo EXCLUDE_FROM_ALL src/nbasccinfo.cc)
-target_link_libraries(nbasccinfo nbautils-lib ${CMAKE_THREAD_LIBS_INIT})
+#add_executable(nbasccinfo EXCLUDE_FROM_ALL src/nbasccinfo.cc)
+#target_link_libraries(nbasccinfo nbautils-lib ${CMAKE_THREAD_LIBS_INIT})
 
-add_executable(scratchpad EXCLUDE_FROM_ALL src/scratchpad.cc)
+add_executable(permsets EXCLUDE_FROM_ALL src/tools/permsets.cc)
+target_link_libraries(permsets nbautils-lib ${CMAKE_THREAD_LIBS_INIT})
+
+add_executable(scratchpad EXCLUDE_FROM_ALL src/tools/scratchpad.cc)
 target_link_libraries(scratchpad nbautils-lib ${CMAKE_THREAD_LIBS_INIT})
 
 if (nbautils-build_tests)
@@ -117,12 +118,13 @@ if (nbautils-build_tests)
     target_include_directories(test-main PUBLIC ${Catch_INCLUDE_DIR})
     target_link_libraries(test-main nbautils-lib) #rapidcheck)
 
-    set(test_nbautils_SOURCE test/test_nbautils_common.cc
-                             test/test_nbautils_swa.cc
-                             test/test_nbautils_scc.cc
-                             test/test_nbautils_ps.cc
-                             test/test_nbautils_pa.cc
-                             )
+    set(test_nbautils_SOURCE
+      #                       test/test_nbautils_common.cc
+      #                       test/test_nbautils_swa.cc
+      #                       test/test_nbautils_scc.cc
+      #                       test/test_nbautils_ps.cc
+      #                       test/test_nbautils_pa.cc
+                            )
 
     add_executable(test-nbautils ${test_nbautils_SOURCE})
     target_include_directories(test-nbautils PUBLIC ${Catch_INCLUDE_DIR}) # ${rapidcheck_INCLUDE_DIR})

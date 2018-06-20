@@ -12,8 +12,6 @@
 namespace nbautils {
   using namespace std;
 
-//TODO: this is similar to what happens in levels!
-
 //partition refinement structure for a fixed number of elements
 template<typename T>
 class PartitionRefiner {
@@ -109,6 +107,7 @@ public:
 
   //separate given set into satisfying and not satisfying predicate
   //if both are nonempty, returns token of second set, otherwise returns nullptr
+  //TODO: do we need to keep them sorted?
   unique_ptr<sym_set> separate(sym_set& set, function<bool(T)> const& pred) {
     // auto const mid = stable_partition(set->first, set->second, pred);
     auto const mid = partition(set->first, set->second, pred);

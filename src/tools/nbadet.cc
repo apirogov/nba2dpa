@@ -1,4 +1,3 @@
-#include <fstream>
 #include <iostream>
 #include <string>
 #include <cassert>
@@ -9,87 +8,101 @@ namespace spd = spdlog;
 
 #include <args.hxx>
 
-#include "io.hh"
-#include "common/algo.hh"
-#include "ba.hh"
-#include "ps.hh"
-#include "pa.hh"
-#include "det.hh"
+#include "metrics/bench.hh"
+#include "metrics/memusage.h"
 
-#include "dev/bench.hh"
-#include "dev/memusage.h"
+#include "aut.hh"
+#include "io.hh"
+#include "graph.hh"
+#include "common/scc.hh"
+#include "ps.hh"
+#include "preproc.hh"
+#include "detstate.hh"
 
 using namespace nbautils;
 
 struct Args {
-  using uptr = std::unique_ptr<Args>;
-
   string file;
+
   int verbose;
   bool stats;
+  bool nooutput;
 
   bool trim;
-  int split;
+  bool asinks;
+  bool mindfa;
 
-  bool detaccsinks;
+  int mergemode;
+  bool weaksat;
+  bool puretrees;
 
-  LevelUpdateMode lvupdate;
+  bool psets;
+  bool context;
+
   bool seprej;
   bool sepacc;
   bool cyclicbrk;
-  bool pure;
-  bool context;
+  bool sepmix;
+  bool optdet;
 
-  bool topo;
-  bool optguarded;
-
-  bool minpri;
-  bool mindfa;
-
-  bool nooutput;
+  //not included: incremental w. locks, using external union of SCC det., simulation stuff
 };
 
-Args::uptr parse_args(int argc, char *argv[]) {
+Args parse_args(int argc, char *argv[]) {
   args::ArgumentParser parser("nbadet - determinize nondeterministic Büchi automata", "");
   args::HelpFlag help(parser, "help", "Display this help menu", {'h', "help"});
 
-  // exactly one input automaton
-  args::Positional<string> input(parser, "INPUTFILE", "file containing the NBA (if none given, uses stdin)");
+  args::Positional<string> input(parser, "INPUTFILE",
+      "file containing the NBA(s) (if none given, uses <stdin>)");
 
-  // logging level -v, -vv, etc.
-  args::CounterFlag verbose(parser, "verbose", "Show verbose information", {'v', "verbose"});
-  args::CounterFlag stats(parser, "stats", "Output stats", {'o', "output-stats"});
-
-  args::Flag nooutput(parser, "nooutput", "Do not print resulting automaton", {'x', "no-output"});
+  // introspection and debugging
+  args::CounterFlag verbose(parser, "verbose", "Show verbose information",
+      {'v', "verbose"}); // logging level -v, -vv, etc.
+  args::CounterFlag stats(parser, "stats", "Output stats about structure",
+      {'s', "output-stats"});
+  args::Flag nooutput(parser, "nooutput", "Do not print resulting automaton",
+      {'x', "no-output"});
 
   // preprocessing on NBA (known, simple stuff)
-  args::Flag trim(parser, "trim", "Remove dead states from NBA", {'d', "trim"});
-  args::Flag detaccsinks(parser, "detaccsinks", "Detect accepting sinks", {'s', "detect-acc-sinks"});
-
-  // additional calculations on NBA to optimize construction
-  args::Flag context(parser, "context", "Calculate context for separation refinement", {'c', "use-context"});
-
-  // enabled optimizations for Safra/Level update
-  args::Flag seprej(parser, "seprej", "Separate states in non-accepting SCCs", {'n', "separate-rej"});
-  args::Flag sepacc(parser, "sepacc", "Separate states in accepting SCCs", {'a', "separate-acc"});
-  args::Flag cyclicbrk(parser, "cyclicbrk", "Separate states in accepting SCCs, cycle through SCCs", {'b', "cyclic-breakpoint"});
-  args::Flag pure(parser, "pure", "Accepting leaf normal form (acc. states in leaves only)", {'l', "pure"});
-
-  // type of update
-  args::ValueFlag<int> update(parser, "level-update", "Type of update", {'u', "level-update"});
-
-  // construction methods
-
-  // used to weed out redundant SCCs in det. automaton
-  args::Flag topo(parser, "topo", "Use powerset SCCs to guide determinization", {'t', "topological"});
-  args::Flag optguarded(parser, "optguarded", "Optimize states guarded by higher-priority states", {'g', "opt-guarded"});
-
-  // iterated product construction based determinization
-  args::CounterFlag split(parser, "split", "Determinize all NBA SCCs separately, then combine", {'i', "split"});
+  args::Flag trim(parser, "trim", "Kill dead states from NBA.",
+      {'k', "trim"});
+  args::Flag asinks(parser, "asinks", "Detect and use accepting (pseudo)sinks.",
+      {'j', "acc-sinks"});
 
   // postprocessing
-  args::Flag minpri(parser, "minpri", "Minimize number of priorities", {'p', "minimize-priorities"});
-  args::Flag mindfa(parser, "mindfa", "Minimize number of states using Hopcroft", {'m', "minimize-dfa"});
+  args::Flag mindfa(parser, "mindfa", "First minimize number of priorities, "
+      "then minimize number of states using Hopcroft",
+      {'m', "minimize-dfa"});
+
+  // type of update for active ranks
+  args::ValueFlag<int> mergemode(parser, "update-mode", "Type of update "
+      "(Muller/Schupp, Safra, Maximal merge)",
+      {'u', "update-mode"});
+  args::Flag puretrees(parser, "pure", "Accepting leaf normal form (acc. states in leaves only)",
+      {'l', "pure-trees"});
+  args::Flag weaksat(parser, "weak-saturation", "Allow weak saturation",
+      {'w', "weak-saturation"});
+
+  // used to weed out redundant SCCs in det. automaton
+  args::Flag psets(parser, "powersets", "Use powerset SCCs to guide determinization",
+      {'t', "use-powersets"});
+
+  // additional calculations on NBA to optimize construction
+  args::Flag context(parser, "context", "Calculate context for separation refinement",
+      {'c', "use-context"});
+
+  // enabled optimizations for Safra/Level update
+  args::Flag seprej(parser, "seprej", "Separate states in non-accepting SCCs",
+      {'n', "sep-rej"});
+  args::Flag sepacc(parser, "sepacc", "Separate states in accepting SCCs",
+      {'a', "sep-acc"});
+  args::Flag cyclicbrk(parser, "cyclicbrk", "Separate states in accepting SCCs, cycle through SCCs",
+      {'b', "cyclic-breakpoint"});
+  args::Flag sepmix(parser, "sepmix", "Separate states in different SCCs",
+      {'e', "sep-mix"});
+  args::Flag optdet(parser, "optdet", "Optimize deterministic SCCs by not expanding trees",
+      {'d', "opt-det"});
+
 
   try {
     parser.ParseCLI(argc, argv);
@@ -109,48 +122,70 @@ Args::uptr parse_args(int argc, char *argv[]) {
     exit(1);
   }
 
+  if (cyclicbrk && !sepacc) {
+    spd::get("log")->error("-b without -a is useless!");
+    exit(1);
+  }
+
+  if (optdet && !sepmix) {
+    spd::get("log")->error("-d without -e does not work!");
+    exit(1);
+  }
+
+  /*
   if (update && args::get(update) >= static_cast<int>(LevelUpdateMode::num)) {
     spd::get("log")->error("Invalid update mode provided: {}", args::get(update));
     exit(1);
   }
+  */
 
-  auto args = make_unique<Args>(Args());
-  if (input) args->file = args::get(input);
-  args->verbose = args::get(verbose);
-  args->stats = stats;
-  args->trim = trim;
-  args->split = args::get(split);
+  Args args;
+  if (input)
+    args.file = args::get(input);
 
-  args->lvupdate = static_cast<LevelUpdateMode>(args::get(update));
-  args->detaccsinks = detaccsinks;
-  args->sepacc = sepacc || cyclicbrk;
-  args->cyclicbrk = cyclicbrk;
-  args->seprej = seprej;
-  args->context = context;
-  args->pure = pure;
+  args.verbose = args::get(verbose);
+  args.stats = stats;
+  args.nooutput = nooutput;
 
-  args->topo = topo;
-  args->optguarded = optguarded;
-  args->minpri = minpri;
-  args->mindfa = mindfa;
+  args.trim = trim;
+  args.asinks = asinks;
+  args.mindfa = mindfa;
 
-  args->nooutput = nooutput;
+  args.psets = psets;
+  args.context = context;
 
-  return move(args);
+  args.mergemode = args::get(mergemode);
+  args.weaksat = weaksat;
+  args.puretrees = puretrees;
+
+  args.seprej = seprej;
+  args.sepacc = sepacc;
+  args.cyclicbrk = cyclicbrk;
+  args.sepmix = sepmix;
+  args.optdet = optdet;
+
+  return args;
 }
 
-LevelConfig::uptr levelconfig_from_args(Args const &args) {
-  auto lc = make_unique<LevelConfig>(LevelConfig());
-  lc->debug = args.verbose > 2;
-  lc->update = args.lvupdate;
-  lc->optguarded = args.optguarded;
-  lc->pure = args.pure;
-  lc->sep_rej = args.seprej;
-  lc->sep_acc = args.sepacc;
-  lc->sep_acc_cyc = args.cyclicbrk;
-  return move(lc);
+DetConf detconf_from_args(Args const& args) {
+  DetConf dc;
+
+  dc.debug = args.verbose > 2;
+
+  dc.update = static_cast<UpdateMode>(args.mergemode);
+  dc.weaksat = args.weaksat;
+  dc.puretrees = args.puretrees;
+
+  dc.sep_rej = args.seprej;
+  dc.sep_acc = args.sepacc;
+  dc.sep_acc_cyc = args.cyclicbrk;
+  dc.sep_mix = args.sepmix;
+  dc.opt_det = args.optdet;
+
+  return dc;
 }
 
+/*
 auto determinize_nba(Args const &args, SWA<string>& aut, std::shared_ptr<spdlog::logger> log) {
     auto aut_st = aut.states();
     succ_fun<state_t> const aut_sucs = [&aut](state_t v){ return aut.succ(v); };
@@ -314,6 +349,119 @@ vector<SWA<string>::uptr> split_nba(SWA<string> const& aut, bool each_acc_separa
 
   return ret;
 }
+*/
+auto process_nba(Args const &args, auto& aut, std::shared_ptr<spdlog::logger> log) {
+    // -- preprocessing --
+
+    //first trim (unmark trivial states that are accepting, remove useless+unreach SCCs)
+    // just in case... usually input is already trim
+    if (args.trim)
+      ba_trim(aut, log);
+    // aut->normalize(); //don't do this, otherwise relationship not clear anymore
+
+    auto dc = detconf_from_args(args);
+    dc.aut_states = to_bitset<nba_bitset>(aut.states());
+    dc.aut_acc    = to_bitset<nba_bitset>( aut.states() | ranges::view::remove_if(
+                      [&](state_t s){ return !aut.state_buchi_accepting(s); }));
+    //get adj matrix for accelerated powerset calculation
+    dc.aut_mat = get_adjmat(aut);
+
+    //get accepting sinks
+    dc.aut_asinks = 0;
+    if (args.asinks)
+      dc.aut_asinks = to_bitset<nba_bitset>(ba_get_acc_sinks(aut, log));
+
+    //calculate 2^AxA context structure and its sccs
+    if (args.context)
+      dc.ctx = get_context(aut, dc.aut_mat, dc.aut_asinks, log);
+
+    //next classify all SCCs
+    auto const aut_suc = aut_succ(aut);
+    auto const scci = get_sccs(aut.states() | ranges::to_vector, aut_suc);
+    auto const sccDet = ba_scc_classify_det(aut, scci);
+    auto const sccAcc = ba_scc_classify_acc(aut, scci);
+    assert(sccAcc.size() == scci.sccs.size());
+    int a=0;
+    int n=0;
+    int m=0;
+    for (auto const& it : sccAcc) {
+      if (it.second == -1)     n++;
+      else if (it.second == 0) m++;
+      else if (it.second == 1) a++;
+    }
+    log->info("SCCs: {} total = {} A + {} N + {} M, of which {} D",
+              scci.sccs.size(), a, n, m, sccDet.size());
+
+    nba_bitset remain = 0;
+    for (auto const& it : sccAcc) {
+      nba_bitset const tmp = to_bitset<nba_bitset>(scci.sccs.at(it.first));
+
+      if (dc.sep_rej && it.second == -1) { //if we separate NSCCs
+        dc.nscc_states |= tmp;
+
+      } else if (dc.sep_acc && it.second == 1) { //if we separate ASCCs
+        dc.ascc_states |= tmp;
+        if (dc.sep_acc_cyc)
+          dc.asccs_states.push_back(tmp);
+
+      } else if (it.second == 0  //MSCC (and others, when we don't separate them)
+          || (!dc.sep_rej && it.second == -1)
+          || (!dc.sep_acc && it.second ==  1)) {
+        if (dc.sep_mix) { //if we handle (M)SCCs all separately
+          //if we optimize deterministic (M)SCCs that are not handled otherwise, sep.
+          if (dc.opt_det && contains(sccDet, it.first))
+            dc.dscc_states |= tmp;
+          else
+            dc.msccs_states.push_back(tmp);
+        } else {
+          remain |= tmp;
+        }
+      } else {
+        log->error("Something went wrong! SCC has invalid acceptance class!");
+        exit(1);
+      }
+    }
+    if (dc.sep_acc && !dc.sep_acc_cyc)
+      dc.asccs_states.push_back(dc.ascc_states);
+    if (!dc.sep_mix)
+      dc.msccs_states.push_back(remain);
+
+    // TODO: verify that the interplay is correct
+    cerr << dc << endl;
+    DetState const st = DetState(dc, 1);
+    cerr <<  st << endl;
+    auto const sucst = st.succ(dc, 0);
+    cerr <<  sucst.first << endl;
+
+    //calculate 2^A and its sccs
+    auto const pscon = bench(log,"powerset_construction",
+                             WRAP(powerset_construction(aut, dc.aut_mat, dc.aut_asinks)));
+    auto const pscon_scci = get_sccs(pscon.states() | ranges::to_vector, aut_succ(pscon));
+    log->info("#states in 2^A: {}, #SCCs in 2^A: {}", pscon.num_states(), pscon_scci.sccs.size());
+    // print_aut(pscon);
+
+    // -- end of preprocessing --
+
+
+    // for (auto const scc : sccAcc) {
+    //   cerr << scc.first << " (" << seq_to_str(scci.sccs.at(scc.first))
+    //       << ") -> " << scc.second << " " << contains(sccDet,scc.first) << endl;
+    // }
+
+    // -- begin postprocessing --
+    aut.make_complete();
+    aut.make_colored();
+
+    assert(aut.is_complete());
+    assert(aut.is_colored());
+    assert(aut.is_deterministic());
+
+    //TODO: minimize priorities
+    //TODO: minimize states
+    // -- end of postprocessing --
+
+    return aut;
+}
 
 int main(int argc, char *argv[]) {
   // initialize stuff (args + logging)
@@ -323,71 +471,74 @@ int main(int argc, char *argv[]) {
   spd::set_pattern("[%Y-%m-%d %H:%M:%S %z] [%l] %v");
 
   auto args = parse_args(argc, argv);
-  if (!args->verbose)
+  if (!args.verbose)
     spd::set_level(spd::level::warn);
-  else if (args->verbose == 1)
+  else if (args.verbose == 1)
     spd::set_level(spd::level::info);
   else
     spd::set_level(spd::level::debug);
 
-  // now parse input automaton
-  auto auts = nbautils::parse_hoa(args->file, log);
-
-  if (auts.empty()) {
-    log->error("Parsing NBAs from {} failed!", args->file.empty() ? "stdin" : args->file);
-    exit(1);
-  }
-
   auto totalstarttime = get_time();
-  for (auto &aut : auts) {
-    if (aut->acond != Acceptance::BUCHI) {
-      log->warn("skipping non-Büchi automaton with name \"{}\"", aut->get_name());
-      continue;
+
+  // now parse input automaton
+  auto auts = nbautils::AutStream<Aut<string>>(args.file, log);
+
+  while (auts.has_next()) {
+    auto aut = auts.parse_next();
+
+    log->info("NBA name: \"{}\", #states: {}, #APs: {}",
+              aut.get_name(), aut.num_states(), aut.get_aps().size());
+
+    // sanity of the input
+    if (!aut.is_buchi()) {
+      log->error("This is not an NBA!");
+      exit(1);
     }
-
-    log->info("processing NBA with name \"{}\"", aut->get_name());
-    log->info("number of states in A: {}", aut->num_states());
-    log->info("number of APs in A: {}", aut->get_aps().size());
-
-    // sanity check size of the input
-    if (aut->num_states() > max_nba_states) {
+    if (aut.num_states() > max_nba_states) {
       log->error("NBA is way too large, I refuse.");
       exit(1);
     }
-    if (aut->get_aps().size() > max_nba_syms) {
+    if (aut.get_aps().size() > max_nba_syms) {
       log->error("Alphabet is way too large, I refuse.");
       exit(1);
     }
 
-    // now we start measuring time
-    //---------------------------
-    auto starttime = get_time();
+    // NBA -> DPA
+    auto const pa = bench(log,"process_nba",
+                          WRAP(process_nba(args, aut, log)));
 
-    if (args->trim) { // just in case... usually input is already trim
-      auto const numtrimmed = trim_ba(*aut);
-      // aut->normalize();
-      log->info("removed {} useless states", numtrimmed);
-    }
-
-    if (args->split==0) { //determinize in one piece
-      auto pa = determinize_nba(*args, *aut, log);
-
-      log->info("completed automaton in {:.3f} seconds", get_secs_since(starttime));
-
-    if (args->stats) {
-      map<vector<small_state_t>, int> numsets;
+    /*
+    if (args.stats) {
+      unordered_map<bitset<256>, int> numsets;
       int mx=0;
-      for (auto const st : pa->states()) {
-        if (!pa->tag->hasi(st))
+      for (auto const st : pa.states()) {
+        if (!pa.tag.hasi(st))
           continue;
 
-        auto const psh = pa->tag->geti(st).states();
+        Aut<Level> const psh = pa.tag.geti(st).powerset;
         numsets[psh]++;
         if (mx < numsets[psh])
           mx = numsets[psh];
       }
       cerr << pa->num_states() << " states, " << numsets.size() << " psets, each at most " << mx << " times" << endl;
     }
+    */
+
+    if (!args.nooutput)
+      print_aut(pa);
+  }
+
+  /*
+  for (auto &aut : auts) {
+
+
+    //---------------------------
+
+    if (args->split==0) { //determinize in one piece
+      auto pa = determinize_nba(*args, *aut, log);
+
+      log->info("completed automaton in {:.3f} seconds", get_secs_since(starttime));
+
 
       if (!args->nooutput)
         print_hoa(*pa);
@@ -424,13 +575,10 @@ int main(int argc, char *argv[]) {
         //check language containment to abort earlier
       }
 
-      log->info("completed automaton in {:.3f} seconds", get_secs_since(starttime));
-
-      if (!args->nooutput)
-        print_hoa(*res);
     }
 
   }
+    */
 
   log->info("total time: {:.3f} seconds", get_secs_since(totalstarttime));
   log->info("total used memory: {:.3f} MB", (double)getPeakRSS() / (1024 * 1024));

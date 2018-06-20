@@ -1,6 +1,6 @@
 #pragma once
 
-#include "swa.hh"
+#include "aut.hh"
 #include "common/util.hh"
 
 #include <memory>
@@ -11,102 +11,122 @@
 namespace nbautils {
 using namespace std;
 
-using ps_tag = vector<small_state_t>;
+using ps_tag = nba_bitset;
 // 2^A for some A
-using PS = SWA<ps_tag>;
-
-using pp_tag = pair<vector<small_state_t>, small_state_t>;
-// 2^AxA for some A
-using PP = SWA<pp_tag>;
+using PS = Aut<ps_tag>;
 
 // BA -> 2^BA (as reachable from initial state)
-template <typename T>
-typename PS::uptr powerset_construction(SWA<T> const& ks, vector<small_state_t> const& sinks={}) {
-  assert(ks.get_init().size()==1); //2^BA x BA makes only sense with one initial state!
+PS powerset_construction(auto const& nba, adj_mat const& mat, nba_bitset const& sinks=0) {
+  assert(nba.is_buchi());
+
   // create aut, add initial state, associate with initial states in original aut
   state_t const myinit = 0;
-  auto pks = std::make_unique<PS>(Acceptance::UNKNOWN, ks.get_name(), ks.get_aps(), vector<state_t>{myinit});
-  pks->tag_to_str = [](auto const& vec){ return "{" + seq_to_str(vec) +"}"; };
-  pks->tag->put(to_small_state_t(ks.get_init()), myinit);
+  auto ps = PS(true, nba.get_name(), nba.get_aps(), myinit);
+  ps.tag_to_str = [](ostream& out, ps_tag const& t){
+    vector<state_t> tmp;
+    from_bitset(t, back_inserter(tmp));
+    out << "{" << seq_to_str(tmp) << "}";
+  };
+  ps.tag.put(nba_bitset(1<<nba.get_init()), myinit);
 
   bfs(myinit, [&](auto const& st, auto const& visit, auto const&) {
     // get inner states of current ps state
-    auto const curset = pks->tag->geti(st);
+    auto const curset = ps.tag.geti(st);
     // calculate successors and add to graph
-    for (auto i = 0; i < pks->num_syms(); i++) {
-      auto const sucset = powersucc(ks, curset, i, sinks);
-      if (sucset.empty())
+    for (auto const i : ps.syms()) {
+      auto const sucset = powersucc(mat, curset, i, sinks);
+      if (sucset == 0)
         continue;
 
-      auto const sucst = pks->tag->put_or_get(sucset, pks->num_states());
+      auto const sucst = ps.tag.put_or_get(sucset, ps.num_states());
 
-      if (!pks->has_state(sucst))
-        pks->add_state(sucst);
+      if (!ps.has_state(sucst))
+        ps.add_state(sucst);
       // add edge
-      pks->set_succs(st,i,{sucst});
+      ps.add_edge(st,i,sucst);
       // schedule bfs visit of successor
       visit(sucst);
     }
   });
 
-  return move(pks);
+  return ps;
 }
 
+using pp_tag = pair<nba_bitset, state_t>;
+// 2^AxA for some A
+using PP = Aut<pp_tag>;
+}
+
+namespace std {
+using namespace nbautils;
+template <>
+    struct hash<pp_tag> {
+        size_t operator()(pp_tag const& k) const {
+            // Compute individual hash values for first, second and third
+            // http://stackoverflow.com/a/1646913/126995
+            size_t res = 17;
+            res = res * 31 + hash<nba_bitset>()(k.first);
+            res = res * 31 + hash<state_t>()(k.second);
+            return res;
+        }
+    };
+}
+
+namespace nbautils {
+
 // BA -> 2^BA x BA, returns basically blown-up original nondet automaton with context annot
-template <typename T>
-typename PP::uptr powerset_product(SWA<T> const& ks) {
-  assert(ks.get_init().size()==1); //2^BA x BA makes only sense with one initial state!
+PP powerset_product(auto const& nba, adj_mat const& mat, nba_bitset const& sinks=0) {
+  assert(nba.is_buchi());
 
-  auto ksinit = ks.get_init().front(); //take unique initial state of original system
+  // create aut, add initial state, associate with initial states in original aut
+  state_t const myinit = 0;
+  auto ps = PP(true, nba.get_name(), nba.get_aps(), myinit);
+  ps.tag_to_str = [](ostream& out, pp_tag const& t){
+    vector<state_t> tmp;
+    from_bitset(t.first, back_inserter(tmp));
+    out << "(" << t.second << ", {" << seq_to_str(tmp) << "})";
+  };
+
+  auto const bainit = nba.get_init(); //take unique initial state of original system
   // add initial state, keep acceptance of initial state
-  state_t myinit = 0;
-  auto pks = std::make_unique<PP>(ks.acond, ks.get_name(), ks.get_aps(), vector<state_t>{myinit});
-  pks->tag_to_str = [](auto const& t){ return "({" + seq_to_str(t.first) +"}, "+to_string(t.second)+")"; };
-
-  if (ks.has_accs(ksinit))
-    pks->set_accs(myinit, ks.get_accs(ksinit));
+  if (nba.state_buchi_accepting(bainit))
+    ps.set_pri(myinit, nba.get_pri(bainit));
   // associate with initial states in original aut
-  pks->tag->put(make_pair(to_small_state_t({ksinit}), ksinit), myinit);
+  ps.tag.put(make_pair(nba_bitset(1<<bainit), bainit), myinit);
 
   bfs(myinit, [&](auto const& st, auto const& visit, auto const&) {
     // get inner states of current ps state
-    auto const curtag = pks->tag->geti(st);
-    // remove pointed state from stored set
+    auto const curtag = ps.tag.geti(st);
     auto const curstate = curtag.second;
     auto const& curset = curtag.first;
     // calculate successors
-    for (auto i = 0; i < pks->num_syms(); i++) {
-      auto const sucset = powersucc(ks, curset, i);  // calc successors of powerset
-      //NOTE: maybe here also sucset must be adjusted for accepting sinks?
-
-      auto suctag = make_pair(move(sucset), 0);
-
-      if (!ks.state_has_outsym(curstate,i))
-        continue; //dead end
+    for (auto const i : ps.syms()) {
+      // calc successors of powerset
+      auto const sucset = powersucc(mat, curset, i, sinks);
+      auto suctag = make_pair(sucset, 0);
 
       // for each successor of pointed state add successors
-      for (auto const& q : ks.succ(curstate, i)) {
+      for (auto const& q : nba.succ(curstate, i)) {
         suctag.second = q;
 
         // get or create vertex corresponding to this product tag
         // and add an edge to it
-        auto const sucst = pks->tag->put_or_get(suctag, pks->num_states());
-        if (!pks->has_state(sucst))
-          pks->add_state(sucst);
+        auto const sucst = ps.tag.put_or_get(suctag, ps.num_states());
+        if (!ps.has_state(sucst))
+          ps.add_state(sucst);
         // add edge
-        auto tmp = set_merge(pks->succ(st,i), {sucst});
-        pks->set_succs(st,i,tmp);
+        ps.add_edge(st,i,sucst);
 
         // keep acceptance of pointed state
-        if (ks.has_accs(q))
-          pks->set_accs(sucst, ks.get_accs(q));
+        if (nba.state_buchi_accepting(q))
+          ps.set_pri(sucst, nba.get_pri(q));
 
         visit(sucst); // schedule for bfs discovery
       }
     }
   });
 
-  return move(pks);
+  return ps;
 }
 
 }  // namespace nbautils

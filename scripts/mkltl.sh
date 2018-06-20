@@ -1,4 +1,4 @@
-#/bin/sh
+#!/bin/bash
 SEED=$(date +%s)
 WANT=$3
 NUM=0

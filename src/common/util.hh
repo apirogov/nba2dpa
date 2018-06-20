@@ -6,9 +6,11 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <queue>
 #include <string>
 #include <sstream>
 #include <cassert>
+#include <bitset>
 
 // gives identity function for any type
 auto identity = [](auto const& t){ return t; };
@@ -21,7 +23,8 @@ auto const_true = [](auto const&){ return true; };
 // is sorted + unique vector?
 template<typename T>
 bool is_set_vec(std::vector<T> const& v) {
-  std::set<T> s(std::cbegin(v),std::cend(v));
+  std::vector<T> s(std::cbegin(v),std::cend(v));
+  sort(std::begin(s), std::end(s));
   return std::equal(std::cbegin(v), std::cend(v), std::cbegin(s));
 }
 
@@ -38,12 +41,44 @@ std::string seq_to_str(T const& s, std::string const& sep=",") {
   std::stringstream ss;
   auto last = --std::end(s);
   for (auto it = std::cbegin(s); it!=std::cend(s); ++it) {
-    ss << std::to_string(*it);
+    ss << *it;
     if (it != last) {
       ss << sep;
     }
   }
   return ss.str();
+}
+
+//take sequence containing "small numbers", return small set
+//numbers must be compatible with maximum size!
+template<typename B, typename I>
+B to_bitset(I s) {
+  B ret = 0;
+  for (auto const it : s)
+    ret[it] = 1;
+  return ret;
+}
+
+//takes a bitset and a container inserter. stores bits set to 1
+template<typename B, typename O>
+void from_bitset(B const& s, O out) {
+  for (int i=0; i<(int)s.size(); i++) {
+    if (s[i])
+      *out = i;
+    ++out;
+  }
+}
+
+template<typename B, typename T>
+std::vector<T> vec_from_bitset(B const& s) {
+  std::vector<T> tmp;
+  from_bitset<B>(s, back_inserter(tmp));
+  return tmp;
+}
+
+template<typename B>
+std::string pretty_bitset(B const& s) {
+  return "{"+seq_to_str(vec_from_bitset<B,unsigned>(s))+"}";
 }
 
 // vector fmap
@@ -115,6 +150,7 @@ inline std::vector<T> set_diff(std::vector<T> const& v,
   return ret;
 }
 
+/*
 // collect all keys in a map, returns sorted vector
 template <typename K, typename V>
 std::vector<K> map_get_keys(std::map<K,V> const& m) {
@@ -131,6 +167,7 @@ std::vector<K> map_get_vals(std::map<K,V> const& m) {
     ret.push_back(it.second);
   return ret;
 }
+*/
 
 // check whether a map has a key using .find()
 template <typename K>
@@ -154,7 +191,8 @@ inline bool contains(C const& c, V const& v) {
   return std::find(std::cbegin(c), std::cend(c), v) != std::cend(c);
 }
 
-// use binary search to check containment (for random access iterators)
+// use binary search to check containment
+// (for random access iterators with ineff. find)
 template <typename C, typename V>
 inline bool sorted_contains(C const& c, V const& v) {
   auto it = std::lower_bound(std::cbegin(c), std::cend(c), v);
@@ -180,4 +218,38 @@ std::vector<std::vector<T>> group_by(std::vector<T> v, F const& f) {
     ++l; ++r;
   } while (r != cend(v));
   return ret;
+}
+
+//generic bfs. input: start node,
+//function that takes current node,
+//a function to schedule a visit
+//a has_visited and has_discovered predicate
+//the visit function just does whatever needed with current node and calls
+//pusher function on all successors that also need to be visited.
+//bfs keeps track that each node is visited once in bfs order automatically.
+//TODO: maybe make something with "process_edge, give_edges" ?
+template <typename Node, typename F>
+void bfs(Node const& start, F visit) {
+  std::queue<Node> bfsq;
+  std::set<Node> visited;
+  std::set<Node> discovered;
+
+  auto pusher = [&](Node const& st){
+    if (!contains(discovered, st)) {
+      discovered.emplace(st);
+      bfsq.push(st);
+    }
+  };
+  auto visited_f = [&](Node const& el){ return contains(visited, el); };
+  // auto discovered_f = [&](T const& el){ return contains(visited, el); };
+
+  pusher(start);
+  while (!bfsq.empty()) {
+    auto const st = bfsq.front();
+    bfsq.pop();
+    if (visited.find(st) != visited.end()) continue;  // have visited this one
+    visited.emplace(st);
+
+    visit(st, pusher, visited_f /*, discovered_f */);
+  }
 }

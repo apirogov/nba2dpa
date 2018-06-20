@@ -90,11 +90,11 @@ PA::uptr determinize(LevelConfig const& lc, vector<small_state_t> const& startse
 
 // start with initial state of NBA, explore by DFS completely
 PA::uptr determinize(LevelConfig const& lu) {
-  auto const explore_all = [](auto const&){ return true; }; //trivial predicate
+  // auto const explore_all = [](auto const&){ return true; }; //trivial predicate
   //start with the set of initial states of provided automaton
   auto const startset = vector<small_state_t>(cbegin(lu.aut->get_init()), cend(lu.aut->get_init()));
 
-  return move(determinize(lu,startset,explore_all));
+  return move(determinize(lu,startset,const_true));
 }
 
 //input: automaton with sccinfo, a powerset that exists in the automaton

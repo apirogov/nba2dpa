@@ -17,6 +17,7 @@ inline double get_secs_since(timepoint_t const& tp) { return duration_to_sec(get
 
 //any function can be benchmarked in the log like this:
 //  bench(logger, "function name", WRAP(function_call(args)));
+//the optional trailing argument can be used to toggle output
 #define WRAP(x) ([&](){return std::move(x);})
 template<typename F>
 auto bench(std::shared_ptr<spdlog::logger> log, std::string name, F f, bool enabled=true) {
