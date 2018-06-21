@@ -6,7 +6,10 @@ using namespace std;
 #include <spdlog/spdlog.h>
 namespace spd = spdlog;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcatch-value"
 #include <args.hxx>
+#pragma GCC diagnostic pop
 
 #include "metrics/bench.hh"
 #include "metrics/memusage.h"
@@ -106,13 +109,13 @@ Args parse_args(int argc, char *argv[]) {
 
   try {
     parser.ParseCLI(argc, argv);
-  } catch (args::Help) {
+  } catch (args::Help&) {
     std::cout << parser;
     exit(0);
-  } catch (args::ParseError e) {
+  } catch (args::ParseError& e) {
     cerr << e.what() << endl << parser;
     exit(1);
-  } catch (args::ValidationError e) {
+  } catch (args::ValidationError& e) {
     cerr << e.what() << endl << parser;
     exit(1);
   }
