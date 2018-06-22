@@ -557,6 +557,10 @@ pair<DetState, pri_t> DetState::succ(DetConf const& dc, sym_t x) const {
   }
   auto const& cursets = !modsets ? dc.sets : *modsets; //these will be used for switchers
 
+  left_normalize(ret);
+  if (debug) {
+    cerr << "leftnorm: " << ret << endl;
+  }
   expand_trees(dc, ret, cur_fresh);
   if (debug) {
     cerr << "expand: " << ret << endl;
@@ -564,7 +568,15 @@ pair<DetState, pri_t> DetState::succ(DetConf const& dc, sym_t x) const {
   nba_bitset const switchers = extract_switchers(dc, cursets, ret);
   if (debug) {
     cerr << "-switchers: " << pretty_bitset(switchers) << endl;
+    cerr << "half-step: " << ret << endl;
   }
+
+  // half-transition done. now check saturation stuff, get best active, kill ranks...
+  pri_t const active_pri = perform_actions(dc, cursets, *this, ret, cur_fresh);
+  if (debug) {
+    cerr << "merges: " << ret << endl;
+  }
+
   integrate_switchers(dc, cursets, ret, switchers, cur_fresh);
   if (debug) {
     cerr << "+switchers: " << ret << endl;
@@ -572,12 +584,6 @@ pair<DetState, pri_t> DetState::succ(DetConf const& dc, sym_t x) const {
   left_normalize(ret);
   if (debug) {
     cerr << "leftnorm: " << ret << endl;
-  }
-
-  // half-transition done. now check saturation stuff, get best active, kill ranks...
-  pri_t const active_pri = perform_actions(dc, cursets, *this, ret, cur_fresh);
-  if (debug) {
-    cerr << "merges: " << ret << endl;
   }
 
   // finalize by cleaning empty + fixing priorities

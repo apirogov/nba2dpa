@@ -1,0 +1,1152 @@
+HOA: v1
+name: "FG((!p0 & !p1) | Xp0) U (p0 & p1)"
+States: 6
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc inherently-weak
+--BODY--
+State: 0
+[0&1] 1
+[!0 | !1] 2
+State: 1 {0}
+[t] 1
+State: 2
+[!0 | !1] 2
+[0&1] 3
+[0&1] 4
+State: 3 {0}
+[1] 3
+State: 4
+[0 | 1] 3
+[t] 4
+[!0&!1] 5
+State: 5 {0}
+[0 | 1] 3
+[!0&!1] 5
+--END--
+HOA: v1
+name: "G(p1 & ((!p1 | Fp0) M GF(!p0 & p1))) | (F!p1 & F((p1 & G!p0) W FG(p0 | !p1)))"
+States: 10
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc stutter-invariant
+--BODY--
+State: 0
+[!0] 1
+[!0] 2
+[0] 3
+[0] 4
+State: 1 {0}
+[!0 | 1] 1
+State: 2
+[!0 | 1] 1
+[t] 2
+[0&!1] 5
+State: 3
+[!0] 1
+[!0] 2
+[0] 3
+State: 4
+[0&!1] 4
+[0&1] 6
+State: 5 {0}
+[0&!1] 5
+[!0&!1] 7
+[!0&!1] 8
+State: 6
+[0&1] 6
+[0&!1] 9
+State: 7
+[!1] 7
+[!0&!1] 8
+State: 8 {0}
+[!0&!1] 8
+State: 9 {0}
+[0&!1] 4
+[0&1] 6
+--END--
+HOA: v1
+name: "FG((p1 & G!p0) | (!p1 & Fp0))"
+States: 4
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc stutter-invariant
+--BODY--
+State: 0
+[t] 0
+[!0&1] 1
+[0&!1] 2
+State: 1 {0}
+[!0&1] 1
+[0&!1] 2
+[!0&!1] 3
+State: 2 {0}
+[0&!1] 2
+State: 3
+[!0&1] 1
+[!0&!1] 3
+--END--
+HOA: v1
+name: "F((p1 W Gp0) | (!p1 & FG!p0))"
+States: 5
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc stutter-invariant
+properties: inherently-weak
+--BODY--
+State: 0
+[t] 0
+[!0&1] 1
+[0] 2
+[!0&!1] 3
+[!0] 4
+State: 1 {0}
+[1] 1
+State: 2 {0}
+[!0&1] 1
+[0] 2
+State: 3 {0}
+[!1] 3
+State: 4
+[0&!1] 3
+[0] 4
+--END--
+HOA: v1
+name: "p0 R F(((p0 & !p1 & X(!p1 U !p0)) | (!p0 & (p1 | X(p1 R p0)))) W GFp0)"
+States: 6
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc
+--BODY--
+State: 0
+[t] 0
+[1] 1
+[0&!1] 3
+State: 1 {0}
+[1] 1
+[!1] 4
+State: 2
+[!0&1] 2
+[0&!1] 3
+State: 3 {0}
+[!0 | 1] 1
+[0&!1] 3
+[!0&1] 5
+State: 4
+[1] 1
+[!1] 4
+State: 5 {0}
+[!0&1] 2
+[0&!1] 3
+--END--
+HOA: v1
+name: "X(!p0 & X(!p0 W (Gp1 | F(G!p0 | Gp0))))"
+States: 7
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc inherently-weak
+--BODY--
+State: 0
+[t] 1
+State: 1
+[!1] 2
+State: 2 {0}
+[!1] 2
+[0&1] 3
+[1] 4
+[1] 5
+State: 3 {0}
+[0] 3
+State: 4 {0}
+[1] 4
+State: 5
+[1] 4
+[t] 5
+[!1] 6
+State: 6 {0}
+[!1] 6
+--END--
+HOA: v1
+name: "F(X!p1 W (GF!p1 R p0))"
+States: 5
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc
+--BODY--
+State: 0
+[t] 0
+[1] 1
+[1] 2
+[t] 3
+State: 1 {0}
+[!0] 1
+[0] 4
+State: 2 {0}
+[0&1] 1
+[1] 2
+State: 3 {0}
+[!0&1] 1
+[!0&1] 2
+[!0] 3
+State: 4
+[!0] 1
+[0] 4
+--END--
+HOA: v1
+name: "XXG!p0 M (p1 R ((!p0 & !p1) | (p0 & p1)))"
+States: 5
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc inherently-weak
+--BODY--
+State: 0
+[!0&!1 | 0&1] 0
+[0&1] 1
+[!0&!1] 2
+State: 1
+[t] 3
+State: 2
+[0&1] 3
+[!0&!1] 4
+State: 3 {0}
+[!1] 3
+State: 4 {0}
+[!0&!1] 4
+--END--
+HOA: v1
+name: "p1 & XF((p0 & !p1) | (!p0 & p1) | Gp1 | G!p0)"
+States: 5
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc inherently-weak
+--BODY--
+State: 0
+[0] 1
+State: 1
+[!0&!1 | 0&1] 1
+[!0&1 | 0&!1] 2
+[0&1] 3
+[!0&!1] 4
+State: 2 {0}
+[t] 2
+State: 3 {0}
+[0] 3
+State: 4 {0}
+[!1] 4
+--END--
+HOA: v1
+States: 5
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc colored
+properties: inherently-weak
+--BODY--
+State: 0 {0}
+[1] 0
+[!1] 1
+[!0&!1] 2
+State: 1 {0}
+[0&!1] 1
+[0&1] 3
+State: 2 {0}
+[1] 0
+[!0&!1] 2
+State: 3 {0}
+[0&!1] 1
+[0&1] 3
+[!0&1] 4
+State: 4 {0}
+[1] 4
+--END--
+HOA: v1
+name: "FG(!p1 | F!p0)"
+States: 3
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc complete
+properties: stutter-invariant
+--BODY--
+State: 0
+[t] 0
+[!0 | !1] 1
+State: 1 {0}
+[!0 | !1] 1
+[0&1] 2
+State: 2
+[!1] 1
+[1] 2
+--END--
+HOA: v1
+name: "(!p1 & X(p0 & G(F!p1 & F(!p0 | p1)))) | (p1 & X(!p0 | F(Gp1 | G(p0 & !p1))))"
+States: 10
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc
+--BODY--
+State: 0
+[!0] 1
+[0] 2
+State: 1
+[1] 3
+State: 2
+[!1] 4
+[0&1] 5
+[!0&1] 6
+[1] 7
+State: 3 {0}
+[!0&!1] 3
+[!0&1] 8
+[0] 9
+State: 4 {0}
+[t] 4
+State: 5 {0}
+[0] 5
+State: 6 {0}
+[!0&1] 6
+State: 7
+[0] 5
+[!0&1] 6
+[t] 7
+State: 8
+[!0&!1] 3
+[!0&1] 8
+[0] 9
+State: 9
+[!0] 3
+[0] 9
+--END--
+HOA: v1
+name: "FGp0 U XXG!p1"
+States: 6
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc inherently-weak
+--BODY--
+State: 0
+[t] 1
+[t] 2
+State: 1
+[t] 3
+State: 2
+[t] 2
+[t] 4
+State: 3 {0}
+[!0] 3
+State: 4
+[1] 5
+State: 5 {0}
+[!0&1] 5
+--END--
+HOA: v1
+name: "p0 | G(((p0 U Gp1) & Xp0) | ((!p0 R F!p1) & X!p0) | X(p1 | FG(p0 & !p1)))"
+States: 8
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc
+--BODY--
+State: 0
+[1] 1
+[!1] 2
+State: 1 {0}
+[t] 1
+State: 2 {0}
+[0 | !1] 2
+[0&1] 3
+[!0&1] 4
+[!0&1] 5
+State: 3
+[1] 3
+[0&1] 6
+[!0&1] 7
+State: 4 {0}
+[!0&1] 4
+State: 5
+[!0&1] 4
+[t] 5
+State: 6 {0}
+[0] 6
+State: 7
+[0&!1] 6
+--END--
+HOA: v1
+name: "XF(FG!p0 R (Xp0 & (p0 U p1)))"
+States: 9
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc
+--BODY--
+State: 0
+[t] 1
+State: 1
+[t] 1
+[0] 2
+[0] 3
+[!0&1] 4
+State: 2
+[1] 5
+State: 3 {0}
+[0&1] 2
+[0&1] 3
+[!0&1] 4
+[!0&1] 6
+State: 4
+[0&1] 5
+[!0&1] 7
+State: 5
+[t] 5
+[!1] 8
+State: 6
+[0&1] 2
+[0&1] 3
+[!0&1] 4
+[!0&1] 6
+State: 7
+[0] 5
+[!0&1] 7
+[0&!1] 8
+State: 8 {0}
+[!1] 8
+--END--
+HOA: v1
+name: "(G(p1 M XFp1) & (p0 W ((!p0 U !p1) R p1))) | ((!p0 M ((p0 R p1) U !p1)) & F(!p1 W XG!p1))"
+States: 13
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc
+--BODY--
+State: 0
+[!0&!1] 1
+[!0&!1] 2
+[0&!1] 3
+[1] 4
+[1] 5
+[0&!1] 6
+[0&!1] 7
+State: 1 {0}
+[!0] 1
+[0] 8
+State: 2
+[!0] 1
+[t] 2
+[0] 8
+State: 3 {0}
+[0] 3
+[0&!1] 6
+State: 4 {0}
+[0&!1] 3
+[0&1] 4
+[0&!1] 6
+[!0&1] 9
+State: 5
+[!0&!1] 1
+[!0&!1] 2
+[1] 5
+[0&!1] 7
+State: 6
+[!0] 10
+State: 7
+[0&!1] 7
+[0&1] 8
+[0&1] 11
+State: 8 {0}
+[!0] 8
+State: 9
+[0&!1] 3
+[0&1] 4
+[0&!1] 6
+[!0&1] 9
+State: 10 {0}
+[0] 10
+[!0] 12
+State: 11
+[!0] 1
+[!0] 2
+[0&!1] 7
+[0&1] 8
+[0&1] 11
+State: 12
+[0] 10
+[!0] 12
+--END--
+HOA: v1
+name: "F((Fp1 & G!p0) | (G!p1 & Fp0))"
+States: 3
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc stutter-invariant
+properties: inherently-weak
+--BODY--
+State: 0
+[t] 0
+[0&!1] 1
+[!0&1] 2
+State: 1 {0}
+[!1] 1
+State: 2 {0}
+[!0] 2
+--END--
+HOA: v1
+name: "XF(p0 | Gp1 | G!p1)"
+States: 5
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc inherently-weak
+--BODY--
+State: 0
+[t] 1
+State: 1
+[!1] 1
+[1] 2
+[0&!1] 3
+[!0&!1] 4
+State: 2 {0}
+[t] 2
+State: 3 {0}
+[0] 3
+State: 4 {0}
+[!0] 4
+--END--
+HOA: v1
+name: "(p0 & (p0 W !p1)) | (!p0 & (!p0 M p1)) | G(F!p0 & FGp1) | G(F!p1 & F(G!p1 | Gp0))"
+States: 9
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc stutter-invariant
+--BODY--
+State: 0
+[!0&1 | 0&!1] 1
+[0&1] 2
+[!0&!1 | 0&1] 3
+[!0&!1] 4
+State: 1 {0}
+[t] 1
+State: 2 {0}
+[!0] 1
+[0&1] 2
+State: 3
+[t] 3
+[!0] 4
+[0&!1] 5
+[!0&1] 6
+State: 4 {0}
+[!0] 4
+State: 5 {0}
+[0&!1] 5
+[0&1] 7
+State: 6 {0}
+[!0&1] 6
+[0&1] 8
+State: 7
+[0&!1] 5
+[0&1] 7
+State: 8
+[!0&1] 6
+[0&1] 8
+--END--
+HOA: v1
+name: "(((p0 & !p1) | (!p0 & p1)) & (XF(p1 R (!p0 | G((p1 & Fp0) | (!p1 & G!p0)))) U (!p0 | X(!p1 M !p0)))) | (((!p0 & !p1) | (p0 & p1)) & (XG(!p1 U (p0 & F((p1 & G!p0) | (!p1 & Fp0)))) R (p0 & X(p1 W p0))))"
+States: 14
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc
+--BODY--
+State: 0
+[0&!1] 1
+[!0&1] 2
+[0&1] 3
+[0&1] 4
+[!0&1] 5
+State: 1 {0}
+[t] 1
+State: 2
+[!0&!1] 1
+[0&!1] 2
+State: 3
+[1] 6
+State: 4 {0}
+[1] 3
+[1] 4
+State: 5
+[0&!1] 1
+[1] 5
+[!0&!1] 7
+[!0&!1] 8
+State: 6 {0}
+[!0&1] 6
+[!0&!1] 9
+[0&1] 10
+State: 7 {0}
+[0&!1] 1
+[!0&!1] 7
+[0&1] 11
+State: 8
+[0&!1] 1
+[!0&!1] 7
+[!0 | 1] 8
+[0&1] 11
+State: 9
+[!0&1] 6
+[!0&!1] 9
+[0&1] 10
+State: 10
+[!0] 6
+[0&1] 10
+State: 11 {0}
+[0&1] 11
+[!0&!1] 12
+[0&!1] 13
+State: 12 {0}
+[!0&!1] 12
+State: 13
+[0&1] 11
+[0&!1] 13
+--END--
+HOA: v1
+name: "F(((p1 | Gp0) & G((p0 & (!p1 | XGp1)) | (!p0 & p1 & XF!p1))) | (!p1 & F!p0 & F((p0 & p1 & XF!p1) | (!p0 & (!p1 | XGp1)))))"
+States: 13
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc
+--BODY--
+State: 0
+[0 | 1] 0
+[!0&!1] 1
+[!0&1] 2
+[0&1] 3
+[0&!1] 4
+[!0&1] 5
+State: 1 {0}
+[t] 1
+State: 2
+[0&1] 2
+[0&!1] 6
+[0&!1] 7
+[0&1] 8
+State: 3 {0}
+[0&1] 3
+State: 4
+[0&!1] 4
+[!0&1] 9
+State: 5 {0}
+[0&1] 3
+[!0&1] 5
+State: 6 {0}
+[0] 6
+State: 7
+[0&!1] 6
+[0 | 1] 7
+[0&1] 10
+State: 8
+[0&!1] 10
+[!0&1] 11
+State: 9 {0}
+[0&1] 3
+[!0&1] 9
+[0&!1] 12
+State: 10
+[!0&1] 1
+[0&!1] 10
+State: 11
+[0&!1] 1
+[1] 11
+State: 12 {0}
+[0&!1] 4
+[!0&1] 9
+--END--
+HOA: v1
+name: "F(G(!p0 & !p1) | G(Fp1 & Fp0))"
+States: 5
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc stutter-invariant
+--BODY--
+State: 0
+[t] 0
+[!0&!1] 1
+[0 | 1] 2
+State: 1 {0}
+[!0&!1] 1
+State: 2 {0}
+[0&1] 2
+[!1] 3
+[!0&1] 4
+State: 3
+[0&1] 2
+[!1] 3
+[!0&1] 4
+State: 4
+[0] 2
+[!0] 4
+--END--
+HOA: v1
+name: "F(G(F!p1 & (p1 | (p0 & Fp1 & F!p0) | (G!p1 & (!p0 | Gp0)))) | (FGp1 & F(!p1 & ((Fp1 & (!p0 | Gp0)) | (p0 & F!p0 & G!p1)))))"
+States: 10
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc stutter-invariant
+--BODY--
+State: 0
+[t] 0
+[0] 1
+[!0&1] 3
+[!0&1] 4
+[!0&!1] 5
+[!0&!1] 6
+State: 1
+[0] 1
+[!0&1] 3
+[!0&!1] 5
+[!0&1] 7
+State: 2
+[0&!1] 1
+[!0&1] 2
+[0&1] 8
+State: 3 {0}
+[!0&1] 3
+State: 4 {0}
+[0&1] 4
+State: 5 {0}
+[!0&1] 3
+[!0&!1] 5
+State: 6
+[0 | 1] 6
+[0] 9
+State: 7 {0}
+[0&!1] 1
+[!0&1] 2
+[0&1] 8
+State: 8
+[0&!1] 1
+[!0&1] 2
+[!0&!1] 5
+[0&1] 8
+State: 9 {0}
+[0] 9
+--END--
+HOA: v1
+name: "FG((p1 & Xp0) | (!p1 & X!p0))"
+States: 3
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc inherently-weak
+--BODY--
+State: 0
+[t] 0
+[0] 1
+[!0] 2
+State: 1 {0}
+[0&1] 1
+[!0&1] 2
+State: 2 {0}
+[0&!1] 1
+[!0&!1] 2
+--END--
+HOA: v1
+name: "XX(F!p1 & F(p0 R XXXp1))"
+States: 21
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc inherently-weak
+--BODY--
+State: 0
+[t] 1
+State: 1
+[t] 2
+State: 2
+[0] 2
+[!0&1] 3
+[!0] 4
+[0&1] 5
+[0&!1] 6
+[!0&!1] 7
+State: 3
+[t] 8
+State: 4
+[1] 3
+[t] 4
+[!1] 7
+State: 5
+[!0] 8
+[0] 9
+State: 6
+[0&1] 10
+[!0&1] 11
+[0&!1] 12
+[!0&!1] 13
+State: 7
+[1] 11
+[!1] 13
+State: 8
+[t] 14
+State: 9
+[!0] 14
+[0] 15
+State: 10
+[!0] 16
+State: 11
+[t] 16
+State: 12
+[!0&1] 17
+[!0&!1] 18
+State: 13
+[1] 17
+[!1] 18
+State: 14
+[0] 19
+State: 15
+[0] 20
+State: 16
+[0] 14
+State: 17
+[0] 16
+State: 18 {0}
+[0&1] 17
+[0&!1] 18
+State: 19 {0}
+[t] 19
+State: 20
+[!0] 19
+[0] 20
+--END--
+HOA: v1
+name: "XXF(((p1 & Fp0) | (!p1 & G!p0)) & (X!p0 W F((p0 & Xp1) | (!p0 & X!p1))))"
+States: 11
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc inherently-weak
+--BODY--
+State: 0
+[t] 1
+State: 1
+[t] 2
+State: 2
+[t] 2
+[0&1] 3
+[0&1] 4
+[0&1] 5
+[0&!1] 6
+[!0&!1] 7
+State: 3
+[0] 8
+State: 4
+[1] 3
+[t] 4
+[!1] 9
+State: 5 {0}
+[!1] 4
+[!1] 5
+[!1] 9
+State: 6
+[!0&!1] 6
+[!0&1] 8
+[!0&!1] 10
+State: 7 {0}
+[!1] 7
+State: 8 {0}
+[t] 8
+State: 9
+[!0] 8
+State: 10
+[0&1] 8
+[0&!1] 10
+--END--
+HOA: v1
+name: "F((Gp1 & F!p0) | (F!p1 & Gp0))"
+States: 3
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc stutter-invariant
+properties: inherently-weak
+--BODY--
+State: 0
+[t] 0
+[0&!1] 1
+[!0&1] 2
+State: 1 {0}
+[0] 1
+State: 2 {0}
+[1] 2
+--END--
+HOA: v1
+name: "X(((p0 U (Gp1 R ((p0 & Gp1) | (!p0 & F!p1)))) M Fp0) M (p0 | p1 | GF!p0))"
+States: 11
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc
+--BODY--
+State: 0
+[t] 1
+State: 1
+[0&1] 2
+[1] 3
+[0 | 1] 4
+[!0&!1] 5
+State: 2 {0}
+[0] 2
+State: 3
+[0&!1] 3
+[!0&!1] 6
+State: 4
+[0&1] 2
+[1] 3
+[t] 4
+State: 5
+[t] 5
+[0&1] 7
+[1] 8
+State: 6 {0}
+[0&1] 2
+[0&!1] 3
+[!0&!1] 6
+State: 7 {0}
+[0&!1] 7
+[0&1] 9
+State: 8
+[0&!1] 8
+[!0&!1] 10
+State: 9
+[0&!1] 7
+[0&1] 9
+State: 10 {0}
+[0&1] 7
+[0&!1] 8
+[!0&!1] 10
+--END--
+HOA: v1
+name: "(p0 & (Gp1 | G(!p0 M Fp0))) | (!p0 & F!p1 & F(p0 W G!p0))"
+States: 9
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc stutter-invariant
+--BODY--
+State: 0
+[0&1] 1
+[1] 2
+[!0&!1] 3
+[!0&!1] 4
+[0&!1] 5
+State: 1 {0}
+[0] 1
+State: 2
+[1] 2
+[!1] 6
+State: 3 {0}
+[!1] 3
+State: 4
+[!1] 3
+[t] 4
+[1] 7
+State: 5
+[!0&!1] 3
+[!0] 4
+[0] 5
+[!0&1] 7
+State: 6
+[!1] 6
+[1] 8
+State: 7 {0}
+[!1] 3
+[1] 7
+State: 8 {0}
+[1] 2
+[!1] 6
+--END--
+HOA: v1
+name: "FG(!p0 | X(!p0 R (p1 | Xp1)))"
+States: 4
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc inherently-weak
+--BODY--
+State: 0
+[t] 0
+[!1] 1
+[1] 2
+State: 1 {0}
+[!1] 1
+[1] 2
+State: 2 {0}
+[0&!1] 1
+[0&1] 2
+[!0] 3
+State: 3 {0}
+[0&!1] 1
+[0&1] 2
+--END--
+HOA: v1
+name: "FGp1 | (XX((!p0 & G!p1) | (p0 & Fp1)) & (FGp0 | (((p0 & !p1) | (!p0 & p1)) M !p1))) | ((((!p0 & !p1) | (p0 & p1)) W p1) & XX(GF!p0 & ((!p0 & Fp1) | (p0 & G!p1))))"
+States: 25
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc
+--BODY--
+State: 0
+[0] 1
+[t] 2
+[!0&1] 3
+[0] 4
+[0 | !1] 5
+[!0&!1] 6
+State: 1 {0}
+[0] 1
+State: 2
+[0] 1
+[t] 2
+State: 3
+[t] 7
+State: 4
+[t] 8
+State: 5
+[t] 9
+State: 6
+[!0&1] 7
+[0] 8
+[!0&!1] 10
+State: 7
+[0&1] 11
+[!0&!1] 12
+[!0&1] 13
+State: 8
+[0&!1] 14
+[!0&1] 15
+[!0&!1] 16
+State: 9
+[0&1] 17
+[0&1] 18
+[!0&1] 19
+[!0&!1] 20
+State: 10
+[!0&1] 13
+[0&!1] 14
+[!0&!1] 21
+State: 11 {0}
+[t] 11
+State: 12 {0}
+[!0] 12
+State: 13
+[0] 11
+[!0] 13
+State: 14 {0}
+[!1] 14
+[1] 22
+State: 15 {0}
+[!0&!1] 15
+[!0&1] 23
+State: 16
+[0] 14
+[!0] 16
+State: 17 {0}
+[1] 17
+State: 18
+[1] 17
+[t] 18
+State: 19
+[0&1] 17
+[0] 18
+[!0] 19
+State: 20
+[!0] 20
+[!0&1] 24
+State: 21
+[!0&1] 12
+[0] 14
+[!0&!1] 21
+State: 22
+[!1] 14
+[1] 22
+State: 23
+[!0&!1] 15
+[!0&1] 23
+State: 24 {0}
+[!0&1] 24
+--END--
+HOA: v1
+name: "F(Gp1 | GF(p0 & (p1 | X!p1)))"
+States: 5
+Start: 0
+AP: 2 "p1" "p0"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc
+--BODY--
+State: 0
+[t] 0
+[0] 1
+[0&1] 2
+[!0&1] 3
+State: 1 {0}
+[0] 1
+State: 2 {0}
+[0&1] 2
+[!0&1] 3
+[!0 | !1] 4
+State: 3 {0}
+[!0&1] 3
+[!0] 4
+State: 4
+[0&1] 2
+[!0&1] 3
+[!0 | !1] 4
+--END--

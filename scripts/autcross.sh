@@ -18,10 +18,13 @@ cat |
   -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -a -u0)" \
   -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -a -b -u0)" \
   -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -a -b -c -u0)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -a -b -c -e -u0)" \
   -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -u1)" \
   -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -a -u1)" \
   -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -a -b -u1)" \
   -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -a -b -c -u1)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -a -b -c -e -u1)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -n -a -c -u0)" \
  $@
   # -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -d )" \
   # -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -d -s)" \

@@ -10,7 +10,14 @@ set(nbautils-build_tests OFF CACHE BOOL "Whether to build tests")
 # Enable C++14
 set (CMAKE_CXX_STANDARD 14)
 
-set(CMAKE_CXX_FLAGS "-Wall -Wextra -O2 ") #-DNDEBUG
+include(CheckCXXCompilerFlag)
+check_cxx_compiler_flag(-fconcepts HAS_FCONCEPTS)
+if(HAS_FCONCEPTS)
+  set(CMAKE_CXX_FLAGS "-Wall -Wextra -O2 -fconcepts ") #-DNDEBUG
+else()
+  set(CMAKE_CXX_FLAGS "-Wall -Wextra -O2 ") #-DNDEBUG
+endif()
+
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
 #set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 #if(NOT CMAKE_BUILD_TYPE)
@@ -79,7 +86,6 @@ include_directories(src)
 set(nbautils_SOURCE
                    src/metrics/memusage.h src/metrics/memusage.c src/metrics/bench.hh
                    src/common/bimap.hh src/common/util.hh src/common/scc.hh
-                   src/common/relorder.hh src/common/relorder.cc
                    src/io.hh src/io.cc
                    src/aut.hh
                    src/detstate.hh src/detstate.cc
@@ -126,11 +132,11 @@ if (nbautils-build_tests)
       #                       test/test_nbautils_pa.cc
                             )
 
-    add_executable(test-nbautils ${test_nbautils_SOURCE})
-    target_include_directories(test-nbautils PUBLIC ${Catch_INCLUDE_DIR}) # ${rapidcheck_INCLUDE_DIR})
-    target_link_libraries(test-nbautils test-main)
+    # add_executable(test-nbautils ${test_nbautils_SOURCE})
+    # target_include_directories(test-nbautils PUBLIC ${Catch_INCLUDE_DIR}) # ${rapidcheck_INCLUDE_DIR})
+    # target_link_libraries(test-nbautils test-main)
 
-    create_test(test-nbautils)
+    # create_test(test-nbautils)
 endif()
 
 add_custom_target(
