@@ -1,102 +1,11 @@
+#include "aut.hh"
 #include "det.hh"
-#include "swa.hh"
 
 namespace nbautils {
   using namespace std;
 
-// BFS-based determinization with supplied level update config
-PA::uptr determinize(LevelConfig const& lc, vector<small_state_t> const& startset, auto const& pred) {
-  assert(lc.aut->acond == Acceptance::BUCHI);
 
-  // create automaton with same letters etc
-  auto pa = std::make_unique<PA>(Acceptance::PARITY, lc.aut->get_name(), lc.aut->get_aps());
-  pa->set_patype(PAType::MIN_EVEN);
-  pa->tag_to_str = [](Level const& l){ return l.to_string(); };
-
-  state_t myinit = 0;
-  pa->add_state(myinit);
-  pa->set_init({myinit});
-
-  pa->set_accs(myinit, {0}); // initial state priority does not matter
-  pa->tag->put(Level(lc, startset), myinit); // initial state tag
-
-  int numvis=0;
-  bfs(myinit, [&](auto const& st, auto const& visit, auto const&) {
-    // get inner states of current ps state
-    auto const curlevel = pa->tag->geti(st);
-
-    // cout << "visit " << curlevel.to_string() << endl;
-    ++numvis;
-    if (numvis % 5000 == 0) //progress indicator
-      cerr << numvis << endl;
-
-    for (auto i = 0; i < pa->num_syms(); i++) {
-      // calculate successor level
-      auto suclevel = curlevel.succ(lc, i);
-      // cout << "suc " << suclevel.to_string() << endl;
-
-      if (suclevel.powerset == 0) //is an empty set -> invalid successor
-        continue;
-
-      if (!pred(suclevel)) //predicate not satisfied -> don't explore this node
-        continue;
-
-      if (lc.optguarded) { //guarded priority optimization
-        //NOTE: this changes the priority sequence, i.e. can interfere with hopcroft
-
-        //must be a different tree. we can not apply this with same tree
-        //successor prio is guarded by current
-        if (//!pa->tag->has(suclevel) &&
-            !curlevel.same_tree(suclevel)
-            && suclevel.prio >= curlevel.prio) {
-          bool found = false;
-          auto const realprio = suclevel.prio;
-
-          //we can pick any less important state with same tree
-          //we pick the least important (so all dominating predecessors map to same state)
-          for (unsigned i=2*(startset.size()+1); i>(unsigned)curlevel.prio; --i) {
-            suclevel.prio = i;
-            if (pa->tag->has(suclevel)) {
-              found = true;
-              // cerr << "rewire " << realprio << " to " << i << endl;
-              break;
-            }
-          }
-
-          if (!found) //no success -> we use it as given
-            suclevel.prio = realprio;
-        }
-      }
-
-      //check whether there is already a state in the graph with this label
-      auto const sucst = pa->tag->put_or_get(suclevel, pa->num_states());
-
-      //if this is a new successor, add it to graph and enqueue it:
-      if (!pa->has_state(sucst))
-        pa->add_state(sucst);
-      // assign priority according to resulting level
-      if (!pa->has_accs(sucst))
-        pa->set_accs(sucst,{(unsigned)suclevel.prio});
-      // create edge
-      pa->set_succs(st, i, {sucst});
-      // schedule for bfs
-      visit(sucst);
-    }
-  });
-
-  // cerr << "determinized to " << pa->num_states() << " states" << endl;
-  return move(pa);
-}
-
-// start with initial state of NBA, explore by DFS completely
-PA::uptr determinize(LevelConfig const& lu) {
-  // auto const explore_all = [](auto const&){ return true; }; //trivial predicate
-  //start with the set of initial states of provided automaton
-  auto const startset = vector<small_state_t>(cbegin(lu.aut->get_init()), cend(lu.aut->get_init()));
-
-  return move(determinize(lu,startset,const_true));
-}
-
+/*
 //input: automaton with sccinfo, a powerset that exists in the automaton
 //output: scc number of smallest terminal automaton containing that powerset
 int get_min_term_scc_with_powerset(PA const& pa, SCCDat<state_t> const& pai, vector<small_state_t> const& s) {
@@ -259,5 +168,6 @@ PA::uptr determinize(LevelConfig const& lc, PS const& psa, SCCDat<state_t> const
 
   return move(ret);
 }
+*/
 
 }  // namespace nbautils

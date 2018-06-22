@@ -225,7 +225,7 @@ public:
     in = &instream;
   }
 
-  bool has_next() { return in->good() && !garbage; }
+  bool has_next() const { return in->good() && !garbage; }
 
   // return next automaton. can fail and will return "default value"
   T parse_next() {

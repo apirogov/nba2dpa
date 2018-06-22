@@ -5,6 +5,7 @@
 #include <vector>
 #include <ostream>
 
+#include "aut.hh"
 #include "common/scc.hh"
 #include "preproc.hh"
 #include "common/relorder.hh"
@@ -37,14 +38,7 @@ enum class UpdateMode { MUELLERSCHUPP, SAFRA, FULLMERGE, num };
 //optimizing detsccs:
 //as above, but have det_sccs among msccs marked extra
 
-struct DetConf {
-  bool debug = false;
-
-  // mandatory SCC infos that are used with various heuristics
-  adj_mat aut_mat;            //adj matrix
-  nba_bitset aut_states = 0; //all used states
-  nba_bitset aut_acc = 0;    //accepting states
-
+struct DetConfSets {
   //invariants: nscc_states + ascc_states + dscc_states + mscc_states = aut_states
   //            nscc_states , ascc_states , dscc_states , mscc_states all pw disj
   //            union of asccs_states = ascc_states
@@ -56,13 +50,26 @@ struct DetConf {
   nba_bitset ascc_states = 0; //asccs, merged together
   vector<nba_bitset> asccs_states; //either each ascc sep. or contains exactly ascc_states
 
+  //TODO: we need to treat each det. separately!!!
   nba_bitset dscc_states = 0; //msccs that are deterministic, merged together
 
   vector<nba_bitset> msccs_states; //either each scc sep. or all remaining mscc together
+};
+
+struct DetConf {
+  bool debug = false;
+
+  // mandatory SCC infos that are used with various heuristics
+  adj_mat aut_mat;           //adj matrix
+  nba_bitset aut_states = 0; //all used states
+  nba_bitset aut_acc = 0;    //accepting states
 
   //heuristics and optimisations:
   nba_bitset aut_asinks = 0;  //if non-empty, will be used to stop early
-  Context ctx; //if non-empty, context used for seperation refinement
+  Context ctx;                //if non-empty, context used for seperation refinement
+
+  //these must be filled
+  DetConfSets sets;
 
   UpdateMode update = UpdateMode::MUELLERSCHUPP; // kind of merge
   bool weaksat = false;   //already saturate if some single SCC moved down
@@ -74,6 +81,9 @@ struct DetConf {
   bool sep_mix = false;
   bool opt_det = false;
 };
+
+DetConfSets calc_detconfsets(DetConf const& dc, SCCDat const& scci,
+    BASccAClass const& sccAcc, set<unsigned> const& sccDet);
 
 std::ostream& operator<<(std::ostream& os, DetConf const& dc);
 
@@ -111,3 +121,30 @@ struct DetState {
 std::ostream& operator<<(std::ostream& os, DetState const& s);
 
 }  // namespace nbautils
+
+namespace std {
+using namespace nbautils;
+template <>
+    struct hash<DetState> {
+        size_t operator()(DetState const& k) const {
+            // Compute individual hash values for first, second and third
+            // http://stackoverflow.com/a/1646913/126995
+            size_t res = 17;
+            res = res * 31 + hash<nba_bitset>()(k.powerset);
+            res = res * 31 + hash<nba_bitset>()(k.nsccs);
+            res = res * 31 + hash<nba_bitset>()(k.asccs_buf);
+            res = res * 31 + hash<nba_bitset>()(k.asccs);
+            res = res * 31 + hash<pri_t>()(k.asccs_pri);
+            for (auto const& it : k.dsccs) {
+              res = res * 31 + hash<nba_bitset>()(it.first);
+              res = res * 31 + hash<pri_t>()(it.second);
+            }
+            for (auto const& mscc : k.msccs)
+              for (auto const& it : mscc) {
+                res = res * 31 + hash<nba_bitset>()(it.first);
+                res = res * 31 + hash<pri_t>()(it.second);
+              }
+            return res;
+        }
+    };
+}

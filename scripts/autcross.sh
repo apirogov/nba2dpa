@@ -13,13 +13,15 @@ wrap() {
 #   ltl2tgba -B |
 cat |
  autcross -T 180 \
-  -t "$(wrap autfilt -D -S -C -P)" \
-  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -d -s -t -g -n -u0)" \
-  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -d -s -t -g -n -u1)" \
-  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -d -s -t -g -n -u2)" \
-  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -d -s -t -g -n -p -m -u0)" \
-  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -d -s -t -g -n -p -m -u1)" \
-  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -d -s -t -g -n -p -m -u2)" \
+  -t "$(wrap autfilt -D -C -P)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -u0)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -a -u0)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -a -b -u0)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -a -b -c -u0)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -u1)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -a -u1)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -a -b -u1)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -a -b -c -u1)" \
  $@
   # -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -d )" \
   # -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -d -s)" \

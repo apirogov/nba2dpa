@@ -208,6 +208,8 @@ Context get_context(auto const& aut, adj_mat const& mat, nba_bitset const asinks
   for (auto const s : psp.states()) {
     auto const& t = psp.tag.geti(s);
     int val = psp_sccAcc.at(psp_scci.scc_of.at(s));
+    if (!map_has_key(ret, t.first))
+      ret[t.first] = {};
     if (val==1)
       ret[t.first].first[t.second] = 1;
     else if (val==-1)

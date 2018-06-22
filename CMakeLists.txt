@@ -83,9 +83,9 @@ set(nbautils_SOURCE
                    src/io.hh src/io.cc
                    src/aut.hh
                    src/detstate.hh src/detstate.cc
+                   src/ps.hh
+                   src/det.hh src/det.cc
 #                  src/pa.hh src/pa.cc
-#                  src/ps.hh
-#                  src/det.hh src/det.cc
                    )
 
 add_library(nbautils-lib STATIC ${nbautils_SOURCE})

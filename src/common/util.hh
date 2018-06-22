@@ -180,8 +180,8 @@ inline std::set<K> mapbool_to_set(std::map<K,bool> const& m) {
 }
 
 // check whether a map has a key using .find()
-template <typename K, typename V>
-inline bool map_has_key(std::map<K,V> const& m, K const& k) {
+template <template<typename,typename,typename...> class M, typename K, typename V, typename ... A>
+inline bool map_has_key(M<K,V,A...> const& m, K const& k) {
   return m.find(k) != end(m);
 }
 
