@@ -257,12 +257,13 @@ void integrate_switchers(DetConf const& dc, DetConfSets const& sts, DetState& s,
   if (detswitchers != 0)
     s.dsccs.push_back(make_pair(detswitchers, cur_fresh++));
 
-  if (dc.sep_mix) { //if MSCCs separately, add new tree root for switchers
+  // if (dc.sep_mix) { //if MSCCs separately, add new tree root for switchers
     for (auto const i : ranges::view::ints(0, (int)s.msccs.size())) {
       nba_bitset const mswitchers = switchers & sts.msccs_states[i];
       if (mswitchers != 0)
         s.msccs[i].push_back(make_pair(mswitchers, cur_fresh++));
     }
+    /*
   } else {
     //if MSCC root was not present (due to cleanup e.g.)
     nba_bitset const mswitchers = switchers & sts.msccs_states.at(0);
@@ -273,6 +274,7 @@ void integrate_switchers(DetConf const& dc, DetConfSets const& sts, DetState& s,
       s.msccs.at(0).back().first |= mswitchers;
     }
   }
+  */
 }
 
 
@@ -334,11 +336,28 @@ pri_t perform_actions(DetConf const& dc, DetConfSets const& sts,
   };
 
   //ASCC handling -- fire priority and also swap/cycle set
+  int offset = -1; //last/current active ASCC
+  if (dc.sep_acc_cyc) {
+    for (auto const i : ranges::view::ints(0, (int)sts.asccs_states.size())) {
+      if ((old.asccs & sts.asccs_states.at(i))!=0) { //last active SCC found?
+        offset = i;
+        break;
+      }
+    }
+
+    //remove states that are in asccs but left the current ascc back into ascc buffer
+    if (offset > -1) {
+      s.asccs_buf |= s.asccs & ~sts.asccs_states.at(offset);
+      s.asccs     &= s.asccs &  sts.asccs_states.at(offset);
+    }
+  }
+
   if (s.asccs != 0) {
     if (dc.debug)
       cerr << "ASCC alive" << endl;
+
     fire(s.asccs_pri, true);
-  } else { //breakpoint
+  } else { //breakpoint - either all or the current ASCC died out
     if (dc.debug)
       cerr << "ASCC breaks" << endl;
     fire(s.asccs_pri, false);
@@ -348,17 +367,12 @@ pri_t perform_actions(DetConf const& dc, DetConfSets const& sts,
 
     } else { //SCC rotating (cyclic) breakpoint
       //TODO: does this harmonize with context pseudo-set?
-      //detect last active ASCC
-      int offset = 0;
-      for (auto const i : ranges::view::ints(0, (int)sts.asccs_states.size())) {
-        if ((old.asccs & sts.asccs_states.at(i))!=0) { //last active SCC found?
-          offset = i+1;
-          break;
-        }
-      }
+
+      if (dc.debug)
+        cerr << "offset: " << offset << endl;
       //move next in order from buffer to active
       for (auto const i : ranges::view::ints(0, (int)sts.asccs_states.size())) {
-        nba_bitset const cand = s.asccs_buf & sts.asccs_states.at((i+offset) % sts.asccs_states.size());
+        nba_bitset const cand = s.asccs_buf & sts.asccs_states.at((1+offset+i) % sts.asccs_states.size());
         if (cand != 0) { //next non-empty successor SCC found
           s.asccs_buf &= ~cand; //remove from buffer
           s.asccs = cand; //add to active
@@ -458,7 +472,7 @@ pri_t perform_actions(DetConf const& dc, DetConfSets const& sts,
     if (dc.debug)
       cerr << endl;
 
-    //TODO: full collapse for DSCCs and MSCCs
+    //TODO: full collapse for DSCCs and MSCCs, treat all DSCCs separately
   /*
   } else {
     unsigned int active_rk = 2*realn;
@@ -559,7 +573,7 @@ pair<DetState, pri_t> DetState::succ(DetConf const& dc, sym_t x) const {
 
   left_normalize(ret);
   if (debug) {
-    cerr << "leftnorm: " << ret << endl;
+    cerr << "normsucc: " << ret << endl;
   }
   expand_trees(dc, ret, cur_fresh);
   if (debug) {
@@ -580,10 +594,6 @@ pair<DetState, pri_t> DetState::succ(DetConf const& dc, sym_t x) const {
   integrate_switchers(dc, cursets, ret, switchers, cur_fresh);
   if (debug) {
     cerr << "+switchers: " << ret << endl;
-  }
-  left_normalize(ret);
-  if (debug) {
-    cerr << "leftnorm: " << ret << endl;
   }
 
   // finalize by cleaning empty + fixing priorities
