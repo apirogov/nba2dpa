@@ -32,15 +32,18 @@ DetConfSets calc_detconfsets(DetConf const& dc, SCCDat const& scci,
     } else if (it.second == 0  //MSCC (and others, when we don't separate them)
         || (!dc.sep_rej && it.second == -1)
         || (!dc.sep_acc && it.second ==  1)) {
+
       if (dc.sep_mix) { //if we handle (M)SCCs all separately
         //if we optimize deterministic (M)SCCs that are not handled otherwise, sep.
-        if (dc.opt_det && contains(sccDet, it.first))
-          ret.dscc_states |= tmp;
-        else
+        if (dc.opt_det && contains(sccDet, it.first)) {
+          ret.dsccs_states.push_back(tmp);
+        } else {
           ret.msccs_states.push_back(tmp);
+        }
       } else {
         remain |= tmp;
       }
+
     } else {
       cerr << "Something went wrong! SCC has invalid acceptance class!" << endl;
       exit(1);
@@ -66,10 +69,21 @@ std::ostream& operator<<(std::ostream& os, DetConf const& dc) {
   os << "ascc_states: " <<  pretty_bitset(dc.sets.ascc_states) << endl;
   for (auto const& as : dc.sets.asccs_states)
     os << "\tascc: " <<  pretty_bitset(as) << endl;
-  os << "dscc_states: " <<  pretty_bitset(dc.sets.dscc_states) << endl;
+
+  os << "dsccs:";
+  if (dc.sets.dsccs_states.size() > 0) {
+    for (auto const& ds : dc.sets.dsccs_states)
+      os << "\t" <<  pretty_bitset(ds) << endl;
+  } else {
+    os << endl;
+  }
   os << "msccs:";
-  for (auto const& ms : dc.sets.msccs_states)
-    os << "\t" <<  pretty_bitset(ms) << endl;
+  if (dc.sets.msccs_states.size() > 0) {
+    for (auto const& ms : dc.sets.msccs_states)
+      os << "\t" <<  pretty_bitset(ms) << endl;
+  } else {
+    os << endl;
+  }
 
   os << "update: " << (int)dc.update << endl;
   os << "options: ";
@@ -85,25 +99,31 @@ std::ostream& operator<<(std::ostream& os, DetConf const& dc) {
   return os;
 }
 
-std::ostream& operator<<(std::ostream& os, DetState const& s) {
-  os << "N: " << pretty_bitset(s.nsccs)
-    << "\t(AC: " << pretty_bitset(s.asccs)
-    << ", AB: " << pretty_bitset(s.asccs_buf) << "):" << s.asccs_pri
-    << "\tD: (";
+void rows_to_str(std::ostream& os, vector<vector<pair<nba_bitset, pri_t>>> const& rows) {
   vector<string> tmp;
-  for (auto const& dscc : s.dsccs)
-    tmp.push_back(pretty_bitset(dscc.first) + ":" + to_string(dscc.second));
-  os << seq_to_str(tmp, ", ") << ")";
-  tmp.clear();
-  os << "\tM: (";
-  for (auto const& mscc : s.msccs) {
+  for (auto const& mscc : rows) {
     vector<string> tmp2;
     for (auto const& ms : mscc) {
       tmp2.push_back(pretty_bitset(ms.first) + ":" + to_string(ms.second));
     }
     tmp.push_back(seq_to_str(tmp2, ", "));
   }
-  os << seq_to_str(tmp, " | ") << ")";
+  os << seq_to_str(tmp, " | ");
+}
+
+std::ostream& operator<<(std::ostream& os, DetState const& s) {
+  os << "N: " << pretty_bitset(s.nsccs)
+    << "\t(AC: " << pretty_bitset(s.asccs)
+    << ", AB: " << pretty_bitset(s.asccs_buf) << "):" << s.asccs_pri;
+
+  os << "\tD: (";
+  rows_to_str(os, s.dsccs);
+  os << ")";
+
+  os << "\tM: (";
+  rows_to_str(os, s.msccs);
+  os << ")";
+
   return os;
 }
 
@@ -155,9 +175,15 @@ DetState::DetState(DetConf const& dc, nba_bitset const& qs) {
   asccs_buf = qs & dc.sets.ascc_states;
 
   int cur_fresh = 1;
-  nba_bitset tmp = qs & dc.sets.dscc_states;
-  if (tmp != 0)
-    dsccs.push_back(make_pair(tmp, cur_fresh++));
+  nba_bitset tmp = 0;
+
+  int const numd = dc.sets.dsccs_states.size();
+  dsccs.resize(numd); //allocate as many as MSCCs
+  for (auto const i : ranges::view::ints(0, numd)) {
+    tmp = qs & dc.sets.dsccs_states.at(i);
+    if (tmp != 0)
+      dsccs.at(i).push_back(make_pair(tmp, cur_fresh++));
+  }
 
   int const numm = dc.sets.msccs_states.size();
   msccs.resize(numm); //allocate as many as MSCCs
@@ -180,7 +206,8 @@ void successorize_all(DetConf const& dc, DetState& s, sym_t const x) {
   s.asccs_buf = psucc(s.asccs_buf);
   s.asccs     = psucc(s.asccs);
   for (auto const i : ranges::view::ints(0, (int)s.dsccs.size()))
-    s.dsccs[i].first = psucc(s.dsccs[i].first);
+    for (auto const j : ranges::view::ints(0, (int)s.dsccs[i].size()))
+      s.dsccs[i][j].first = psucc(s.dsccs[i][j].first);
   for (auto const i : ranges::view::ints(0, (int)s.msccs.size()))
     for (auto const j : ranges::view::ints(0, (int)s.msccs[i].size()))
       s.msccs[i][j].first = psucc(s.msccs[i][j].first);
@@ -198,10 +225,11 @@ nba_bitset extract_switchers(DetConf const& dc, DetConfSets const& sts, DetState
   s.asccs     &= sts.ascc_states;
   s.asccs_buf &= sts.ascc_states;
 
-  for (auto const i : ranges::view::ints(0, (int)s.dsccs.size())) {
-    switchers |= s.dsccs[i].first & (~sts.dscc_states & dc.aut_states);
-    s.dsccs[i].first &= sts.dscc_states;
-  }
+  for (auto const i : ranges::view::ints(0, (int)s.dsccs.size()))
+    for (auto const j : ranges::view::ints(0, (int)s.dsccs[i].size())) {
+      switchers |= s.dsccs[i][j].first & (~sts.dsccs_states[i] & dc.aut_states);
+      s.dsccs[i][j].first &= sts.dsccs_states[i];
+    }
   for (auto const i : ranges::view::ints(0, (int)s.msccs.size()))
     for (auto const j : ranges::view::ints(0, (int)s.msccs[i].size())) {
       switchers |= s.msccs[i][j].first & (~sts.msccs_states[i] & dc.aut_states);
@@ -240,7 +268,8 @@ void left_normalize_row(vector<pair<nba_bitset, pri_t>>& row) {
 //keep leftmost occurence of each state
 void left_normalize(DetState &s) {
   s.asccs_buf &= ~s.asccs; //keep in buffer only ones not already reached in active
-  left_normalize_row(s.dsccs);
+  for (auto& dscc : s.dsccs)
+    left_normalize_row(dscc);
   for (auto& mscc : s.msccs)
     left_normalize_row(mscc);
 }
@@ -248,40 +277,31 @@ void left_normalize(DetState &s) {
 //integrate states that needed to switch SCCs into corresponding buckets
 //create new priorities if necessary
 //the sets are provided separately as they might be modified for context
-void integrate_switchers(DetConf const& dc, DetConfSets const& sts, DetState& s,
+void integrate_switchers(DetConfSets const& sts, DetState& s,
     nba_bitset const& switchers, pri_t& cur_fresh) {
   s.nsccs     |= switchers & sts.nscc_states;
   s.asccs_buf |= switchers & sts.ascc_states;
 
-  nba_bitset const detswitchers = switchers & sts.dscc_states;
-  if (detswitchers != 0)
-    s.dsccs.push_back(make_pair(detswitchers, cur_fresh++));
 
-  // if (dc.sep_mix) { //if MSCCs separately, add new tree root for switchers
-    for (auto const i : ranges::view::ints(0, (int)s.msccs.size())) {
-      nba_bitset const mswitchers = switchers & sts.msccs_states[i];
-      if (mswitchers != 0)
-        s.msccs[i].push_back(make_pair(mswitchers, cur_fresh++));
-    }
-    /*
-  } else {
-    //if MSCC root was not present (due to cleanup e.g.)
-    nba_bitset const mswitchers = switchers & sts.msccs_states.at(0);
-    if (s.msccs.at(0).empty()) {
-      if (mswitchers != 0)
-        s.msccs.at(0).push_back(make_pair(mswitchers, cur_fresh++));
-    } else { //just merge into existing root
-      s.msccs.at(0).back().first |= mswitchers;
-    }
+  for (auto const i : ranges::view::ints(0, (int)s.dsccs.size())) {
+    nba_bitset const dswitchers = switchers & sts.dsccs_states[i];
+    if (dswitchers != 0)
+      s.dsccs[i].push_back(make_pair(dswitchers, cur_fresh++));
   }
-  */
+
+  for (auto const i : ranges::view::ints(0, (int)s.msccs.size())) {
+    nba_bitset const mswitchers = switchers & sts.msccs_states[i];
+    if (mswitchers != 0)
+      s.msccs[i].push_back(make_pair(mswitchers, cur_fresh++));
+  }
 }
 
 
 // remove unnecessary empty sets (in dscc and mscc)
 void cleanup_empty(DetState &s) {
   auto const is_empty = [](auto const& it){ return it.first == 0; };
-  s.dsccs.erase(std::remove_if(begin(s.dsccs), end(s.dsccs), is_empty), end(s.dsccs));
+  for (auto& dscc : s.dsccs)
+    dscc.erase(std::remove_if(begin(dscc), end(dscc), is_empty), end(dscc));
   for (auto& mscc : s.msccs)
     mscc.erase(std::remove_if(begin(mscc), end(mscc), is_empty), end(mscc));
 }
@@ -291,8 +311,9 @@ void normalize_prios(DetState &s) {
   //collect
   vector<pri_t> used_pris;
   used_pris.push_back(s.asccs_pri);
-  for (auto const& it : s.dsccs)
-    used_pris.push_back(it.second);
+  for (auto const& dscc : s.dsccs)
+    for (auto const& it : dscc)
+      used_pris.push_back(it.second);
   for (auto const& mscc : s.msccs)
     for (auto const& it : mscc)
       used_pris.push_back(it.second);
@@ -307,8 +328,9 @@ void normalize_prios(DetState &s) {
   //apply
   auto const update_pri = [&f](pri_t& old){ old = f[old]; }; //change prio inplace
   update_pri(s.asccs_pri);
-  for (auto& it : s.dsccs)
-    update_pri(it.second);
+  for (auto& dscc : s.dsccs)
+    for (auto& it : dscc)
+      update_pri(it.second);
   for (auto& mscc : s.msccs)
     for (auto& it : mscc)
       update_pri(it.second);
@@ -322,6 +344,41 @@ inline pri_t rank_to_prio(pri_t r, bool good) {
 inline pair<pri_t, bool> prio_to_event(pri_t pri) {
   return make_pair((pri+1)/2 - 1, pri%2==0);
 
+}
+
+//takes accepting states (if given, they will be kept "pure"), the dominating rank,
+//current row and fresh id counter. performs (optionally pure) collapse
+void full_merge_row(nba_bitset const& acc_states, pri_t const act_rank,
+    vector<pair<nba_bitset, pri_t>>& row,pri_t& cur_fresh) {
+  if (row.size()<=1)
+    return;
+
+  for (auto const i : ranges::view::ints(0, (int)row.size()-1)) {
+    bool merged = false;
+    if (row[i].second > act_rank && row[i+1].second >= act_rank) { //push stuff through region
+      //push smaller rank forward
+      if (row[i].second < row[i+1].second)
+        row[i+1].second = row[i].second;
+      //kill bigger rank
+      row[i].second = cur_fresh++;
+      //collect states
+      row[i+1].first |= row[i].first;
+      row[i].first = 0;
+      merged = true;
+    }
+
+    if (merged && acc_states != 0) { //keep acc/non-acc separated
+      if (row[i].second==act_rank || (row[i].second>act_rank && row[i+1].second < act_rank)) {
+        merged = false;
+        auto const tmp_acc = row[i].first &  acc_states;
+        auto const tmp_rej = row[i].first & ~acc_states;
+        if (tmp_acc != 0 && tmp_rej != 0) {
+          row[i-1].first = tmp_acc;
+          row[i].first   = tmp_rej;
+        }
+      }
+    }
+  }
 }
 
 //perform breakpoints, detect saturation/death etc
@@ -386,11 +443,13 @@ pri_t perform_actions(DetConf const& dc, DetConfSets const& sts,
     cerr << "scanning DSCCs";
 
   //DSCC handling -- get oldest active
-  for (auto& it : s.dsccs) {
-    if (it.first == 0) { //set died
-      fire(it.second, false);
-    } else if ((it.first & dc.aut_acc) != 0) { //set has acc. state
-      fire(it.second, true);
+  for (auto& dscc : s.dsccs) {
+    for (auto& it : dscc) {
+      if (it.first == 0) { //set died
+        fire(it.second, false);
+      } else if ((it.first & dc.aut_acc) != 0) { //set has acc. state
+        fire(it.second, true);
+      }
     }
   }
 
@@ -451,12 +510,17 @@ pri_t perform_actions(DetConf const& dc, DetConfSets const& sts,
               subtree |= mscc[j].first;
               mscc[j].first = 0;
             }
-            if (!dc.puretrees) {
-              mscc[i].first = subtree;
-            } else { //keep acc/non-acc separated
-              mscc[i-1].first = subtree &  dc.aut_acc;
-              mscc[i].first   = subtree & ~dc.aut_acc;
+            mscc[i].first = subtree;
+
+            if (dc.puretrees && l[i]+1 != i) { //keep acc/non-acc separated
+              auto const tmp_acc = subtree &  dc.aut_acc;
+              auto const tmp_rej = subtree & ~dc.aut_acc;
+              if (tmp_acc != 0 && tmp_rej != 0) {
+                mscc[i-1].first = tmp_acc;
+                mscc[i].first   = tmp_rej;
+              }
             }
+
           }
         }
       } else {
@@ -471,54 +535,21 @@ pri_t perform_actions(DetConf const& dc, DetConfSets const& sts,
     }
     if (dc.debug)
       cerr << endl;
-
-    //TODO: full collapse for DSCCs and MSCCs, treat all DSCCs separately
-  /*
-  } else {
-    unsigned int active_rk = 2*realn;
-    // unsigned int active_ix = 2*realn;
-
-    // find most important rank
-    for (auto i=0; i<2*realn; i++) {
-      auto const hostempty = suclvl.tups[i].empty();
-        if (debug)
-          cerr << i << " with rank " << *tupranks[i] << endl;
-      if (hostempty && *tupranks[i] < active_rk) {
-        if (debug)
-          cerr << "empty " << i << " with better rank " << *tupranks[i] << endl;
-        // active_ix = i;
-        active_rk = *tupranks[i];
-      }
-    }
-    if (debug)
-      cerr << "active rank: " << active_rk << endl;
-
-    // merge regions
-    if (active_rk < (unsigned int)2*realn) {
-      for (auto i=0; i<2*realn-1; i++) {
-        if (*tupranks[i] > active_rk && *tupranks[i+1] >= active_rk) { //push stuff through region
-          if (*tupranks[i] < *tupranks[i+1]) //push smaller rank forward
-            swap(tupranks[i], tupranks[i+1]);
-          rord.kill(tupranks[i]); //kill bigger rank
-          //collect states
-          copy(begin(suclvl.tups[i]), end(suclvl.tups[i]), back_inserter(suclvl.tups[i+1]));
-          suclvl.tups[i].clear();
-        } else if (*tupranks[i] == active_rk || (*tupranks[i]>active_rk && *tupranks[i+1] < active_rk)) { //right border of region
-            if (suclvl.tups[i].empty()) {
-              suclvl.prio = min(suclvl.prio, rank_to_prio(*tupranks[i], false));
-              rord.kill(tupranks[i]);
-            } else {
-              suclvl.prio = min(suclvl.prio, rank_to_prio(*tupranks[i], true));
-              sort(begin(suclvl.tups[i]), end(suclvl.tups[i]));
-            }
-        }
-      }
-      sort(begin(suclvl.tups[2*realn-1]), end(suclvl.tups[2*realn-1]));
-      if (active_rk == *tupranks[2*realn-1])
-        suclvl.prio = min(suclvl.prio, rank_to_prio(*tupranks[2*realn-1], true));
-    }
   }
-  */
+
+  if (dc.update == UpdateMode::FULLMERGE) {
+    pri_t act_rank;
+    bool act_type;
+    tie(act_rank, act_type) = prio_to_event(fired);
+    if (dc.debug)
+      cerr << "dominating event: " << act_rank << ", " << act_type << endl;
+
+    for (auto& dscc : s.dsccs) {
+      full_merge_row(0, act_rank, dscc, cur_fresh);
+    }
+    for (auto& mscc : s.msccs) {
+      full_merge_row(dc.puretrees, act_rank, mscc, cur_fresh);
+    }
   }
 
   return fired;
@@ -565,7 +596,8 @@ pair<DetState, pri_t> DetState::succ(DetConf const& dc, sym_t x) const {
 
     //remove from others
     nba_bitset const tmp = ~(modsets->ascc_states | modsets->nscc_states) & dc.aut_states;
-    modsets->dscc_states &= tmp;
+    for (auto& dscc : modsets->dsccs_states)
+      dscc &= tmp;
     for (auto& mscc : modsets->msccs_states)
       mscc &= tmp;
   }
@@ -591,7 +623,7 @@ pair<DetState, pri_t> DetState::succ(DetConf const& dc, sym_t x) const {
     cerr << "merges: " << ret << endl;
   }
 
-  integrate_switchers(dc, cursets, ret, switchers, cur_fresh);
+  integrate_switchers(cursets, ret, switchers, cur_fresh);
   if (debug) {
     cerr << "+switchers: " << ret << endl;
   }
@@ -607,26 +639,5 @@ pair<DetState, pri_t> DetState::succ(DetConf const& dc, sym_t x) const {
   }
   return make_pair(ret, active_pri);
 }
-
-/*
-DetState DetState::succ(DetState const& dc, sym_t x) const {
-
-  // ----------------------------------------------------------------
-
-  //calculate tree structure
-  vector<int> p;
-  vector<int> l;
-  tie(p,l) = unflatten(suclvl.tupo);
-
-  if (debug) {
-    cerr << "calculated parent + left sibling:" << endl;
-    for (auto i=0; i<(int)p.size(); i++) {
-      cerr << "p[" << i <<"] =" << p[i] << ", ";
-      cerr << "l[" << i <<"] =" << l[i] << endl;
-    }
-  }
-
-  // ----------------------------------------------------------------
-*/
 
 }  // namespace nbautils

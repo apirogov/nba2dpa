@@ -50,8 +50,7 @@ struct DetConfSets {
   nba_bitset ascc_states = 0; //asccs, merged together
   vector<nba_bitset> asccs_states; //either each ascc sep. or contains exactly ascc_states
 
-  //TODO: we need to treat each det. separately!!!
-  nba_bitset dscc_states = 0; //msccs that are deterministic, merged together
+  vector<nba_bitset> dsccs_states; //deterministic msccs, separately
 
   vector<nba_bitset> msccs_states; //either each scc sep. or all remaining mscc together
 };
@@ -101,7 +100,7 @@ struct DetState {
   pri_t asccs_pri=0;
 
   //deterministic mixed SCC(s) - nodes not expanded, other saturation condition
-  vector<pair<nba_bitset,pri_t>> dsccs;
+  vector<vector<pair<nba_bitset,pri_t>>> dsccs;
 
   //(remaining) mixed SCC(s) - MS tuple / Safra tree(s)
   vector<vector<pair<nba_bitset,pri_t>>> msccs;
@@ -135,10 +134,11 @@ template <>
             res = res * 31 + hash<nba_bitset>()(k.asccs_buf);
             res = res * 31 + hash<nba_bitset>()(k.asccs);
             res = res * 31 + hash<pri_t>()(k.asccs_pri);
-            for (auto const& it : k.dsccs) {
-              res = res * 31 + hash<nba_bitset>()(it.first);
-              res = res * 31 + hash<pri_t>()(it.second);
-            }
+            for (auto const& dscc : k.dsccs)
+              for (auto const& it : dscc) {
+                res = res * 31 + hash<nba_bitset>()(it.first);
+                res = res * 31 + hash<pri_t>()(it.second);
+              }
             for (auto const& mscc : k.msccs)
               for (auto const& it : mscc) {
                 res = res * 31 + hash<nba_bitset>()(it.first);

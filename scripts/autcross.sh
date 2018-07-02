@@ -1,7 +1,7 @@
 #!/bin/bash
 SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
 SEED=$(date +%s)
-
+DATE=`date +%Y%m%d-%H%M%S`
 wrap() {
   echo 'cat %H |' $@ '> %O'
 }
@@ -12,28 +12,26 @@ wrap() {
 #   awk '{ print length($0) " " $0; }' $file | sort -n | cut -d ' ' -f 2- |
 #   ltl2tgba -B |
 cat |
- autcross -T 180 \
+  autcross \
   -t "$(wrap autfilt -D -C -P)" \
-  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -u0)" \
-  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -a -u0)" \
-  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -a -b -u0)" \
-  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -a -b -c -u0)" \
-  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -a -b -c -e -u0)" \
-  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -u1)" \
-  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -a -u1)" \
-  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -a -b -u1)" \
-  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -a -b -c -u1)" \
-  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -k -j -t -n -a -b -c -e -u1)" \
-  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -n -a -c -u0)" \
- $@
-  # -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -d )" \
-  # -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -d -s)" \
-  # -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -d -s -n -a)" \
-  # -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -d -s -n -a -c)" \
-  # -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -d -s -n -a -c -t)" \
-  # -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -d -s -n -a -c -t -g)" \
-  # -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -d -s -n -a -c -t -g -p -m)" \
-  # -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -d -s -n -a -c -t -g -p -m -u1)" \
-  # -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -d -s -n -a -c -t -g -p -m -u1 -l)" \
-#  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -d -s -n -a -c -t -g -u1 -l -p -m)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u0 -k -j -t -n -a)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u0 -k -j -t -n -a -b)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u0 -k -j -t -n -a -b -c)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u0 -k -j -t -n -a -b -c -e)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u0 -k -j -t -n -a -b -c -d -e)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u0 -k -j -t -n -a -b -c -d -e -l)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u1 -k -j -t -n -a)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u1 -k -j -t -n -a -b)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u1 -k -j -t -n -a -b -c)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u1 -k -j -t -n -a -b -c -e)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u1 -k -j -t -n -a -b -c -d -e)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u1 -k -j -t -n -a -b -c -d -e -l)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u2 -k -j -t -n -a)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u2 -k -j -t -n -a -b)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u2 -k -j -t -n -a -b -c)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u2 -k -j -t -n -a -b -c -e)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u2 -k -j -t -n -a -b -c -d -e)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u2 -k -j -t -n -a -b -c -d -e -l)" \
+  $@ --save-bogus=failed_$DATE.hoa --csv=stats_$DATE.csv
+ # TODO: -t, -p -m
   # -t "$(wrap ltl2dstar -B -H - -)" \

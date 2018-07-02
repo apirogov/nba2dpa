@@ -6,10 +6,14 @@ using namespace std;
 #include <spdlog/spdlog.h>
 namespace spd = spdlog;
 
+#if GCC_VERSION >= 8
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcatch-value"
+#endif
 #include <args.hxx>
+#if GCC_VERSION >= 8
 #pragma GCC diagnostic pop
+#endif
 
 #include "metrics/bench.hh"
 #include "metrics/memusage.h"
@@ -243,24 +247,33 @@ DetConf assemble_detconf(Args const& args, auto const& aut,
 
 //output stats about active priorities, numstates, SCCs, different trees overall and per powerset, etc.
 void print_stats(auto const& pa) {
-  cerr << "#states: " << pa.num_states() << endl;
-  cerr << "TODO: stats" << endl;
-  /*
-    if (args.stats) {
-      unordered_map<bitset<256>, int> numsets;
-      int mx=0;
-      for (auto const st : pa.states()) {
-        if (!pa.tag.hasi(st))
-          continue;
 
-        Aut<Level> const psh = pa.tag.geti(st).powerset;
-        numsets[psh]++;
-        if (mx < numsets[psh])
-          mx = numsets[psh];
+  unordered_map<nba_bitset, int> numsets;
+  map<pri_t, int> numpri;
+  int mx=0;
+  for (auto const st : pa.states()) {
+    if (!pa.tag.hasi(st))
+      continue;
+
+    auto const psh = pa.tag.geti(st).powerset;
+    numsets[psh]++;
+    if (mx < numsets[psh])
+      mx = numsets[psh];
+
+    for (auto const sym : pa.state_outsyms(st)) {
+      for (auto const es : pa.succ_edges(st, sym)) {
+        numpri[es.second]++;
       }
-      cerr << pa->num_states() << " states, " << numsets.size() << " psets, each at most " << mx << " times" << endl;
     }
-    */
+  }
+
+  cerr << "#states: " << pa.num_states();
+  cerr << " #psets: " << numsets.size();
+  cerr << " maxseen: " << mx << endl;
+  cerr << "prio:\t#: " << endl;
+  for (auto const it : numpri) {
+    cerr << it.first << "\t" << it.second << endl;
+  }
 }
 
 PA process_nba(Args const &args, auto& aut, std::shared_ptr<spdlog::logger> log) {
@@ -273,7 +286,7 @@ PA process_nba(Args const &args, auto& aut, std::shared_ptr<spdlog::logger> log)
     // aut->normalize(); //don't do this, otherwise relationship not clear anymore
 
     auto const dc = assemble_detconf(args, aut, log);
-    if (dc.debug)
+    if (args.verbose >= 2)
       cerr << dc << endl;
 
     //calculate 2^A and its sccs
