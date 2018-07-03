@@ -163,7 +163,7 @@ public:
   // priorities marked on nodes
 
   bool has_pri(state_t const s) const {
-    assert(is_sba());
+    // assert(is_sba());
     assert(has_state(s));
     return map_has_key(state_pri, s);
   }
@@ -363,13 +363,15 @@ public:
   // --------------------------------------------
 
   // given set in sorted(!!) vector, kill states + all their edges
+  // if initial state included, first non-removed becomes initial
   void remove_states(vector<state_t> const& tokill) {
 #ifndef NDEBUG
     assert(is_set_vec(tokill));
-    assert(!sorted_contains(tokill, get_init()));
     for (auto s : tokill)
       assert(has_state(s));
 #endif
+    bool killinit = sorted_contains(tokill, get_init());
+
     // cerr << "removing " << seq_to_str(tokill) << endl;
 
     for (auto const& it : tokill) {
@@ -395,27 +397,37 @@ public:
       }
     }
 
+    if (killinit)
+      init = cbegin(adj)->first;
+
     normalized = false;
   }
 
   //stupidly paste another automaton (ignore initial states)
   void insert(Aut<T> const& other) {
+    assert(get_aps() == other.get_aps()); //same alphabet
     assert(set_intersect_empty(states()       | ranges::to_vector,
                                other.states() | ranges::to_vector)); // no common states
-    assert(get_aps() == other.get_aps()); //same alphabet
 
-    for (auto const& it : other.adj) {
-      auto st = it.first;
-      // cout << it.second.size() << " ";
-      adj[st] = it.second;
-      // cout << adj.at(st).size() << endl;
-      if (other.has_pri(st))
+    if (!normalized || !other.normalized || cbegin(other.adj)->first != num_states())
+      normalized = false;
+
+    for (auto const st : other.states()) {
+      if (!has_state(st))
+        add_state(st);
+      if (sba && other.sba && other.has_pri(st))
         set_pri(st, other.get_pri(st));
-      if (other.tag->hasi(st))
-        tag->put(other.tag->geti(st), st);
-    }
+      if (other.tag.hasi(st))
+        tag.put(other.tag.geti(st), st);
 
-    normalized = false;
+      for (auto const sym : other.syms()) {
+        for (auto const es : other.succ_edges(st, sym)) {
+          if (!has_state(es.first))
+            add_state(es.first);
+          add_edge(st, sym, es.first, es.second);
+        }
+      }
+    }
   }
 
   // given set in sorted(!!) vector, merge states into one rep. merged mustnot be initial
@@ -471,113 +483,57 @@ public:
   }
   */
 
-  //renumber all states continuously starting from offset
-  //TODO: maybe don't do anything for id-mapped nodes? is this optimization realistic?
-  /*
-  map<state_t, state_t> normalize(state_t offset=0) {
+  void normalize(state_t const offset=0) {
+    *this = get_normalized(offset);
+    normalized = true;
+  }
+
+  //renumber all states continuously starting from provided offset
+  Aut<T> get_normalized(state_t const offset=0) {
     //calculate state renumbering
     map<state_t, state_t> m;
     state_t i=offset;
     bool needs_renumbering = false;
-    for (auto const& it : adj) {
-      m[it.first] = i++;
-      if (m.at(it.first) != it.first)
+    for (auto const& st : states()) {
+      m[st] = i++;
+      // cerr << st << " -> " << m[st] << endl;
+      if (m.at(st) != st)
         needs_renumbering = true;
     }
-    if (!needs_renumbering) { //everything is fine already
-      normalized = true;
-      return {}; //empty map = did nothing
+    if (!needs_renumbering) { //everything is fine already -> return copy
+      return *this;
     }
 
-    auto map_states = [&m](auto const& s){ return m.at(s); };
-
-    map<state_t, vector<acc_t>> newacc;
-    tag_ptr newtag = make_unique<tag_storage>();
-    map<state_t, map<sym_t, vector<state_t>>> newadj;
-    for (auto const& it : adj) {
-      auto const olds = it.first;
-      auto const news = m.at(olds);
-      // cout << olds << " -> " << news << endl;
-
-      // cout << "move acc" << endl;
-      if (map_has_key(acc, olds))
-        newacc[news] = acc.at(olds);
-
-      // cout << "rewrite tag" << endl;
-      if (tag->hasi(olds)) {
-        // cout << " get tag" << endl;
-        auto t = tag->geti(olds);
-        // cout << " write tag" << t << " " << news << endl;
-        newtag->put(t, news);
+    // cerr << "offset: " << offset << endl;
+    // cerr << "old init: " << init << endl;
+    // cerr << "mapped init: " << m[init] << endl;
+    Aut<T> ret(sba, name, aps, m[init]);
+    // cerr << seq_to_str(ret.states() | ranges::to_vector) << endl;
+    ret.init = m[init];
+    ret.patype = patype;
+    ret.tag_to_str = tag_to_str;
+    for (auto const& st : states()) {
+      if (!ret.has_state(m[st]))
+        ret.add_state(m[st]);
+      if (tag.hasi(st))
+        ret.tag.put(tag.geti(st), m[st]);
+      if (sba && has_pri(st))
+        ret.set_pri(m[st], get_pri(st));
+      for (auto const& sym : state_outsyms(st)) {
+        for (auto const& es : succ_edges(st, sym)) {
+          if (!ret.has_state(m[es.first]))
+            ret.add_state(m[es.first]);
+          ret.add_edge(m[st], sym, m[es.first], es.second);
+        }
       }
-
-      // cout << "rewrite edges" << endl;
-      auto tmp = it.second;
-      for (auto& jt : tmp) {
-        auto &v = jt.second;
-        transform(begin(v), end(v), begin(v), map_states);
-      }
-      newadj[news] = tmp;
-      // cout << "state done" << endl;
-
     }
-    //replace old stuff
-    transform(begin(init), end(init), begin(init), map_states);
-    acc = newacc;
-    tag = move(newtag);
-    adj = newadj;
 
-    normalized = true;
-    return m;
+    return ret;
   }
-  */
 
 };
 
 //common stuff working on any automaton
-
-/*
-template <typename T>
-vector<state_t> powersucc(Aut<T> const& ks, std::vector<S> const& ps,
-                                sym_t const& x, std::vector<small_state_t> const& asinks={}) {
-#ifndef NDEBUG
-  assert(is_set_vec(asinks));
-  assert(is_set_vec(ps));
-  for (auto p : ps)
-    assert(ks.has_state(p));
-#endif
-
-  // std::set<small_state_t> suc;
-  std::vector<bool> suc(ks.states().back()+1, 0);
-
-  for (auto const& p : ps) {
-    if (!ks.state_has_outsym(p,x))
-      continue;
-    auto const& qs = to_small_state_t(ks.succ(p, x));
-
-    //an edge leads into accepting sink state -> return accepting sink PS
-    if (!set_intersect_empty(qs, asinks))
-      return asinks; //vector<small_state_t>(cbegin(asinks), cend(asinks));
-
-    // std::copy(qs.cbegin(), qs.cend(), std::inserter(suc, suc.end()));
-    for (auto const q : qs) {
-      suc[q] = 1;
-    }
-  }
-
-  vector<small_state_t> ret;
-  int const sucsz = suc.size();
-  ret.reserve(sucsz);
-  for (int i=0; i<sucsz; ++i) {
-    // cerr << "bit " << i << endl;
-    if (suc[i]) {
-      // cerr << "succ " << i << endl;
-      ret.push_back(i);
-    }
-  }
-  return ret; //vector<small_state_t>(suc.cbegin(), suc.cend());
-}
-*/
 
 function<vector<state_t>(state_t)> aut_succ(auto const& aut) {
   return [&aut](state_t p){ return aut.succ(p); };
@@ -611,7 +567,5 @@ inline nba_bitset powersucc(adj_mat const& mat, nba_bitset from, sym_t x, nba_bi
     return sinks;
   return ret;
 }
-
-
 
 }  // namespace nbautils

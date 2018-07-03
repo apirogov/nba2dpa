@@ -8,7 +8,6 @@
 #include "aut.hh"
 #include "common/scc.hh"
 #include "preproc.hh"
-#include "common/relorder.hh"
 #include "ps.hh"
 
 namespace nbautils {

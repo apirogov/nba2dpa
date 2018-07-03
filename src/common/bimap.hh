@@ -75,6 +75,4 @@ using naive_ordered_bimap = naive_bimap<K,V,map>;
 template <typename K, typename V>
 using naive_unordered_bimap = naive_bimap<K,V,unordered_map>;
 
-//TODO: add boost bimap as possibility?
-
 };  // namespace nbautils

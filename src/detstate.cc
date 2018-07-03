@@ -33,15 +33,15 @@ DetConfSets calc_detconfsets(DetConf const& dc, SCCDat const& scci,
         || (!dc.sep_rej && it.second == -1)
         || (!dc.sep_acc && it.second ==  1)) {
 
-      if (dc.sep_mix) { //if we handle (M)SCCs all separately
-        //if we optimize deterministic (M)SCCs that are not handled otherwise, sep.
-        if (dc.opt_det && contains(sccDet, it.first)) {
-          ret.dsccs_states.push_back(tmp);
-        } else {
-          ret.msccs_states.push_back(tmp);
-        }
+      if (dc.opt_det && contains(sccDet, it.first)) { //deterministic SCCs always indiv.
+        ret.dsccs_states.push_back(tmp);
       } else {
-        remain |= tmp;
+        if (dc.sep_mix) { //if we handle (M)SCCs all separately
+          //if we optimize deterministic (M)SCCs that are not handled otherwise, sep.
+          ret.msccs_states.push_back(tmp);
+        } else {
+          remain |= tmp;
+        }
       }
 
     } else {

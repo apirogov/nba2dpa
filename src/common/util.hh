@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <iostream>
 #include <numeric>
 #include <functional>
 #include <vector>
@@ -252,4 +253,9 @@ void bfs(Node const& start, F visit) {
 
     visit(st, pusher, visited_f /*, discovered_f */);
   }
+}
+
+template<typename T>
+auto default_printer() {
+  return [](std::ostream& out, T const& val){ out << val; };
 }

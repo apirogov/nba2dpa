@@ -16,9 +16,9 @@ cat |
   -t "$(wrap autfilt -D -C -P)" \
   -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u0 -k -j -t -n -a)" \
   -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u0 -k -j -t -n -a -b)" \
-  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u0 -k -j -t -n -a -b -c)" \
-  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u0 -k -j -t -n -a -b -c -e)" \
-  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u0 -k -j -t -n -a -b -c -d -e)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u0 -k -j -t -n -a -b -e)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u0 -k -j -t -n -a -b -d -e)" \
+  -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u0 -k -j -t -n -a -b -d -e -l)" \
   -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u0 -k -j -t -n -a -b -c -d -e -l)" \
   -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u1 -k -j -t -n -a)" \
   -t "$(wrap $SCRIPTPATH/../build/bin/nbadet -u1 -k -j -t -n -a -b)" \

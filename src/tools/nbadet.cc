@@ -140,10 +140,10 @@ Args parse_args(int argc, char *argv[]) {
   //   exit(1);
   // }
 
-  if (optdet && !sepmix) {
-    spd::get("log")->error("-d without -e does not work!");
-    exit(1);
-  }
+  // if (optdet && !sepmix) {
+  //   spd::get("log")->error("-d without -e does not work!");
+  //   exit(1);
+  // }
 
   if (mergemode && args::get(mergemode) >= static_cast<int>(UpdateMode::num)) {
     spd::get("log")->error("Invalid update mode provided: {}", args::get(mergemode));
@@ -298,15 +298,12 @@ PA process_nba(Args const &args, auto& aut, std::shared_ptr<spdlog::logger> log)
 
     // -- end of preprocessing --
 
-    //TODO: determinize (optionally using topo)
-    auto pa = determinize(aut, dc);
-    /*
-    PA::uptr pa;
-    if (!args.topo)
-      pa = bench(log, "determinize", WRAP(determinize(*lc)));
+    //determinize (optionally using psets)
+    PA pa;
+    if (!args.psets)
+      pa = bench(log, "determinize", WRAP(determinize(aut, dc)));
     else
-      pa = bench(log, "determinize_topo", WRAP(determinize(*lc, *ps, *psi)));
-    */
+      pa = bench(log, "determinize_with_psets", WRAP(determinize(aut, dc, pscon, pscon_scci)));
 
     if (args.stats) { //show stats before postprocessing
       print_stats(pa);
