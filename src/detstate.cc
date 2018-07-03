@@ -353,8 +353,8 @@ void full_merge_row(nba_bitset const& acc_states, pri_t const act_rank,
   if (row.size()<=1)
     return;
 
+  bool merged = false;
   for (auto const i : ranges::view::ints(0, (int)row.size()-1)) {
-    bool merged = false;
     if (row[i].second > act_rank && row[i+1].second >= act_rank) { //push stuff through region
       //push smaller rank forward
       if (row[i].second < row[i+1].second)
@@ -548,7 +548,7 @@ pri_t perform_actions(DetConf const& dc, DetConfSets const& sts,
       full_merge_row(0, act_rank, dscc, cur_fresh);
     }
     for (auto& mscc : s.msccs) {
-      full_merge_row(dc.puretrees, act_rank, mscc, cur_fresh);
+      full_merge_row(dc.puretrees ? dc.aut_acc : 0, act_rank, mscc, cur_fresh);
     }
   }
 
