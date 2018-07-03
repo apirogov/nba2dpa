@@ -36,7 +36,7 @@ nbadet_argsets.each do |s|
 end
 
 output_args = "--save-bogus=failed_#{DATE}.hoa --csv=stats_#{DATE}.csv"
-cmd = "autcross #{translator_args translators} #{output_args} #{ARGV.join(' ')}"
+cmd = "./autcrossw.rb #{translator_args translators} #{output_args} #{ARGV.join(' ')}"
 # puts cmd
 # exit
 
