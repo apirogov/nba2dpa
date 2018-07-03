@@ -5,15 +5,7 @@ using namespace std;
 
 #include <spdlog/spdlog.h>
 namespace spd = spdlog;
-
-#if GCC_VERSION >= 8
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcatch-value"
-#endif
 #include <args.hxx>
-#if GCC_VERSION >= 8
-#pragma GCC diagnostic pop
-#endif
 
 #include "metrics/bench.hh"
 #include "metrics/memusage.h"
