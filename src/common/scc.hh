@@ -19,8 +19,8 @@ struct SCCDat {
 // a function that supplies successors of a state
 // performs an SCC DFS traversal.
 // returns list of SCCs such that later SCCs can not reach earlier SCCs
-template <typename F>
-SCCDat get_sccs(std::vector<state_t> const& states, F get_succs, bool store_partitions=true) {
+template <typename Range, typename F>
+SCCDat get_sccs(Range const& states, F get_succs, bool store_partitions=true) {
   SCCDat ret;
 
   std::stack<state_t> call;  // dfs call stack
@@ -31,7 +31,7 @@ SCCDat get_sccs(std::vector<state_t> const& states, F get_succs, bool store_part
   std::map<state_t, unsigned> order;  // first visit order
 
   // schedule all states to be called
-  for (auto const& v : states)
+  for (auto const& v : ranges::view::bounded(states))
     call.push(v);
 
   while (!call.empty()) {

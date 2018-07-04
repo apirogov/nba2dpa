@@ -2,11 +2,11 @@
 #include <cassert>
 #include <functional>
 #include <unordered_map>
-#include "swa.hh"
+#include "aut.hh"
 #include "io.hh"
 #include "common/util.hh"
-#include "common/acceptance.hh"
-#include "common/algo.hh"
+#include "common/parity.hh"
+#include "postproc.hh"
 
 namespace nbautils {
 using namespace std;
@@ -61,23 +61,21 @@ using namespace std;
 using namespace nbautils;
 
 //return empty PA accepting nothing
-template<typename T,template <typename... Args> class S>
-typename SWA<T,S>::uptr empty_pa(vector<string> const& aps) {
-  auto pa = std::make_unique<SWA<T,S>>(Acceptance::PARITY, "Empty", aps);
-  pa->set_patype(PAType::MIN_EVEN);
-  pa->add_state(0);
-  pa->set_init({0});
-  pa->set_accs(0, {1});
-  for (auto i=0; i<pa->num_syms(); i++) {
-    pa->set_succs(0, i, {0});
+template<typename T>
+Aut<T> empty_pa(vector<string> const& aps) {
+  Aut<T> pa(true, "Empty", aps, 0);
+  pa.set_patype(PAType::MIN_EVEN);
+  pa.set_pri(0, 1);
+  for (auto const i : pa.syms()) {
+    pa.add_edge(0, i, 0, -1);
   }
-  return move(pa);
+  return pa;
 }
 
 //returns accepting reachable (sub)scc from which a run can be easily constructed
-template<typename T, template <typename... Args> class S>
-vector<state_t> find_acc_pa_scc(SWA<T,S> const& aut) {
-  assert(aut.acond == Acceptance::PARITY);
+/*
+template<typename T>
+vector<state_t> find_acc_pa_scc(Aut<T> const& aut) {
   assert(aut.get_patype() == PAType::MIN_EVEN);
 
   auto const st = aut.states();
@@ -217,135 +215,109 @@ PAP::uptr pa_union(SWA<A, SA> const& aut_a, SWA<B, SB> const& aut_b) {
   return move(pa);
 }
 
-template<typename T, typename T2, template <typename... Args> class S,template <typename... Args2> class S2>
+template<typename T, typename T2>
 // vector<vector<state_t>> pa_equiv(SWA<T,S> const& aut1, SWA<T,S> const& aut2) {
-bool pa_equivalent(SWA<T,S> const& aut1, SWA<T2,S2> const& aut2) {
+bool pa_equivalent(Aut<T> const& aut1, Aut<T2> const& aut2) {
   assert(aut1.acond == Acceptance::PARITY);
   assert(aut2.acond == Acceptance::PARITY);
 
-  /*
-  auto const sts = aut.states();
-  map<state_t, state_t> eq;
-  for (auto const st : sts)
-    eq[st] = st;
+  auto aut_a(aut1);
+  auto aut_b(aut2);
+  complement_pa(aut_b);
 
-  for (int i=0; i<(int)sts.size(); ++i) {
-    for (int j=i+1; j<(int)sts.size(); ++j) {
-      // cout << sts[i] << "," << sts[j] << endl;
-      if (eq.at(sts[j]) != sts[j])
-        continue; //this one is already equiv to someone
-        */
+  auto a_times_not_b = pa_union(aut_a, aut_b);
+  complement_pa(*a_times_not_b);
 
-      auto aut_a(aut1);
-      auto aut_b(aut2);
-      // aut_a.set_init({sts[i]});
-      // aut_b.set_init({sts[j]});
-      complement_pa(aut_b);
+  if (!pa_is_empty(*a_times_not_b))
+    return false;
 
-      auto a_times_not_b = pa_union(aut_a, aut_b);
-      complement_pa(*a_times_not_b);
+  complement_pa(aut_a);
+  complement_pa(aut_b);
+  auto not_a_times_b = pa_union(aut_a, aut_b);
+  complement_pa(*not_a_times_b);
 
-      // cout << "a x not b:" << endl;
-      // print_hoa(*a_times_not_b);
-      // vector<state_t> pref;
-      // vector<state_t> cyc;
-      // tie(pref, cyc) = get_acc_pa_run(*a_times_not_b);
-      // cout << seq_to_str(pref) << " | " << seq_to_str(cyc) << endl;
-      // auto scc = find_acc_pa_scc(*a_times_not_b);
-      // cout << seq_to_str(scc) << endl;
+  if (!pa_is_empty(*not_a_times_b))
+    return false;
 
-      if (!pa_is_empty(*a_times_not_b))
-        return false;
-        // continue;
-
-      complement_pa(aut_a);
-      complement_pa(aut_b);
-      auto not_a_times_b = pa_union(aut_a, aut_b);
-      complement_pa(*not_a_times_b);
-
-      // cout << "not a x b:" << endl;
-      // print_hoa(*not_a_times_b);
-
-      if (!pa_is_empty(*not_a_times_b))
-        return false;
-        // continue;
-
-      // we're here so both are empty so states are equivalent
-      // cout << sts[i] << " ~ " << sts[j] << endl;
-      // eq[sts[j]] = eq[sts[i]];
-      /*
-    }
-  }
-  */
   return true;
-  // return group_by(sts, [&](state_t a, state_t b){ return eq.at(a)==eq.at(b); });
 }
+*/
 
-//interpret a BA as min even PA by setting missing priorities to 1
-template<typename T, template <typename... Args> class S>
-void ba_to_pa(SWA<T, S> &aut) {
-  assert(aut.acond == Acceptance::BUCHI);
-  for (auto const s : aut.states()) {
-    if (!aut.has_accs(s))
-      aut.set_accs(s, {1});
-  }
-
-  aut.acond = Acceptance::PARITY;
-  aut.set_patype(PAType::MIN_EVEN);
-}
+// ----------------------------------------------------------------------------
 
 //map over the priorities (using a function obtained with other functions provided here)
-template<typename T, template <typename... Args> class S>
-void transform_priorities(SWA<T,S> &aut, function<acc_t(acc_t)> const& pf) {
-  assert(is_colored(aut));
-  assert(aut.acond == Acceptance::PARITY);
-
-  for (auto const s : aut.states())
-    aut.set_accs(s, {pf(aut.get_accs(s).front())});
+template<typename T>
+void transform_priorities(Aut<T> &aut, function<pri_t(pri_t)> const& pf) {
+  assert(aut.is_colored());
+  for (auto const p : aut.states())
+    for (auto const x : aut.state_outsyms(p))
+      for (auto& es : aut.succ_edges(p,x))
+        aut.mod_edge(p, x, es.first,  pf(es.second));
 }
 
 //complement PA by flipping parity of states
-template<typename T, template <typename... Args> class S>
-void complement_pa(SWA<T,S> &aut) {
+template<typename T>
+void complement_pa(Aut<T> &aut) {
   transform_priorities(aut, [](int p){return p+1;});
 }
 
 //switch between different parity conditions by changing priorities
-template<typename T, template <typename... Args> class S>
-void change_patype(SWA<T,S> &aut, PAType pt) {
-  assert(aut.acond == Acceptance::PARITY);
-
-  auto const pris = aut.get_accsets();
-  auto f = priority_transformer(aut.get_patype(), pt, pris.front(), pris.back());
+template<typename T>
+void change_patype(Aut<T> &aut, PAType pt) {
+  auto f = priority_transformer(aut.get_patype(), pt, aut.pri_bounds());
   transform_priorities(aut, f);
   aut.set_patype(pt);
 }
 
-template<typename T, template <typename... Args> class S>
-auto minimize_priorities(SWA<T,S>& aut) {
-  assert(is_colored(aut));
-  assert(aut.acond == Acceptance::PARITY);
+// take a DPA, minimize number of used priorities
+template<typename T>
+bool minimize_priorities(Aut<T>& aut) {
+  assert(aut.is_colored());
 
-  auto const orig_patype = aut.get_patype();
+  //construct virtual graph (labelled edges -> labelled nodes)
+  //because used algorithm is state-based
+  using EdgeNode = tuple<state_t, sym_t, state_t, pri_t>;
+  map<EdgeNode,state_t> e2n;
+  map<state_t,EdgeNode> n2e;
+  vector<state_t> ens;
+  int i=0;
+  for (state_t const& p : aut.states())
+    for (sym_t const& x : aut.state_outsyms(p))
+      for (auto const& es : aut.succ_edges(p,x)) {
+        auto const edge = make_tuple(p, x, es.first, es.second);
+        n2e[i] = edge;
+        e2n[edge] = i;
+        ens.push_back(i);
+        i++;
+      }
 
-  function<vector<state_t>(state_t)> const sucs = [&](state_t v){ return aut.succ(v); };
-  function<int(state_t)> const get_pri = [&](state_t v){return aut.get_accs(v).front();};
+  //corresponding successor function
+  function<vector<state_t>(state_t)> const sucs = [&aut,&n2e,&e2n](state_t const v){
+    vector<state_t> sucedges;
+    state_t const& p = get<2>(n2e[v]);
+    for (sym_t const& x : aut.state_outsyms(p))
+      for (auto const& es : aut.succ_edges(p,x))
+        sucedges.push_back(e2n[make_tuple(p, x, es.first, es.second)]);
+    return sucedges;
+  };
 
-  auto const oldpris = aut.get_accsets();
-  auto const to_max_odd = priority_transformer(aut.get_patype(), PAType::MAX_ODD,
-                                               oldpris.front(), oldpris.back());
+  //corresponding priority function
+  auto const to_max_odd = priority_transformer(aut.get_patype(), PAType::MAX_ODD, aut.pri_bounds());
+  function<int(state_t)> const max_odd_pri = [&to_max_odd,&n2e](state_t const v){ return to_max_odd(get<3>(n2e[v])); };
 
-  function<int(state_t)> max_odd_pri = [&](state_t v){ return to_max_odd(get_pri(v)); };
-  auto const primap = pa_minimize_priorities(aut.states(), sucs, max_odd_pri);
+  //calculate priority map (old edge pri -> new edge pri)
+  auto const primap = pa_minimize_priorities(ens, sucs, max_odd_pri);
+  auto const mmeli = std::minmax_element(begin(primap), end(primap), [](auto const& i, auto const& j){ return i.second < j.second; });
+  auto const mmel = make_pair(mmeli.first->second, mmeli.second->second);
 
-  for (auto it : primap) {
-    aut.set_accs(it.first, {(acc_t)it.second});
-    // cout << it.first << " : " << it.second << endl;
+  //map over priorities (these are with max-even semantics!)
+  auto const from_max_odd = priority_transformer(PAType::MAX_ODD, aut.get_patype(), mmel);
+  for (auto const it : primap) {
+    auto const e = n2e[it.first];
+    aut.mod_edge(get<0>(e), get<1>(e), get<2>(e), from_max_odd(it.second));
   }
-  aut.set_patype(PAType::MAX_ODD);
-  change_patype(aut, orig_patype); //transform back
 
-  return primap;
+  return true;
 }
 
 // https://en.wikipedia.org/wiki/DFA_minimization
@@ -353,8 +325,8 @@ auto minimize_priorities(SWA<T,S>& aut) {
 // hopcroft algorithm to calculate equivalence classes that can be merged
 // without changing the language / output behaviour
 // requires complete, deterministic automaton
-template<typename T, template <typename... Args> class S>
-vector<vector<state_t>> get_equiv_states(SWA<T,S> const& aut) {
+template<typename T>
+vector<vector<state_t>> get_equiv_states(Aut<T> const& aut) {
   auto sorted = aut.states();
   unordered_map<state_t, int> clr;
   for (auto s : sorted)
@@ -415,8 +387,8 @@ vector<vector<state_t>> get_equiv_states(SWA<T,S> const& aut) {
   return p.get_refined_sets();
 }
 
-template<typename T, template <typename... Args> class S>
-bool minimize_pa(SWA<T,S>& pa) {
+template<typename T>
+bool minimize_pa(Aut<T>& pa) {
   assert(pa.get_init().size()==1);
 
   // function<acc_t(state_t)> colors = [&](auto s){return pa.get_accs(s).front();};

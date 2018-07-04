@@ -120,23 +120,9 @@ public:
   bool is_init(state_t const s) const { return contains(init, s); }
 
   auto pris() const { return ranges::view::keys(prio_cnt); }
-
-  /*
-  Aut(Aut const& other) {
-    normalized = other.normalized;
-    sba = other.sba;
-    name = other.name;
-    aps = other.aps;
-    patype = other.patype;
-    init = other.init;
-
-    prio_cnt = other.prio_cnt;
-    state_pri = other.state_pri;
-    adj = other.adj;
-
-    tag = other.tag;
+  pair<pri_t,pri_t> pri_bounds() const {
+    return make_pair(begin(prio_cnt)->first, rbegin(prio_cnt)->first);
   }
-  */
 
   Aut(bool statebased=false, string const& title="",
       vector<string> const& ap={}, state_t initial={})
@@ -214,9 +200,23 @@ public:
     assert(x < num_syms());
     assert(has_state(q));
     assert(pri < 0 || !sba);
+    assert(!map_has_key(adj.at(p), x) || !map_has_key(adj.at(p).at(x), q));
 #endif
 
     adj.at(p)[x][q] = pri;
+    if (pri>=0) {
+      prio_cnt[pri]++;
+    }
+  }
+
+  void mod_edge(state_t const p, sym_t const x, state_t const q, pri_t pri=-1) {
+    auto const oldpri = adj.at(p).at(x).at(q); //gives exception if does not exist
+    if (oldpri>=0) {
+      prio_cnt[oldpri]--;
+      if (prio_cnt.at(oldpri) == 0)
+        prio_cnt.erase(prio_cnt.find(oldpri));
+    }
+    adj[p][x][q] = pri;
     if (pri>=0) {
       prio_cnt[pri]++;
     }

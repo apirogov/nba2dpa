@@ -15,6 +15,7 @@ namespace spd = spdlog;
 #include "graph.hh"
 #include "common/scc.hh"
 #include "ps.hh"
+#include "pa.hh"
 #include "preproc.hh"
 #include "detstate.hh"
 #include "det.hh"
@@ -190,7 +191,7 @@ DetConf detconf_from_args(Args const& args) {
 DetConfSets get_detconfsets(auto const& aut, DetConf const& dc,
                     shared_ptr<spdlog::logger> log = nullptr) {
   auto const aut_suc = aut_succ(aut);
-  auto const scci = get_sccs(aut.states() | ranges::to_vector, aut_suc);
+  auto const scci = get_sccs(aut.states(), aut_suc);
   auto const sccDet = ba_scc_classify_det(aut, scci);
   auto const sccAcc = ba_scc_classify_acc(aut, scci);
   assert(sccAcc.size() == scci.sccs.size());
@@ -280,7 +281,7 @@ PA process_nba(Args const &args, auto& aut, std::shared_ptr<spdlog::logger> log)
     //calculate 2^A and its sccs
     auto const pscon = bench(log,"powerset_construction",
                              WRAP(powerset_construction(aut, dc.aut_mat, dc.aut_asinks)));
-    auto const pscon_scci = get_sccs(pscon.states() | ranges::to_vector, aut_succ(pscon));
+    auto const pscon_scci = get_sccs(pscon.states(), aut_succ(pscon));
     log->info("#states in 2^A: {}, #SCCs in 2^A: {}", pscon.num_states(), pscon_scci.sccs.size());
     // print_aut(pscon);
 
@@ -307,14 +308,13 @@ PA process_nba(Args const &args, auto& aut, std::shared_ptr<spdlog::logger> log)
     //TODO: minimize priorities
     //TODO: minimize states
 
-    /*
-    if (args.minpri) {
-      bench(log, "minimize number of priorities", WRAP(minimize_priorities(*pa)));
-      log->info("resulting number of priorities: {}", pa->get_accsets().size());
-      bench(log, "minimize number of states", WRAP(minimize_pa(*pa)));
-      log->info("number of states after minimization: {}", pa->num_states());
+    if (args.mindfa) {
+      log->info("initial number of priorities: {}", pa.pris().size());
+      bench(log, "minimize number of priorities", WRAP(minimize_priorities(pa)));
+      log->info("resulting number of priorities: {}", pa.pris().size());
+      // bench(log, "minimize number of states", WRAP(minimize_pa(*pa)));
+      // log->info("number of states after minimization: {}", pa->num_states());
     }
-    */
 
     // -- end of postprocessing --
 

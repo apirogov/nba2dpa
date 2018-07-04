@@ -59,7 +59,10 @@ inline auto stronger_priority_f(PAType a) {
 
 // takes source and target priority acceptance conditions and a list of priorities of the
 // source type, returns function mapping source pris to semantically equiv. in target cond.
-inline function<int(int)> priority_transformer(PAType from, PAType to, int minpri, int maxpri) {
+inline function<int(int)> priority_transformer(PAType from, PAType to, pair<int,int> prib) {
+  int const& minpri = prib.first;
+  int const& maxpri = prib.second;
+
   function<int(int)> idmap = identity;
   if (from==to) //nothing to do
     return identity;

@@ -22,11 +22,14 @@ using outsym_fun = function<vector<Sym>(Node)>;
 template <typename Node,typename Sym>
 using succ_sym_fun = function<vector<Node>(Node,Sym)>;
 
+template <typename Node>
+using succ_fun = function<vector<Node>(Node)>;
+
 // ----------------------------------------------------------------------------
 
-template <typename T>
+template <typename Range, typename T>
 int max_chain(function<int(T)> const& oldpri, map<T,int>& newpri,
-    vector<T> const& p, succ_fun<T> const& get_succs) {
+    Range const& p, succ_fun<T> const& get_succs) {
   if (p.empty()) //by definition, empty set has no chain
     return 0;
 
@@ -34,31 +37,47 @@ int max_chain(function<int(T)> const& oldpri, map<T,int>& newpri,
   // cout << "max_chain " << seq_to_str(p) << endl;
 
   // maximal essential subsets = non-trivial SCCs in restricted graph
-  succ_fun<T> succs_in_p = [&](auto v) { return set_intersect(get_succs(v), p); };
+  succ_fun<T> succs_in_p = [&](auto v) {
+    auto const tmp = get_succs(v);
+    vector<T> ret;
+    ranges::set_intersection(ranges::view::all(tmp), p, ranges::back_inserter(ret));
+    return ret;
+  };
   auto scci = get_sccs(p, succs_in_p);
-  auto triv = trivial_sccs(*scci, succs_in_p);
+  auto triv = trivial_sccs(succs_in_p, scci);
 
   // lift priority map to state sets
-  auto strongest_oldpri = fold_sccs<T,int>(*scci, 0, oldpri, [](auto a, auto b){return max(a,b);});
+  map<unsigned, int> strongest_oldpri;
+  for (auto const& it : scci.sccs) {
+    int maxp = -1;
+    for (auto const& st : it.second) {
+      maxp = max(maxp, oldpri(st));
+    }
+    strongest_oldpri[it.first] = maxp;
+  }
 
-  int i=0;
-  for (auto const& scc : scci->sccs) {
+  for (auto const& it : scci.sccs) {
+    int const i = it.first;
+    vector<state_t> const& scc = it.second;
     // cout << "scc " << seq_to_str(scc) << endl;
 
-    if (contains(triv,i)) {
+    if (contains(triv,it.first)) {
+      continue;
       // cout << "trivial, skip" << endl;
-
-      ++i;
-      continue; //non-essential
     }
 
-    auto const scc_pri = strongest_oldpri.at(i);
-
+    pri_t const scc_pri = strongest_oldpri[i];
     // cout << "scc pri " << scc_pri << endl;
 
-    auto deriv_scc = vec_filter(scc, [&](auto v){return oldpri(v) < scc_pri;});
+    /*
+    auto deriv_scc = vec_filter(scc, [&](state_t v){return oldpri(v) < scc_pri;});
     vec_to_set(deriv_scc);
-    auto const not_deriv_scc = vec_filter(scc, [&](auto v){return oldpri(v) >= scc_pri;});
+    auto const not_deriv_scc = vec_filter(scc, [&](state_t v){return oldpri(v) >= scc_pri;});
+    */
+    auto const deriv_scc = ranges::view::all(scc)
+      | ranges::view::filter([&](state_t v){return oldpri(v) < scc_pri;}) | ranges::to_vector;
+    auto const not_deriv_scc = ranges::view::all(scc)
+      | ranges::view::filter([&](state_t v){return oldpri(v) >= scc_pri;}) | ranges::to_vector;
 
     int m = 0;
     if (scc_pri > 0) {
@@ -68,13 +87,11 @@ int max_chain(function<int(T)> const& oldpri, map<T,int>& newpri,
         m++;
     }
 
-    for (auto s : not_deriv_scc) {
+    for (auto const s : not_deriv_scc) {
       newpri[s] = m;
     }
 
     maxlen = max(maxlen, m);
-
-    ++i;
   }
   // cout << "max_chain " << seq_to_str(p)  << " done" << endl;
   return maxlen;
