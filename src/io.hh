@@ -206,6 +206,7 @@ class MyConsumer<Aut<string>> : public HOAConsumerNull {
 template<typename T>
 class AutStream {
   bool garbage = false;
+  bool is_file = false;
   ifstream fin;
   istream* in;
   std::shared_ptr<spdlog::logger> log;
@@ -218,10 +219,10 @@ public:
 
   AutStream(string const &filename, std::shared_ptr<spdlog::logger> logger=nullptr) {
     log = logger;
-    bool givenfile = !filename.empty();
-    if (givenfile)
+    is_file = !filename.empty();
+    if (is_file)
       fin = ifstream(filename.c_str(), ifstream::in);
-    auto& instream = givenfile ? fin : cin;
+    auto& instream = is_file ? fin : cin;
     in = &instream;
   }
 
@@ -234,9 +235,16 @@ public:
 
       HOAParser::parse(*in, mc);
       //hack required, as parser consumes a token from next automaton too, for some reason Oo
-      if (in->good()) { //if it looks like there comes another automaton, put eaten token back
-        in->putback(' '); in->putback(':');
-        in->putback('A'); in->putback('O'); in->putback('H');
+      if (in->good()) {
+        //if it looks like there comes another automaton, put eaten token back
+        //I have no idea why neither unget nor putback works generically on both kinds...
+        if (is_file) {
+          in->unget(); in->unget(); in->unget(); in->unget(); in->unget(); //unget "HOA: "
+        } else {
+          //putback "HOA: "
+          in->putback(' '); in->putback(':');
+          in->putback('A'); in->putback('O'); in->putback('H');
+        }
       }
 
       return mc->retrieve();

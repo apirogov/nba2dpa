@@ -136,8 +136,14 @@ Args parse_args(int argc, char *argv[]) {
 
   //fill args
   Args args;
-  if (input)
-    args.file = args::get(input);
+  if (input) {
+    string filename = args::get(input);
+    ifstream exists(filename);
+    if (!exists) {
+      spd::get("log")->error("File does not exist: {}", filename);
+    }
+    args.file = filename;
+  }
 
   args.verbose = args::get(verbose);
   args.stats = stats;
