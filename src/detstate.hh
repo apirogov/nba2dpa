@@ -70,7 +70,6 @@ struct DetConf {
   DetConfSets sets;
 
   UpdateMode update = UpdateMode::MUELLERSCHUPP; // kind of merge
-  bool weaksat = false;   //already saturate if some single SCC moved down
   bool puretrees = false; //move accepting states always into leaves after merges
 
   bool sep_rej = false;

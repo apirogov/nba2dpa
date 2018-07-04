@@ -112,6 +112,7 @@ int get_min_term_scc_with_powerset(PA const& pa, SCCDat const& pai, nba_bitset c
 PA determinize(auto const& nba, DetConf const& dc, PS const& psa, SCCDat const& psai) {
   map<state_t, state_t> ps2pa;
   PA ret(false, nba.get_name(), nba.get_aps(), 0);
+  ret.remove_states({0}); //we want a blank graph without states
   ret.set_patype(PAType::MIN_EVEN);
   ret.tag_to_str = default_printer<DetState>();
 

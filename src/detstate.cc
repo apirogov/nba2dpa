@@ -57,6 +57,8 @@ DetConfSets calc_detconfsets(DetConf const& dc, SCCDat const& scci,
   return ret;
 }
 
+// ----------------------------------------------------------------------------
+
 std::ostream& operator<<(std::ostream& os, DetConf const& dc) {
   os << "DetConf {" << endl;
   os << "aut_mat: " << !dc.aut_mat.empty() << endl;
@@ -92,7 +94,6 @@ std::ostream& operator<<(std::ostream& os, DetConf const& dc) {
   if (dc.sep_acc_cyc) os << "sepacccyc ";
   if (dc.sep_mix)     os << "sepmix ";
   if (dc.opt_det)     os << "optdet ";
-  if (dc.weaksat)     os << "weaksat ";
   if (dc.puretrees)   os << "puretrees ";
   os << endl;
   os << "}" << endl;
@@ -144,6 +145,8 @@ bool DetState::operator==(DetState const& o) const {
     &&      msccs == o.msccs
     ;
 }
+
+// ----------------------------------------------------------------------------
 
 //returns Parent and Left-border relationship for a list of ranks
 //(left border = left sibling for the last one popped in the inner while loop)
@@ -473,15 +476,15 @@ pri_t perform_actions(DetConf const& dc, DetConfSets const& sts,
 
     // check emptiness, saturation = empty & union of children not empty
     // using the fact that children come before parents we can just run left to right
-    vector<bool> node_empty(mscc.size(), true);
-    vector<bool> node_saturated(mscc.size(), false);
+    vector<char> node_empty(mscc.size(), true);
+    vector<char> node_saturated(mscc.size(), false);
     vector<int> rightmost_ne_child(mscc.size(), -1); //for müller schupp update
 
     for (auto const i : ranges::view::ints(0, (int)mscc.size())) {
       if (dc.debug)
         cerr << i << ": ";
 
-      auto const hostempty = mscc[i].first == 0;
+      bool const hostempty = mscc[i].first == 0;
       if ((!hostempty || !node_empty[i]) && p[i]!=-1) //me or a child non-empty -> parent non-empty
         node_empty[p[i]] = false;
       if (hostempty && !node_empty[i])  //me empty, children non-empty -> saturated

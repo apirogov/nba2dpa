@@ -33,7 +33,6 @@ struct Args {
   bool mindfa;
 
   int mergemode;
-  bool weaksat;
   bool puretrees;
 
   bool psets;
@@ -80,8 +79,6 @@ Args parse_args(int argc, char *argv[]) {
       {'u', "update-mode"});
   args::Flag puretrees(parser, "pure", "Accepting leaf normal form (acc. states in leaves only)",
       {'l', "pure-trees"});
-  args::Flag weaksat(parser, "weak-saturation", "Allow weak saturation",
-      {'w', "weak-saturation"});
 
   // used to weed out redundant SCCs in det. automaton
   args::Flag psets(parser, "powersets", "Use powerset SCCs to guide determinization",
@@ -132,11 +129,6 @@ Args parse_args(int argc, char *argv[]) {
   //   exit(1);
   // }
 
-  // if (optdet && !sepmix) {
-  //   spd::get("log")->error("-d without -e does not work!");
-  //   exit(1);
-  // }
-
   if (mergemode && args::get(mergemode) >= static_cast<int>(UpdateMode::num)) {
     spd::get("log")->error("Invalid update mode provided: {}", args::get(mergemode));
     exit(1);
@@ -159,7 +151,6 @@ Args parse_args(int argc, char *argv[]) {
   args.context = context;
 
   args.mergemode = args::get(mergemode);
-  args.weaksat = weaksat;
   args.puretrees = puretrees;
 
   args.seprej = seprej;
@@ -178,7 +169,6 @@ DetConf detconf_from_args(Args const& args) {
   dc.debug = args.verbose > 2;
 
   dc.update = static_cast<UpdateMode>(args.mergemode);
-  dc.weaksat = args.weaksat;
   dc.puretrees = args.puretrees;
 
   dc.sep_rej = args.seprej;
@@ -287,6 +277,8 @@ PA process_nba(Args const &args, auto& aut, std::shared_ptr<spdlog::logger> log)
     auto const pscon_scci = get_sccs(pscon.states() | ranges::to_vector, aut_succ(pscon));
     log->info("#states in 2^A: {}, #SCCs in 2^A: {}", pscon.num_states(), pscon_scci.sccs.size());
     // print_aut(pscon);
+
+    // TODO: language inclusion sim stuff
 
     // -- end of preprocessing --
 

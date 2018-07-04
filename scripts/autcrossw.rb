@@ -13,8 +13,8 @@ tout = ARGV[0].to_i
 ARGV.shift if tout > 0
 
 tmpcsv=`mktemp -p /dev/shm`.strip
-Signal.trap("INT") { `rm #{tmpcsv}` }
-Signal.trap("TERM") { `rm #{tmpcsv}` }
+Signal.trap("INT") { `rm #{tmpcsv}`; exit }
+Signal.trap("TERM") { `rm #{tmpcsv}`; exit }
 
 csvfile=''
 ARGV.map! do |arg|
