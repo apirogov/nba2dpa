@@ -13,14 +13,20 @@ tout = ARGV[0].to_i
 ARGV.shift if tout > 0
 
 tmpcsv=`mktemp -p /dev/shm`.strip
-Signal.trap("INT") { `rm #{tmpcsv}`; exit }
-Signal.trap("TERM") { `rm #{tmpcsv}`; exit }
+tmphoa=`mktemp -p /dev/shm`.strip
+Signal.trap("INT") { `rm #{tmpcsv} #{tmphoa}`; exit }
+Signal.trap("TERM") { `rm #{tmpcsv} #{tmphoa}`; exit }
 
 csvfile=''
+hoafile=''
 ARGV.map! do |arg|
   if arg =~ /^--csv=/
     csvfile = arg.split('=')[1].strip
     arg = "--csv=#{tmpcsv}"
+  end
+  if arg =~ /^--save-bogus=/
+    hoafile = arg.split('=')[1].strip
+    arg = "--save-bogus=#{tmpcsv}"
   end
   arg
 end
@@ -63,12 +69,13 @@ each_aut(STDIN) do |a|
 
     wait_thr.join
 
-    open(csvfile, 'a') { |f| f.puts `tail -n +2 < #{tmpcsv}` } if csvfile!=''
+    `tail -n +2 < #{tmpcsv} >> #{csvfile}` if csvfile!=''
+    `cat #{tmphoa} >> #{hoafile}` if hoafile!=''
     # exit_status = wait_thr.value.exitstatus
   end
 end
 
-`rm #{tmpcsv}`
+`rm #{tmpcsv} #{tmphoa}`
 
 __END__
 "input.source","input.name","input.ap","input.states","input.edges","input.transitions","input.acc_sets","input.scc","input.nondetstates","input.nondeterministic","input.alternating","tool","exit_status","exit_code","time","output.ap","output.states","output.edges","output.transitions","output.acc_sets","output.scc","output.nondetstates","output.nondeterministic","output.alternating"
