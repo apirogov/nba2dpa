@@ -432,11 +432,19 @@ bool minimize_priorities(Aut<T>& aut) {
 // requires complete, deterministic automaton with colored edges
 template<typename T>
 vector<vector<state_t>> get_equiv_states(Aut<T> const& aut) {
-  auto const color = [&](state_t const s){
-    return aut.syms()
+  map<state_t, int> clr;
+  int i=0;
+  map<vector<pri_t>, int> clrs;
+  for (auto const s : aut.states()) {
+    auto const cvec = aut.syms()
       | ranges::view::transform([s,&aut](sym_t x){ return cbegin(aut.succ_edges(s,x))->second; })
       | ranges::to_vector;
-  };
+    if (!clrs[cvec])
+      clrs[cvec] = ++i;
+    clr[s] = clrs[cvec];
+  }
+  auto const color = [&](state_t const s){ return clr.at(s); };
+
   vector<state_t> states = aut.states();
   states |= ranges::action::sort([&color](auto a, auto b){ return color(a) < color(b); });
   vector<vector<state_t>> const startsets = ranges::view::group_by(states,
