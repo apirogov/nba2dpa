@@ -6,11 +6,14 @@
 #include "io.hh"
 #include "common/util.hh"
 #include "common/parity.hh"
-#include "postproc.hh"
+#include "common/part_refinement.hh"
 
 namespace nbautils {
 using namespace std;
 using namespace nbautils;
+
+template <typename Node>
+using succ_fun = function<vector<Node>(Node)>;
 
 struct PAProdState {
   state_t a;
@@ -269,6 +272,92 @@ void change_patype(Aut<T> &aut, PAType pt) {
   aut.set_patype(pt);
 }
 
+// ----------------------------------------------------------------------------
+
+template <typename Range, typename T>
+int max_chain(function<int(T)> const& oldpri, map<T,int>& newpri,
+    Range const& p, succ_fun<T> const& get_succs) {
+  if (p.empty()) //by definition, empty set has no chain
+    return 0;
+
+  int maxlen = 0;
+  // cout << "max_chain " << seq_to_str(p) << endl;
+
+  // maximal essential subsets = non-trivial SCCs in restricted graph
+  succ_fun<T> succs_in_p = [&](auto v) {
+    auto const tmp = get_succs(v);
+    vector<T> ret;
+    ranges::set_intersection(ranges::view::all(tmp), p, ranges::back_inserter(ret));
+    return ret;
+  };
+  auto scci = get_sccs(p, succs_in_p);
+  auto triv = trivial_sccs(succs_in_p, scci);
+
+  // lift priority map to state sets
+  map<unsigned, int> strongest_oldpri;
+  for (auto const& it : scci.sccs) {
+    int maxp = -1;
+    for (auto const& st : it.second) {
+      maxp = max(maxp, oldpri(st));
+    }
+    strongest_oldpri[it.first] = maxp;
+  }
+
+  for (auto const& it : scci.sccs) {
+    int const i = it.first;
+    vector<state_t> const& scc = it.second;
+    // cout << "scc " << seq_to_str(scc) << endl;
+
+    if (contains(triv,it.first)) {
+      continue;
+      // cout << "trivial, skip" << endl;
+    }
+
+    pri_t const scc_pri = strongest_oldpri[i];
+    // cout << "scc pri " << scc_pri << endl;
+
+    auto const deriv_scc = vec_filter(scc, [&](state_t v){return oldpri(v) < scc_pri;});
+    auto const not_deriv_scc = vec_filter(scc, [&](state_t v){return oldpri(v) >= scc_pri;});
+    /*
+    auto const deriv_scc = ranges::view::all(scc)
+      | ranges::view::filter([&](state_t v){return oldpri(v) < scc_pri;}) | ranges::to_vector;
+    auto const not_deriv_scc = ranges::view::all(scc)
+      | ranges::view::filter([&](state_t v){return oldpri(v) >= scc_pri;}) | ranges::to_vector;
+    */
+
+    int m = 0;
+    if (scc_pri > 0) {
+      m = max_chain(oldpri, newpri, deriv_scc, succs_in_p);
+
+      if ((scc_pri - m) % 2 == 1) //alternation -> requires new priority
+        m++;
+    }
+
+    for (auto const s : not_deriv_scc) {
+      newpri[s] = m;
+    }
+
+    maxlen = max(maxlen, m);
+  }
+  // cout << "max_chain " << seq_to_str(p)  << " done" << endl;
+  return maxlen;
+}
+
+// takes priorities (with max odd parity!), minimizes them
+// takes all states, normal successor function and old priority map function
+// priorities must be from a max odd acceptance
+// returns new state to priority map
+// Paper: "Computing the Rabin Index of a parity automaton"
+template <typename T>
+map<T, int> pa_minimize_priorities(vector<T> const& states,
+    succ_fun<T> const& get_succs, function<int(T)> const& oldpri) {
+  map<T, int> primap;
+  for (auto const s : states)
+    primap[s] = 0;
+  max_chain(oldpri, primap, states, get_succs);
+  return primap;
+}
+
 // take a DPA, minimize number of used priorities
 template<typename T>
 bool minimize_priorities(Aut<T>& aut) {
@@ -324,22 +413,18 @@ bool minimize_priorities(Aut<T>& aut) {
 //
 // hopcroft algorithm to calculate equivalence classes that can be merged
 // without changing the language / output behaviour
-// requires complete, deterministic automaton
+// requires complete, deterministic automaton with colored edges
 template<typename T>
 vector<vector<state_t>> get_equiv_states(Aut<T> const& aut) {
-  auto sorted = aut.states();
-  unordered_map<state_t, int> clr;
-  for (auto s : sorted)
-    clr[s] = aut.get_accs(s).front();
-
-  unordered_map<state_t, vector<state_t>> suc;
-  for (auto s : sorted)
-    for (auto i=0; i<aut.num_syms(); i++) {
-      suc[s].push_back(aut.succ(s,i).front());
-    }
-
-  sort(begin(sorted), end(sorted), [&](auto a, auto b){ return clr.at(a) < clr.at(b); });
-  auto startsets = group_by(sorted, [&](auto a, auto b){ return clr.at(a) == clr.at(b); });
+  auto const color = [&](state_t const s){
+    return aut.syms()
+      | ranges::view::transform([s,&aut](sym_t x){ return cbegin(aut.succ_edges(s,x))->second; })
+      | ranges::to_vector;
+  };
+  vector<state_t> states = aut.states();
+  states |= ranges::action::sort([&color](auto a, auto b){ return color(a) < color(b); });
+  vector<vector<state_t>> const startsets = ranges::view::group_by(states,
+    [&color](auto a, auto b){ return color(a) == color(b); });
 
   PartitionRefiner<state_t> p(startsets);
 
@@ -349,7 +434,6 @@ vector<vector<state_t>> get_equiv_states(Aut<T> const& aut) {
         return lexicographical_compare(a->first, a->second, b->first, b->second);
       };
   auto w=set<PartitionRefiner<state_t>::sym_set, decltype(sym_set_cmp)>(cbegin(wvec), cend(wvec), sym_set_cmp);
-
   // auto w=p.get_set_ids();
 
   while (!w.empty()) {
@@ -358,8 +442,8 @@ vector<vector<state_t>> get_equiv_states(Aut<T> const& aut) {
 
     auto const sepset = p.get_elements_of(a); //need to take a copy, as it is modified in loop
 
-    for (auto i=0; i<aut.num_syms(); i++) {
-      auto const succ_in_a = [&](state_t st){ return sorted_contains(sepset, suc[st][i]); };
+    for (auto const i : aut.syms()) {
+      auto const succ_in_a = [&](state_t st){ return sorted_contains(sepset, cbegin(aut.succ_edges(st, i))->first); };
 
       for (auto& y : p.get_set_ids()) {
         //TODO: try to precalculate sep X subset of Y set instead of using predicate?
@@ -389,15 +473,21 @@ vector<vector<state_t>> get_equiv_states(Aut<T> const& aut) {
 
 template<typename T>
 bool minimize_pa(Aut<T>& pa) {
-  assert(pa.get_init().size()==1);
+  assert(pa.is_complete());
+  assert(pa.is_colored());
 
-  // function<acc_t(state_t)> colors = [&](auto s){return pa.get_accs(s).front();};
-  // function<state_t(state_t,sym_t)> xsucc = [&](auto p, auto s){return pa.succ(p,s).front();};
-  // auto equiv = dfa_equivalent_states(pa.states(), colors, pa.num_syms(), xsucc);
+  auto const equiv = get_equiv_states(pa);
+  // for (auto const& eq : equiv)
+  //   cerr << seq_to_str(eq) << endl;
+  // cerr << "--" << endl;
 
-  auto equiv = get_equiv_states(pa);
   pa.quotient(equiv);
+  // cerr << "quotiented" << endl;
+  auto const unreach = unreachable_states(pa, pa.get_init());
+  pa.remove_states(unreach);
+  // cerr << "removed " << unreach.size() << " unreachable" << endl;
   pa.normalize();
+  // cerr << "normalized" << endl;
 
   return true;
 }

@@ -75,8 +75,8 @@ Args parse_args(int argc, char *argv[]) {
       {'m', "minimize-dfa"});
 
   // type of update for active ranks
-  args::ValueFlag<int> mergemode(parser, "update-mode", "Type of update "
-      "(Muller/Schupp, Safra, Maximal merge)",
+  args::ValueFlag<int> mergemode(parser, "N", "Type of update "
+      "(0=Muller/Schupp, 1=Safra, 2=Maximal merge)",
       {'u', "update-mode"});
   args::Flag puretrees(parser, "pure", "Accepting leaf normal form (acc. states in leaves only)",
       {'l', "pure-trees"});
@@ -309,11 +309,12 @@ PA process_nba(Args const &args, auto& aut, std::shared_ptr<spdlog::logger> log)
     //TODO: minimize states
 
     if (args.mindfa) {
-      log->info("initial number of priorities: {}", pa.pris().size());
+      log->info("#priorities before: {}", pa.pris().size());
       bench(log, "minimize number of priorities", WRAP(minimize_priorities(pa)));
-      log->info("resulting number of priorities: {}", pa.pris().size());
-      // bench(log, "minimize number of states", WRAP(minimize_pa(*pa)));
-      // log->info("number of states after minimization: {}", pa->num_states());
+      log->info("#priorities after: {}", pa.pris().size());
+      log->info("#states before: {}", pa.states().size());
+      bench(log, "minimize number of states", WRAP(minimize_pa(pa)));
+      log->info("#states after: {}", pa.num_states());
     }
 
     // -- end of postprocessing --

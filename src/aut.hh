@@ -441,16 +441,18 @@ public:
       assert(has_state(q));
     assert(is_set_vec(others));
     assert(!sorted_contains(others, get_init()));
-    assert(!sorted_contains(others,rep));
+    assert(!sorted_contains(others, rep));
 #endif
 
-    // add ingoing edges into all class members to representative
+    // add ingoing edges into all class members to representative (with same edge prio)
     for (auto const st : states()) {
       for (auto const sym : state_outsyms(st)) {
-        auto const sucs = succ(st, sym);
-        for (auto const trg : set_intersect(sucs, others)) {
-          adj.at(st).at(sym).at(trg) = succ_raw(st, sym).at(trg);
-        }
+        auto const tokill_sucs = set_intersect(succ(st, sym) | ranges::to_vector, others);
+        if (tokill_sucs.empty())
+          continue;
+
+        pri_t const epri = succ_edges(st, sym).at(tokill_sucs.front());
+        add_edge(st, sym, rep, epri);
       }
     }
 
@@ -459,11 +461,13 @@ public:
   }
 
   //given equivalence classes, perform merges
-  /*
   void quotient(vector<vector<state_t>> const& equiv) {
     auto initial = get_init();
     bool seenini = false;
     for (auto ecl : equiv) {
+      if (ecl.size() < 2)
+        continue; //nothing to do
+
       auto rep = ecl.back();
       if (!seenini) {
         auto it = lower_bound(begin(ecl), end(ecl), initial);
@@ -478,10 +482,11 @@ public:
         ecl.pop_back();
       }
 
+      // cerr << "merging " << seq_to_str(ecl) << " into " << rep << endl;
+
       merge_states(ecl, rep);
     }
   }
-  */
 
   void normalize(state_t const offset=0) {
     *this = get_normalized(offset);

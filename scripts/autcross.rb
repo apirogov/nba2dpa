@@ -23,9 +23,9 @@ def compile(a); a.map(&->(l){l.map(&->(x){"-"+x}).join(" ")}); end
 
 # ----
 # compact representation of different argument combinations
-nbadet_argsets = compile([['k','j','t','n','a']].prod(
+nbadet_argsets = compile([['k','j','t','n','a','d']].prod(
                             oneof("u0","u1","u2").prod(
-                              prefs("d","e","b","l","m","c")
+                              prefs("e","b","l","m","c")
                             )
                           )
                         )
