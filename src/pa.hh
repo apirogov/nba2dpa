@@ -15,6 +15,8 @@ using namespace nbautils;
 template <typename Node>
 using succ_fun = function<vector<Node>(Node)>;
 
+using EdgeNode = tuple<state_t, sym_t, state_t, pri_t>;
+
 struct PAProdState {
   state_t a;
   state_t b;
@@ -40,23 +42,37 @@ struct PAProdState {
 
 namespace std {
 using namespace nbautils;
+
 template <>
-    struct hash<PAProdState>
-    {
-        size_t operator()(PAProdState const& k) const
-        {
-            // Compute individual hash values for first, second and third
-            // http://stackoverflow.com/a/1646913/126995
-            size_t res = 17;
-            res = res * 31 + hash<int>()( k.prio );
-            res = res * 31 + hash<state_t>()( k.a );
-            res = res * 31 + hash<state_t>()( k.b );
-            for (auto const& it : k.priord) {
-              res = res * 31 + (hash<int>()( it.second << it.first ));
-            }
-            return res;
-        }
-    };
+struct hash<PAProdState> {
+  size_t operator()(PAProdState const& k) const {
+    // Compute individual hash values for first, second and third
+    // http://stackoverflow.com/a/1646913/126995
+    size_t res = 17;
+    res = res * 31 + hash<int>()( k.prio );
+    res = res * 31 + hash<state_t>()( k.a );
+    res = res * 31 + hash<state_t>()( k.b );
+    for (auto const& it : k.priord) {
+      res = res * 31 + (hash<int>()( it.second << it.first ));
+    }
+    return res;
+  }
+};
+
+template <>
+struct hash<EdgeNode> {
+  size_t operator()(EdgeNode const& k) const {
+    // Compute individual hash values for first, second and third
+    // http://stackoverflow.com/a/1646913/126995
+    size_t res = 17;
+    res = res * 31 + hash<state_t>()( get<0>(k) );
+    res = res * 31 + hash<sym_t>()( get<1>(k) );
+    res = res * 31 + hash<state_t>()( get<2>(k) );
+    res = res * 31 + hash<pri_t>()( get<3>(k) );
+    return res;
+  }
+};
+
 }
 
 namespace nbautils {
@@ -274,24 +290,24 @@ void change_patype(Aut<T> &aut, PAType pt) {
 
 // ----------------------------------------------------------------------------
 
-template <typename Range, typename T>
-int max_chain(function<int(T)> const& oldpri, map<T,int>& newpri,
-    Range const& p, succ_fun<T> const& get_succs) {
+template <typename Range>
+int max_chain(function<int(state_t)> const& oldpri, map<state_t,int>& newpri,
+    Range const& p, succ_fun<state_t> const& get_succs) {
   if (p.empty()) //by definition, empty set has no chain
     return 0;
 
   int maxlen = 0;
-  // cout << "max_chain " << seq_to_str(p) << endl;
 
   // maximal essential subsets = non-trivial SCCs in restricted graph
-  succ_fun<T> succs_in_p = [&](auto v) {
-    auto const tmp = get_succs(v);
-    vector<T> ret;
-    ranges::set_intersection(ranges::view::all(tmp), p, ranges::back_inserter(ret));
+  // successor/scc calc might be the "bottleneck" according to valgrind
+  succ_fun<state_t> succs_in_p = [&](auto v) {
+    auto ret = get_succs(v);
+    auto it = std::set_intersection(begin(ret), end(ret), begin(p), end(p), begin(ret));
+    ret.erase(it, end(ret));
     return ret;
   };
   auto scci = get_sccs(p, succs_in_p);
-  auto triv = trivial_sccs(succs_in_p, scci);
+  auto const triv = trivial_sccs(succs_in_p, scci);
 
   // lift priority map to state sets
   map<unsigned, int> strongest_oldpri;
@@ -303,56 +319,50 @@ int max_chain(function<int(T)> const& oldpri, map<T,int>& newpri,
     strongest_oldpri[it.first] = maxp;
   }
 
-  for (auto const& it : scci.sccs) {
+  for (auto& it : scci.sccs) {
     int const i = it.first;
-    vector<state_t> const& scc = it.second;
-    // cout << "scc " << seq_to_str(scc) << endl;
+    vector<state_t>& scc = it.second;
 
-    if (contains(triv,it.first)) {
+    if (contains(triv,it.first)) { //skip trivial SCCs
       continue;
-      // cout << "trivial, skip" << endl;
     }
 
     pri_t const scc_pri = strongest_oldpri[i];
-    // cout << "scc pri " << scc_pri << endl;
 
-    auto const deriv_scc = vec_filter(scc, [&](state_t v){return oldpri(v) < scc_pri;});
-    auto const not_deriv_scc = vec_filter(scc, [&](state_t v){return oldpri(v) >= scc_pri;});
-    /*
-    auto const deriv_scc = ranges::view::all(scc)
-      | ranges::view::filter([&](state_t v){return oldpri(v) < scc_pri;}) | ranges::to_vector;
-    auto const not_deriv_scc = ranges::view::all(scc)
-      | ranges::view::filter([&](state_t v){return oldpri(v) >= scc_pri;}) | ranges::to_vector;
-    */
+    auto mid = partition(begin(scc), end(scc), [&](state_t v){return oldpri(v) < scc_pri;});
+    ranges::iterator_range<decltype(mid)> deriv_scc{begin(scc), mid};
+    ranges::sort(deriv_scc); //only this one needs to be sorted
+    ranges::iterator_range<decltype(mid)> not_deriv_scc{mid, end(scc)};
 
     int m = 0;
     if (scc_pri > 0) {
-      m = max_chain(oldpri, newpri, deriv_scc, succs_in_p);
+      m = max_chain(oldpri, newpri, ranges::view::all(deriv_scc), succs_in_p);
 
-      if ((scc_pri - m) % 2 == 1) //alternation -> requires new priority
+      if ((scc_pri - m) % 2 == 1) //parity alternation -> requires new priority
         m++;
     }
 
-    for (auto const s : not_deriv_scc) {
+    for (auto const s : ranges::view::bounded(not_deriv_scc)) {
       newpri[s] = m;
     }
 
     maxlen = max(maxlen, m);
   }
-  // cout << "max_chain " << seq_to_str(p)  << " done" << endl;
+
   return maxlen;
 }
 
 // takes priorities (with max odd parity!), minimizes them
-// takes all states, normal successor function and old priority map function
+// takes all states (sorted!), normal successor function and old priority map function
 // priorities must be from a max odd acceptance
 // returns new state to priority map
 // Paper: "Computing the Rabin Index of a parity automaton"
-template <typename T>
-map<T, int> pa_minimize_priorities(vector<T> const& states,
-    succ_fun<T> const& get_succs, function<int(T)> const& oldpri) {
-  map<T, int> primap;
-  for (auto const s : states)
+template <typename Range>
+map<state_t, int> pa_minimize_priorities(Range const& states,
+    succ_fun<state_t> const& get_succs, function<int(state_t)> const& oldpri) {
+  map<state_t, int> primap;
+  // cerr << "#states: " << states.size() << endl;
+  for (auto const s : ranges::view::bounded(states))
     primap[s] = 0;
   max_chain(oldpri, primap, states, get_succs);
   return primap;
@@ -365,10 +375,9 @@ bool minimize_priorities(Aut<T>& aut) {
 
   //construct virtual graph (labelled edges -> labelled nodes)
   //because used algorithm is state-based
-  using EdgeNode = tuple<state_t, sym_t, state_t, pri_t>;
-  map<EdgeNode,state_t> e2n;
-  map<state_t,EdgeNode> n2e;
-  vector<state_t> ens;
+  unordered_map<EdgeNode,state_t> e2n;
+  unordered_map<state_t,EdgeNode> n2e;
+  vector<state_t> ests; //quicker than iterating map keys
   int i=0;
   for (state_t const& p : aut.states())
     for (sym_t const& x : aut.state_outsyms(p))
@@ -376,31 +385,38 @@ bool minimize_priorities(Aut<T>& aut) {
         auto const edge = make_tuple(p, x, es.first, es.second);
         n2e[i] = edge;
         e2n[edge] = i;
-        ens.push_back(i);
+        ests.push_back(i);
         i++;
       }
-
-  //corresponding successor function
-  function<vector<state_t>(state_t)> const sucs = [&aut,&n2e,&e2n](state_t const v){
+  //calc adj list
+  map<state_t,vector<state_t>> esucs;
+  for (auto const v : ests) {
     vector<state_t> sucedges;
-    state_t const& p = get<2>(n2e[v]);
+    state_t const& p = get<2>(n2e.at(v));
     for (sym_t const& x : aut.state_outsyms(p))
       for (auto const& es : aut.succ_edges(p,x))
-        sucedges.push_back(e2n[make_tuple(p, x, es.first, es.second)]);
-    return sucedges;
-  };
+        sucedges.push_back(e2n.at(make_tuple(p, x, es.first, es.second)));
+    ranges::action::sort(sucedges);
+    esucs[v] = sucedges;
+  }
+
+  //corresponding successor function
+  function<vector<state_t>(state_t)> const sucs = [&esucs](state_t const v){ return esucs.at(v); };
 
   //corresponding priority function
   auto const to_max_odd = priority_transformer(aut.get_patype(), PAType::MAX_ODD, aut.pri_bounds());
   function<int(state_t)> const max_odd_pri = [&to_max_odd,&n2e](state_t const v){ return to_max_odd(get<3>(n2e[v])); };
 
   //calculate priority map (old edge pri -> new edge pri)
-  auto const primap = pa_minimize_priorities(ens, sucs, max_odd_pri);
-  auto const mmeli = std::minmax_element(begin(primap), end(primap), [](auto const& i, auto const& j){ return i.second < j.second; });
-  auto const mmel = make_pair(mmeli.first->second, mmeli.second->second);
+  auto const primap = pa_minimize_priorities(ranges::view::all(ests), sucs, max_odd_pri);
 
-  //map over priorities (these are with max-even semantics!)
+  //calculate conversion back from max odd to original
+  auto const mmeli = std::minmax_element(begin(primap), end(primap),
+    [](auto const& i, auto const& j){ return i.second < j.second; });
+  auto const mmel = make_pair(mmeli.first->second, mmeli.second->second);
   auto const from_max_odd = priority_transformer(PAType::MAX_ODD, aut.get_patype(), mmel);
+
+  //map over priorities
   for (auto const it : primap) {
     auto const e = n2e[it.first];
     aut.mod_edge(get<0>(e), get<1>(e), get<2>(e), from_max_odd(it.second));
@@ -429,16 +445,19 @@ vector<vector<state_t>> get_equiv_states(Aut<T> const& aut) {
   PartitionRefiner<state_t> p(startsets);
 
   // set seems not to make a difference :/
+  /*
   auto const wvec=p.get_set_ids();
   auto const sym_set_cmp = [](auto const& a, auto const& b) {
-        return lexicographical_compare(a->first, a->second, b->first, b->second);
+        // return lexicographical_compare(a->first, a->second, b->first, b->second);
+        return &(a->first) < &(b->first);
       };
   auto w=set<PartitionRefiner<state_t>::sym_set, decltype(sym_set_cmp)>(cbegin(wvec), cend(wvec), sym_set_cmp);
-  // auto w=p.get_set_ids();
+  */
+  auto w=p.get_set_ids();
 
   while (!w.empty()) {
-    // auto const a = w.back(); w.pop_back();
-    auto const a = *w.begin(); w.erase(w.begin());
+    auto const a = w.back(); w.pop_back();
+    // auto const a = *w.begin(); w.erase(w.begin());
 
     auto const sepset = p.get_elements_of(a); //need to take a copy, as it is modified in loop
 
@@ -452,15 +471,15 @@ vector<vector<state_t>> get_equiv_states(Aut<T> const& aut) {
         if (z) { //separation happened
           //TODO: w is vector, this is slow?
           if (contains(w, y)) //if y is in w, its symbol still is, and we need the other set
-            // w.push_back(*z);
-            w.emplace(*z);
+            w.push_back(*z);
+            // w.emplace(*z);
           else { //if y is not in w, take smaller part as separator
             if (p.get_set_size(y) <= p.get_set_size(*z)) {
-              // w.push_back(y);
-              w.emplace(y);
+              w.push_back(y);
+              // w.emplace(y);
             } else {
-              // w.push_back(*z);
-              w.emplace(*z);
+              w.push_back(*z);
+              // w.emplace(*z);
             }
           }
         }

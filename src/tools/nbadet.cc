@@ -310,9 +310,9 @@ PA process_nba(Args const &args, auto& aut, std::shared_ptr<spdlog::logger> log)
 
     if (args.mindfa) {
       log->info("#priorities before: {}", pa.pris().size());
+      log->info("#states before: {}", pa.states().size());
       bench(log, "minimize number of priorities", WRAP(minimize_priorities(pa)));
       log->info("#priorities after: {}", pa.pris().size());
-      log->info("#states before: {}", pa.states().size());
       bench(log, "minimize number of states", WRAP(minimize_pa(pa)));
       log->info("#states after: {}", pa.num_states());
     }
