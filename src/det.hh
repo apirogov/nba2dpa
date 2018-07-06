@@ -83,7 +83,9 @@ int get_min_term_scc_with_powerset(PA const& pa, SCCDat const& pai, nba_bitset c
                | ranges::action::sort(  [&](auto s, auto t){ return pai.scc_of.at(s) <  pai.scc_of.at(t); })
                | ranges::action::unique([&](auto s, auto t){ return pai.scc_of.at(s) == pai.scc_of.at(t); });
 
+#ifndef NDEBUG
     bool found = false;
+#endif
 
     //find smallest bottom SCC (bottom ensures that all powersets in PS SCC are reachable)
     int mintermscc = 0;
@@ -98,13 +100,17 @@ int get_min_term_scc_with_powerset(PA const& pa, SCCDat const& pai, nba_bitset c
       // cout << endl;
 
       if (sucsccs.empty() && ssccsz < mintermsz) {
+#ifndef NDEBUG
         found = true;
+#endif
         mintermscc = sccnum;
         mintermsz  = ssccsz;
       }
     }
 
+#ifndef NDEBUG
     assert(found); //there must be a bottom SCC with this powerset by construction
+#endif
     return mintermscc;
 }
 

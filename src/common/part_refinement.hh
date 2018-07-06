@@ -58,16 +58,21 @@ private:
     // cout << "constr done" << endl;
   };
 
+  decltype(sets)& get_sets() {
+    return sets;
+  }
+
   //a set is identified by the iterator to the bound pair
+  //returned vector has no specific order (just order of creation)
   vector<sym_set> get_set_ids() {
-    // return sym_sets;
-    // /*
+    return sym_sets;
+    /*
     vector<sym_set> ret;
     ret.reserve(sets.size());
     for (auto it=begin(sets); it!=end(sets); ++it)
       ret.push_back(it);
     return ret;
-    // */
+    */
   }
   //convenience function - returns all sets
   vector<vector<T>> get_refined_sets() {
@@ -80,11 +85,15 @@ private:
 
   vector<T> get_elements_of(sym_set const& ref) {
     vector<T> ret;
+    get_elements_of(ref, ret);
+    return ret;
+  }
+  void get_elements_of(sym_set const& ref, vector<T> &ret) {
+    ret.clear();
     ret.reserve(get_set_size(ref));
     for (auto it=ref->first; it!=ref->second; ++it)
       ret.push_back(*it);
     sort(begin(ret),end(ret));
-    return ret;
   }
 
   // sym_set get_set_of(T const& el) const {

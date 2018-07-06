@@ -432,6 +432,8 @@ bool minimize_priorities(Aut<T>& aut) {
 // requires complete, deterministic automaton with colored edges
 template<typename T>
 vector<vector<state_t>> get_equiv_states(Aut<T> const& aut) {
+  // assign each combination of output priorities per symbol a number
+  // -> for efficiency, this is the "color" of each state
   map<state_t, int> clr;
   int i=0;
   map<vector<pri_t>, int> clrs;
@@ -445,6 +447,17 @@ vector<vector<state_t>> get_equiv_states(Aut<T> const& aut) {
   }
   auto const color = [&](state_t const s){ return clr.at(s); };
 
+  // obtain adj matrix for big speedup (per sym, succ of each state)
+  vector<vector<state_t>> mat(aut.num_syms(),vector<state_t>(aut.num_states(), -1));
+  for (state_t const p : aut.states()) {
+    for (sym_t const x : aut.state_outsyms(p)) {
+      for (auto const& es : aut.succ_edges(p,x)) {
+        mat[x][p] = es.first;
+      }
+    }
+  }
+
+  // partition states by initial color (= behaviour profile)
   vector<state_t> states = aut.states();
   states |= ranges::action::sort([&color](auto a, auto b){ return color(a) < color(b); });
   vector<vector<state_t>> const startsets = ranges::view::group_by(states,
@@ -463,20 +476,29 @@ vector<vector<state_t>> get_equiv_states(Aut<T> const& aut) {
   */
   auto w=p.get_set_ids();
 
+  vector<state_t> sepset;
+  sepset.reserve(aut.states().size());
   while (!w.empty()) {
     auto const a = w.back(); w.pop_back();
     // auto const a = *w.begin(); w.erase(w.begin());
 
-    auto const sepset = p.get_elements_of(a); //need to take a copy, as it is modified in loop
+    // auto const sepset = p.get_elements_of(a); //need to take a copy, as it is modified in loop
+    p.get_elements_of(a, sepset); //need to take a copy, as it is modified in loop
 
     for (auto const i : aut.syms()) {
-      auto const succ_in_a = [&](state_t st){ return sorted_contains(sepset, cbegin(aut.succ_edges(st, i))->first); };
+      // auto const succ_in_a = [&](state_t st){ return sorted_contains(sepset, cbegin(aut.succ_edges(st, i))->first); };
+      auto const succ_in_a = [&](state_t st){ return sorted_contains(sepset, mat[i][st]); };
 
       for (auto& y : p.get_set_ids()) {
+      // for (auto it = begin(p.get_sets()); it!=end(p.get_sets()); ++it) {
+        // PartitionRefiner<state_t>::sym_set y = it;
+
         //TODO: try to precalculate sep X subset of Y set instead of using predicate?
         auto const z = p.separate(y, succ_in_a);
 
         if (z) { //separation happened
+          // ++it; //need to skip new set
+
           //TODO: w is vector, this is slow?
           if (contains(w, y)) //if y is in w, its symbol still is, and we need the other set
             w.push_back(*z);
