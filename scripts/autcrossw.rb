@@ -26,7 +26,7 @@ ARGV.map! do |arg|
   end
   if arg =~ /^--save-bogus=/
     hoafile = arg.split('=')[1].strip
-    arg = "--save-bogus=#{tmpcsv}"
+    arg = "--save-bogus=#{tmphoa}"
   end
   arg
 end
@@ -68,11 +68,10 @@ each_aut(STDIN) do |a|
     end
 
     wait_thr.join
-
-    `tail -n +2 < #{tmpcsv} >> #{csvfile}` if csvfile!=''
-    `cat #{tmphoa} >> #{hoafile}` if hoafile!=''
     # exit_status = wait_thr.value.exitstatus
   end
+  open(csvfile, 'a'){ |f| f.write `tail -n +2 #{tmpcsv}` }
+  open(hoafile, 'a'){ |f| f.write open(tmphoa, 'r').read() }
 end
 
 `rm #{tmpcsv} #{tmphoa}`

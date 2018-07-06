@@ -30,7 +30,7 @@ nbadet_argsets = compile([['k','j','t','n','a','d']].prod(
                           )
                         )
 
-translators = ["autfilt -D -C -P"]
+translators = ["autfilt -D -C -P"] #, "stupid.sh"]
 nbadet_argsets.each do |s|
   translators.push("#{SCRIPTPATH}/../build/bin/nbadet #{s}")
 end
