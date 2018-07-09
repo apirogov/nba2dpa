@@ -8,6 +8,8 @@
 #include "common/parity.hh"
 #include "common/part_refinement.hh"
 
+#include <spdlog/spdlog.h>
+
 namespace nbautils {
 using namespace std;
 using namespace nbautils;
@@ -370,8 +372,11 @@ map<state_t, int> pa_minimize_priorities(Range const& states,
 
 // take a DPA, minimize number of used priorities
 template<typename T>
-bool minimize_priorities(Aut<T>& aut) {
+bool minimize_priorities(Aut<T>& aut, shared_ptr<spdlog::logger> log = nullptr) {
   assert(aut.is_colored());
+
+  if (log)
+    log->info("preparing edge incidence graph...");
 
   //construct virtual graph (labelled edges -> labelled nodes)
   //because used algorithm is state-based
@@ -389,7 +394,7 @@ bool minimize_priorities(Aut<T>& aut) {
         i++;
       }
   //calc adj list
-  map<state_t,vector<state_t>> esucs;
+  unordered_map<state_t,vector<state_t>> esucs;
   for (auto const v : ests) {
     vector<state_t> sucedges;
     state_t const& p = get<2>(n2e.at(v));
@@ -408,8 +413,14 @@ bool minimize_priorities(Aut<T>& aut) {
   function<int(state_t)> const max_odd_pri = [&to_max_odd,&n2e](state_t const v){ return to_max_odd(get<3>(n2e[v])); };
 
   //calculate priority map (old edge pri -> new edge pri)
+  if (log) {
+    log->info("Constructed edge graph with {} nodes.", ests.size());
+    log->info("calculating new priorities...");
+  }
   auto const primap = pa_minimize_priorities(ranges::view::all(ests), sucs, max_odd_pri);
 
+  if (log)
+    log->info("applying new priority map...");
   //calculate conversion back from max odd to original
   auto const mmeli = std::minmax_element(begin(primap), end(primap),
     [](auto const& i, auto const& j){ return i.second < j.second; });
@@ -521,15 +532,19 @@ vector<vector<state_t>> get_equiv_states(Aut<T> const& aut) {
 }
 
 template<typename T>
-bool minimize_pa(Aut<T>& pa) {
+bool minimize_pa(Aut<T>& pa, shared_ptr<spdlog::logger> log = nullptr) {
   assert(pa.is_complete());
   assert(pa.is_colored());
 
+  if (log)
+    log->info("Calculating equivalent states...");
   auto const equiv = get_equiv_states(pa);
   // for (auto const& eq : equiv)
   //   cerr << seq_to_str(eq) << endl;
   // cerr << "--" << endl;
 
+  if (log)
+    log->info("Merging equivalent states...");
   pa.quotient(equiv);
   // cerr << "quotiented" << endl;
   auto const unreach = unreachable_states(pa, pa.get_init());

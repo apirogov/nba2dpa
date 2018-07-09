@@ -1,8 +1,8 @@
 #!/bin/sh
 # generate nondeterministic Büchi automata
 # for determinisation benching
+  # --fxg-or=..5 \
 genltl \
-  --fxg-or=..7 \
   --gf-equiv=..6 \
   --gf-implies=..5 \
   --gh-r=..4 \

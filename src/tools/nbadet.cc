@@ -309,11 +309,12 @@ PA process_nba(Args const &args, auto& aut, std::shared_ptr<spdlog::logger> log)
     //TODO: minimize states
 
     if (args.mindfa) {
+      auto optlog = args.verbose>1 ? log : nullptr;
       log->info("#priorities before: {}", pa.pris().size());
       log->info("#states before: {}", pa.states().size());
-      bench(log, "minimize number of priorities", WRAP(minimize_priorities(pa)));
+      bench(log, "minimize number of priorities", WRAP(minimize_priorities(pa, optlog)));
       log->info("#priorities after: {}", pa.pris().size());
-      bench(log, "minimize number of states", WRAP(minimize_pa(pa)));
+      bench(log, "minimize number of states", WRAP(minimize_pa(pa, optlog)));
       log->info("#states after: {}", pa.num_states());
     }
 
@@ -355,8 +356,8 @@ int main(int argc, char *argv[]) {
   while (auts.has_next()) {
     auto aut = auts.parse_next();
 
-    log->info("NBA name: \"{}\", #states: {}, #APs: {}",
-              aut.get_name(), aut.num_states(), aut.get_aps().size());
+    log->info("NBA name: \"{}\", #states: {}, #APs: {} #Syms: {}",
+              aut.get_name(), aut.num_states(), aut.get_aps().size(), aut.num_syms());
 
     // sanity of the input
     if (!aut.is_buchi()) {
