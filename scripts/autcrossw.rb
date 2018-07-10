@@ -1,7 +1,6 @@
 #!/usr/bin/env ruby
 #transparent autcross wrapper that generates csv on the fly (appends after each input automaton)
 #and also uses /dev/shm (RAMfs) for temp files
-require 'open3'
 
 SCRIPTPATH=`echo -n $( cd "$(dirname "$0")" ; pwd -P )`
 CWD=`realpath .`.strip
@@ -52,24 +51,11 @@ end
 
 open(csvfile, 'w') { |f| f.puts DATA.read } if csvfile!=''
 each_aut(STDIN) do |a|
-  Open3.popen3({"SPOT_TMPDIR" => '/dev/shm'}, cmd) do |stdin, stdout, stderr, wait_thr|
-    stdin.write a
-    stdin.close
+  pipe = IO.popen({"SPOT_TMPDIR" => '/dev/shm'}, cmd, 'r+')
+  pipe.write a
+  pipe.close_write
+  STDOUT.write pipe.read
 
-    Thread.new do
-      stdout.each_line do |l|
-        puts l
-      end
-    end
-    Thread.new do
-      stderr.each_line do |l|
-        STDERR.puts l
-      end
-    end
-
-    wait_thr.join
-    # exit_status = wait_thr.value.exitstatus
-  end
   open(csvfile, 'a'){ |f| f.write `tail -n +2 #{tmpcsv}` }
   open(hoafile, 'a'){ |f| f.write open(tmphoa, 'r').read() }
 end
