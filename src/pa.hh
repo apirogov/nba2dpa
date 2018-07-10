@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include "aut.hh"
 #include "io.hh"
+#include "common/scc.hh"
 #include "common/util.hh"
 #include "common/parity.hh"
 #include "common/part_refinement.hh"
@@ -13,9 +14,6 @@
 namespace nbautils {
 using namespace std;
 using namespace nbautils;
-
-template <typename Node>
-using succ_fun = function<vector<Node>(Node)>;
 
 using EdgeNode = tuple<state_t, sym_t, state_t, pri_t>;
 
@@ -292,53 +290,41 @@ void change_patype(Aut<T> &aut, PAType pt) {
 
 // ----------------------------------------------------------------------------
 
-template <typename Range>
-int max_chain(function<int(state_t)> const& oldpri, map<state_t,int>& newpri,
-    Range const& p, succ_fun<state_t> const& get_succs) {
+template <typename Range, typename SuccFun>
+int max_chain(function<int(state_t)> const& oldpri, unordered_map<state_t,int>& newpri,
+    Range const& p, SuccFun const& get_succs,int curmax) {
   if (p.empty()) //by definition, empty set has no chain
     return 0;
 
-  int maxlen = 0;
-
-  // maximal essential subsets = non-trivial SCCs in restricted graph
-  // successor/scc calc might be the "bottleneck" according to valgrind
-  succ_fun<state_t> succs_in_p = [&](auto v) {
-    auto ret = get_succs(v);
-    auto it = std::set_intersection(begin(ret), end(ret), begin(p), end(p), begin(ret));
-    ret.erase(it, end(ret));
-    return ret;
+  auto const restricted_succs = [&](state_t v) {
+    // important: requires that successors pre-sorted correctly!
+    return get_succs(v) | ranges::view::take_while([&](state_t v){return oldpri(v) < curmax;});
+    // vector<state_t> tmp = get_succs(v);
+    // tmp |= ranges::action::remove_if([&](state_t s){ return oldpri(s) >= curmax; });
+    // return tmp;
   };
-  auto scci = get_sccs(p, succs_in_p);
-  auto const triv = trivial_sccs(succs_in_p, scci);
+  auto scci = get_sccs(p, restricted_succs);
+  auto triv = trivial_sccs(restricted_succs, scci);
 
-  // lift priority map to state sets
-  map<unsigned, int> strongest_oldpri;
-  for (auto const& it : scci.sccs) {
-    int maxp = -1;
-    for (auto const& st : it.second) {
-      maxp = max(maxp, oldpri(st));
-    }
-    strongest_oldpri[it.first] = maxp;
-  }
-
+  int maxlen = 0;
   for (auto& it : scci.sccs) {
-    int const i = it.first;
-    vector<state_t>& scc = it.second;
+    auto const i = it.first;
+    auto& scc = it.second;
 
-    if (contains(triv,it.first)) { //skip trivial SCCs
+    if (contains(triv,i)) //skip trivial SCCs
       continue;
-    }
 
-    pri_t const scc_pri = strongest_oldpri[i];
+    // get dominating priority in SCC
+    int scc_pri = ranges::max(scc | ranges::view::transform(oldpri));
 
+    // calculate "derivative"
     auto mid = partition(begin(scc), end(scc), [&](state_t v){return oldpri(v) < scc_pri;});
     ranges::iterator_range<decltype(mid)> deriv_scc{begin(scc), mid};
-    ranges::sort(deriv_scc); //only this one needs to be sorted
     ranges::iterator_range<decltype(mid)> not_deriv_scc{mid, end(scc)};
 
     int m = 0;
     if (scc_pri > 0) {
-      m = max_chain(oldpri, newpri, ranges::view::all(deriv_scc), succs_in_p);
+      m = max_chain(oldpri, newpri, ranges::view::all(deriv_scc), get_succs, scc_pri);
 
       if ((scc_pri - m) % 2 == 1) //parity alternation -> requires new priority
         m++;
@@ -346,6 +332,9 @@ int max_chain(function<int(state_t)> const& oldpri, map<state_t,int>& newpri,
 
     for (auto const s : ranges::view::bounded(not_deriv_scc)) {
       newpri[s] = m;
+
+      if (newpri.size() % 10000 == 0) // progress indicator
+        cerr << newpri.size() << endl;
     }
 
     maxlen = max(maxlen, m);
@@ -359,14 +348,19 @@ int max_chain(function<int(state_t)> const& oldpri, map<state_t,int>& newpri,
 // priorities must be from a max odd acceptance
 // returns new state to priority map
 // Paper: "Computing the Rabin Index of a parity automaton"
-template <typename Range>
-map<state_t, int> pa_minimize_priorities(Range const& states,
-    succ_fun<state_t> const& get_succs, function<int(state_t)> const& oldpri) {
-  map<state_t, int> primap;
-  // cerr << "#states: " << states.size() << endl;
-  for (auto const s : ranges::view::bounded(states))
-    primap[s] = 0;
-  max_chain(oldpri, primap, states, get_succs);
+template <typename Range, typename SuccFun>
+unordered_map<state_t, int> pa_minimize_priorities(Range const& states,
+    SuccFun const& get_succs, function<int(state_t)> const& oldpri, int maxoldpri) {
+  // NOTE: precomputing SCCs for all seems to give no speedup,
+  // but increases memory usage a lot. seems to be not worth it
+
+  unordered_map<state_t, int> primap;
+  // init
+  // for (state_t const s : ranges::view::bounded(states))
+  //   primap[s] = 0; //is default anyway. but then need to check outside if key present!
+
+  // start minimization algorithm
+  max_chain(oldpri, primap, states, get_succs, maxoldpri+1);
   return primap;
 }
 
@@ -393,6 +387,11 @@ bool minimize_priorities(Aut<T>& aut, shared_ptr<spdlog::logger> log = nullptr) 
         ests.push_back(i);
         i++;
       }
+
+  //corresponding priority function
+  auto const to_max_odd = priority_transformer(aut.get_patype(), PAType::MAX_ODD, aut.pri_bounds());
+  function<int(state_t)> const max_odd_pri = [&to_max_odd,&n2e](state_t const v){ return to_max_odd(get<3>(n2e[v])); };
+
   //calc adj list
   unordered_map<state_t,vector<state_t>> esucs;
   for (auto const v : ests) {
@@ -401,23 +400,20 @@ bool minimize_priorities(Aut<T>& aut, shared_ptr<spdlog::logger> log = nullptr) 
     for (sym_t const& x : aut.state_outsyms(p))
       for (auto const& es : aut.succ_edges(p,x))
         sucedges.push_back(e2n.at(make_tuple(p, x, es.first, es.second)));
-    ranges::action::sort(sucedges);
-    esucs[v] = sucedges;
+    //sort successors by max odd prio (to hopefully speedup restriction)
+    ranges::action::sort(sucedges, [&max_odd_pri](auto a, auto b){ return max_odd_pri(a) < max_odd_pri(b); });
+    swap(esucs[v], sucedges);
   }
 
   //corresponding successor function
-  function<vector<state_t>(state_t)> const sucs = [&esucs](state_t const v){ return esucs.at(v); };
-
-  //corresponding priority function
-  auto const to_max_odd = priority_transformer(aut.get_patype(), PAType::MAX_ODD, aut.pri_bounds());
-  function<int(state_t)> const max_odd_pri = [&to_max_odd,&n2e](state_t const v){ return to_max_odd(get<3>(n2e[v])); };
+  auto const sucs = [&esucs](state_t const v){ return ranges::view::all(esucs.at(v)); };
 
   //calculate priority map (old edge pri -> new edge pri)
   if (log) {
-    log->info("Constructed edge graph with {} nodes.", ests.size());
+    log->info("constructed edge graph with {} nodes.", ests.size());
     log->info("calculating new priorities...");
   }
-  auto const primap = pa_minimize_priorities(ranges::view::all(ests), sucs, max_odd_pri);
+  auto const primap = pa_minimize_priorities(ranges::view::all(ests), sucs, max_odd_pri, to_max_odd(aut.pris().front()));
 
   if (log)
     log->info("applying new priority map...");
@@ -428,9 +424,10 @@ bool minimize_priorities(Aut<T>& aut, shared_ptr<spdlog::logger> log = nullptr) 
   auto const from_max_odd = priority_transformer(PAType::MAX_ODD, aut.get_patype(), mmel);
 
   //map over priorities
-  for (auto const it : primap) {
-    auto const e = n2e[it.first];
-    aut.mod_edge(get<0>(e), get<1>(e), get<2>(e), from_max_odd(it.second));
+  for (auto const es : ests) {
+    auto const& e = n2e[es];
+    aut.mod_edge(get<0>(e), get<1>(e), get<2>(e),
+                 from_max_odd(map_has_key(primap, es) ? primap.at(es) : 0));
   }
 
   return true;
