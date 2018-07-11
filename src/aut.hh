@@ -101,7 +101,7 @@ public:
   void set_name(string const& n) { name = n; }
 
   size_t num_syms() const { return 1 << aps.size(); }
-  auto syms() const { return ranges::view::ints((sym_t)0,(sym_t)num_syms()); }
+  auto syms() const { return ranges::view::ints((int)0,(int)num_syms()); }
 
   vector<string> const& get_aps() const { return aps; }
   void set_aps(vector<string> const& ap) {

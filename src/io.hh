@@ -162,7 +162,7 @@ class MyConsumer<Aut<string>> : public HOAConsumerNull {
 
     // check boolean expression against all combinations and add successors accordingly
     // store successors in set for now - keeps them unique and sorted
-    for (sym_t sym = 0; sym < (int)aut.num_syms(); sym++) {
+    for (sym_t const sym : aut.syms()) {
       if (eval_expr(labelExpr, sym) && !conjSucs.empty())
         for (auto const trg : conjSucs) {
           if (!aut.has_state(trg))
