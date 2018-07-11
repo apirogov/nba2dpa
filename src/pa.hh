@@ -291,6 +291,151 @@ void change_patype(Aut<T> &aut, PAType pt) {
 // ----------------------------------------------------------------------------
 
 template <typename Range, typename SuccFun>
+int max_chain2(unordered_map<EdgeNode,int>& newpri, Range const& p, SuccFun const& get_succs, int curmax) {
+  if (p.empty()) //by definition, empty set has no chain
+    return 0;
+
+  vector<state_t> pp = p;
+  auto const target_in_p = [&](EdgeNode const& e){
+    // for (auto const s : pp)
+    //   if (s==get<2>(e))
+    //     return true;
+    // return false;
+    return ranges::find(pp, get<2>(e))!=ranges::end(pp);
+  };
+  // auto tmp = get_succs(0) | ranges::view::filter(target_in_p);
+  // cerr << tmp.empty();
+  auto const allowed_edge = [&curmax](EdgeNode const& e){return get<3>(e) < curmax; };
+  auto const restricted_succs = [&](state_t v) {
+    // important: requires that successors pre-sorted correctly!
+    vector<EdgeNode> tmp = get_succs(v);
+    return //get_succs(v)
+           tmp          | ranges::view::take_while(allowed_edge)
+                        | ranges::view::filter(target_in_p)
+                        | ranges::view::transform([](EdgeNode const& e){ return get<2>(e);})
+                        | ranges::to_vector
+                        // | ranges::view::filter([&](auto const s){return contains(pp, s);})
+                        ;
+  };
+  auto scci = get_sccs(p, restricted_succs);
+  auto triv = trivial_sccs(restricted_succs, scci);
+
+  int maxlen = 0;
+  for (auto& it : scci.sccs) {
+    auto const i = it.first;
+    auto& scc = it.second;
+
+    if (contains(triv,i)) //skip trivial SCCs
+      continue;
+
+    // get maximal outgoing priority in SCC
+    auto const target_in_scc = [&](EdgeNode const& e){return contains(scc,get<2>(e));};
+    auto const max_pri_edge = [&](state_t s){
+      auto tmp = get_succs(s);
+      if  (tmp.empty())
+        return 0;
+      return ranges::max(tmp | ranges::view::take_while(allowed_edge)
+                             | ranges::view::filter(target_in_scc)
+                             | ranges::view::transform([](EdgeNode const& e){ return get<3>(e); })
+                            );
+    };
+    int scc_pri = ranges::max(scc | ranges::view::transform(max_pri_edge));
+
+
+    // calculate "derivative"
+    // auto mid = partition(begin(scc), end(scc), [&](state_t v){return oldpri(v) < scc_pri;});
+
+    int m = 0;
+    if (scc_pri > 0) {
+      m = max_chain2(newpri, ranges::view::bounded(scc), get_succs, scc_pri);
+
+      if ((scc_pri - m) % 2 == 1) //parity alternation -> requires new priority
+        m++;
+    }
+
+    for (auto const s : ranges::view::bounded(scc)) {
+      for (auto const es : get_succs(s)
+                         | ranges::view::drop_while([&](EdgeNode const& e){return get<3>(e) < scc_pri;})
+                         | ranges::view::filter(target_in_scc) ) {
+        newpri[es] = m;
+
+        if (newpri.size() % 10000 == 0) // progress indicator
+          cerr << newpri.size() << endl;
+      }
+    }
+
+    maxlen = max(maxlen, m);
+  }
+
+  return maxlen;
+  // return 0;
+}
+
+// takes priorities (with max odd parity!), minimizes them
+// takes all states, outgoing edge (EdgeNode) function and max-odd maximal prio
+// priorities must be from a max odd acceptance
+// returns new state to priority map
+// Paper: "Computing the Rabin Index of a parity automaton"
+template <typename Range, typename SuccFun>
+unordered_map<EdgeNode, int> pa_minimize_priorities2(Range const& states, SuccFun const& get_succs, int maxoldpri) {
+  unordered_map<EdgeNode, int> primap;
+  max_chain2(primap, states, get_succs, maxoldpri+1);
+  return primap;
+}
+
+// auto on = [](auto f, auto g){ return [](auto a, auto b){ return f(g(a),g(b)); } }
+
+// take a DPA, minimize number of used priorities
+template<typename T>
+bool minimize_priorities2(Aut<T>& aut, shared_ptr<spdlog::logger> log = nullptr) {
+  assert(aut.is_colored());
+  //priority function (more convenient to work with max odd here)
+  auto const to_max_odd = priority_transformer(aut.get_patype(), PAType::MAX_ODD, aut.pri_bounds());
+
+  if (log)
+    log->info("preparing edge graph...");
+
+  //calc list of outgoing edges sorted by max-odd prio
+  unordered_map<state_t,vector<EdgeNode>> esucs;
+  for (auto const p : aut.states()) {
+    vector<EdgeNode> sucedges;
+    for (sym_t const& x : aut.state_outsyms(p))
+      for (auto const& es : aut.succ_edges(p,x))
+        sucedges.push_back(make_tuple(p, x, es.first, to_max_odd(es.second)));
+    //sort successors by max odd prio (to hopefully speedup restriction)
+    ranges::action::sort(sucedges, [](auto a, auto b){ return get<3>(a) < get<3>(b); });
+    swap(esucs[p], sucedges);
+  }
+
+  //corresponding successor-edge function
+  auto const sucs = [&esucs](state_t const v){ return ranges::view::bounded(esucs.at(v)); };
+
+  //calculate priority map (old edge pri -> new edge pri)
+  if (log)
+    log->info("calculating new priorities...");
+  auto const primap = pa_minimize_priorities2(ranges::view::bounded(aut.states()), sucs, to_max_odd(aut.pris().front()));
+
+  if (log)
+    log->info("applying new priority map...");
+  //calculate conversion back from max odd to original
+  auto const mmeli = std::minmax_element(begin(primap), end(primap),
+    [](auto const& i, auto const& j){ return i.second < j.second; });
+  auto const mmel = make_pair(mmeli.first->second, mmeli.second->second);
+  auto const from_max_odd = priority_transformer(PAType::MAX_ODD, aut.get_patype(), mmel);
+
+  //map over priorities
+  for (auto const& it : esucs) {
+    for (auto const& e : it.second) {
+      aut.mod_edge(get<0>(e), get<1>(e), get<2>(e), from_max_odd(map_has_key(primap, e) ? primap.at(e) : 0));
+    }
+  }
+
+  return true;
+}
+
+// ----------------------------------------------------------------------------
+
+template <typename Range, typename SuccFun>
 int max_chain(function<int(state_t)> const& oldpri, unordered_map<state_t,int>& newpri,
     Range const& p, SuccFun const& get_succs,int curmax) {
   if (p.empty()) //by definition, empty set has no chain

@@ -45,7 +45,7 @@ SCCDat get_sccs(Range const& states, F get_succs, bool store_partitions=true) {
       open.push(v);  // this node is "pending" (not completely discovered from here)
 
       auto const sucsv = get_succs(v);
-      for (auto const w : ranges::view::bounded(ranges::view::all(sucsv))) {  // process edges with any label
+      for (auto const w : ranges::view::bounded(sucsv)) {  // process edges with any label
         if (!map_has_key(order, w)) {
           call.push(w);  // recursively explore nodes that have not been visited yet
         } else if (!map_has_key(ret.scc_of, w)) {

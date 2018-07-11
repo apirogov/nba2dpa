@@ -312,7 +312,7 @@ PA process_nba(Args const &args, auto& aut, std::shared_ptr<spdlog::logger> log)
       auto optlog = args.verbose>1 ? log : nullptr;
       log->info("#priorities before: {}", pa.pris().size());
       log->info("#states before: {}", pa.states().size());
-      bench(log, "minimize number of priorities", WRAP(minimize_priorities(pa, optlog)));
+      bench(log, "minimize number of priorities", WRAP(minimize_priorities2(pa, optlog)));
       log->info("#priorities after: {}", pa.pris().size());
       bench(log, "minimize number of states", WRAP(minimize_pa(pa, optlog)));
       log->info("#states after: {}", pa.num_states());
