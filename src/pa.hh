@@ -529,9 +529,31 @@ bool minimize_pa(Aut<T>& pa, shared_ptr<spdlog::logger> log = nullptr) {
     log->info("Merging equivalent states...");
   pa.quotient(equiv);
   // cerr << "quotiented" << endl;
+
   auto const unreach = unreachable_states(pa, pa.get_init());
   pa.remove_states(unreach);
   // cerr << "removed " << unreach.size() << " unreachable" << endl;
+
+  // remove rejecting sink (which is unique after min.) in complete automaton
+  // unless it is the initial state (i.e. automaton with empty language)
+  state_t rejsink = -1;
+  for (auto const v : pa.states()) {
+    //must be rej. self-loop
+    bool rsink = true;
+    for (auto const i : pa.state_outsyms(v)) {
+      for (auto const es : pa.succ_edges(v, i)) {
+        if (es.first != v || (es.second % 2) == 0)
+          rsink = false;
+      }
+    }
+    if (rsink) {
+      rejsink = v;
+      break;
+    }
+  }
+  if (rejsink >= 0 && rejsink != pa.get_init())
+    pa.remove_states({rejsink});
+
   pa.normalize();
   // cerr << "normalized" << endl;
 
