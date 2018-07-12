@@ -121,6 +121,8 @@ public:
 
   auto pris() const { return ranges::view::keys(prio_cnt); }
   pair<pri_t,pri_t> pri_bounds() const {
+    if (prio_cnt.empty())
+      return make_pair(0,0);
     return make_pair(begin(prio_cnt)->first, rbegin(prio_cnt)->first);
   }
 

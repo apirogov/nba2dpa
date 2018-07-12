@@ -21,6 +21,10 @@ auto identity = [](auto const& t){ return t; };
 // auto return_const = [](auto const&){ return V; };
 auto const_true = [](auto const&){ return true; };
 
+// useful to compare on some mapping function, e.g.
+// sort(some_seq, on(less<int>(), [](auto x){return -x;}));
+auto on = [](auto f, auto g){ return [f, g](auto a, auto b){ return f(g(a),g(b)); }; };
+
 // is sorted + unique vector?
 template<typename T>
 bool is_set_vec(std::vector<T> const& v) {

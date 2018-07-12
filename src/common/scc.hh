@@ -44,7 +44,7 @@ SCCDat get_sccs(Range const& states, F get_succs, bool store_partitions=true) {
       reps.push(v);  // SCC representative candidate (for now)
       open.push(v);  // this node is "pending" (not completely discovered from here)
 
-      auto const sucsv = get_succs(v);
+      auto sucsv = get_succs(v);
       for (auto const w : ranges::view::bounded(sucsv)) {  // process edges with any label
         if (!map_has_key(order, w)) {
           call.push(w);  // recursively explore nodes that have not been visited yet
@@ -124,7 +124,7 @@ std::set<unsigned> trivial_sccs(F const& succ, SCCDat const& scci) {
     auto const& sts = scc.second;
     // single state with no self-loop?
     bool const trivacc = sts.size() == 1;
-    auto const sucsts = succ(sts.front());
+    auto sucsts = succ(sts.front());
     bool const noselfloop = ranges::view::filter(sucsts, [&](auto s){ return s == sts.front(); }).empty();
     if (trivacc && noselfloop)
       ret.emplace(scc.first);

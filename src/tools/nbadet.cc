@@ -301,19 +301,16 @@ PA process_nba(Args const &args, auto& aut, std::shared_ptr<spdlog::logger> log)
     }
 
     // -- begin postprocessing --
-
-    pa.make_complete();
-    pa.make_colored();
-
-    //TODO: minimize priorities
-    //TODO: minimize states
-
     if (args.mindfa) {
       auto optlog = args.verbose>1 ? log : nullptr;
       log->info("#priorities before: {}", pa.pris().size());
       log->info("#states before: {}", pa.states().size());
-      bench(log, "minimize number of priorities", WRAP(minimize_priorities2(pa, optlog)));
+
+      pa.make_colored();
+      bench(log, "minimize number of priorities", WRAP(minimize_priorities(pa, optlog)));
       log->info("#priorities after: {}", pa.pris().size());
+
+      pa.make_complete();
       bench(log, "minimize number of states", WRAP(minimize_pa(pa, optlog)));
       log->info("#states after: {}", pa.num_states());
     }
@@ -323,9 +320,7 @@ PA process_nba(Args const &args, auto& aut, std::shared_ptr<spdlog::logger> log)
     //sanity checks
     assert(pa.get_name() == aut.get_name());
     assert(pa.get_aps() == aut.get_aps());
-    // assert(pa.is_complete());
-    // assert(pa.is_colored());
-    // assert(pa.is_deterministic());
+    assert(pa.is_deterministic());
 
     if (args.stats) { //show stats after postprocessing
       print_stats(pa);
