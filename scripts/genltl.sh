@@ -21,7 +21,7 @@ genltl \
 
 #or-g might be already minimal by spot? ("clean" growth)
 
-# spot is used with autfilt -D -S -C -P
+# spot is used with autfilt -D -P
 
 #following yield det. BA already and hence are useless:
   # --and-f=..8 \

@@ -3,7 +3,7 @@
 require 'open3'
 tout = ARGV[0].to_i
 slowdet_out = ARGV[1]
-cmd = "timeout #{tout} autfilt -D -S -C -P"
+cmd = "timeout #{tout} autfilt -D -P"
 
 auts = []
 aut = ""
