@@ -490,13 +490,15 @@ public:
     }
   }
 
-  void normalize(state_t const offset=0) {
-    *this = get_normalized(offset);
+  map<state_t, state_t> normalize(state_t const offset=0) {
+    map<state_t, state_t> m;
+    tie(*this, m) = get_normalized(offset);
     normalized = true;
+    return m;
   }
 
   //renumber all states continuously starting from provided offset
-  Aut<T> get_normalized(state_t const offset=0) {
+  pair<Aut<T>, map<state_t, state_t>> get_normalized(state_t const offset=0) {
     //calculate state renumbering
     map<state_t, state_t> m;
     state_t i=offset;
@@ -508,7 +510,11 @@ public:
         needs_renumbering = true;
     }
     if (!needs_renumbering) { //everything is fine already -> return copy
-      return *this;
+      auto const ret = *this; //copy
+      map<state_t,state_t> retmap;
+      for (auto const s : ret.states())
+        retmap[s] = s;
+      return make_pair(move(ret), move(retmap));
     }
 
     // cerr << "offset: " << offset << endl;
@@ -535,7 +541,7 @@ public:
       }
     }
 
-    return ret;
+    return make_pair(move(ret), move(m));
   }
 
 };

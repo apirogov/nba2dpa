@@ -188,6 +188,185 @@ void ba_trim(Aut<T>& ba, shared_ptr<spdlog::logger> log=nullptr) {
     log->info("removed {} useless states", trimmed);
 }
 
+// direct simulation Algo. Paper: "Optimizing Buchi automata" (Etessami, Holzmann)
+// TODO: review code, maybe make more efficient (not critical, as inputs are small)
+template <typename T>
+auto ba_direct_sim(Aut<T> const& ba) {
+  using po_type = map<unsigned,set<unsigned>>;
+  using ni_type = map<int,set<unsigned>>; //maximal neighbor i-type set N_i
+  using interm_clr = pair<unsigned, ni_type>;  // <c_i-1, N_i-1>
+
+
+  //color a <=_po color b
+  auto const po_leq = [](po_type const& po, unsigned a, unsigned b) {
+    if (a==b) //refl.
+      return true;
+    if (!map_has_key(po, a))
+      return false;
+    if (!contains(po.at(a), b)) // a <= b and a != b ==> a < b
+      return false;
+    return true;
+  };
+
+  //for each sym of b there is this sym of a with >= color <=> a dominates b
+  auto const dominates = [&po_leq](po_type const& po, ni_type const& a, ni_type const& b) {
+    for (auto const& it : b) {
+      if (!map_has_key(a, it.first))
+        return false; // a has not pairs for this symbol -> can not dominate b
+
+      auto const domcand = a.at(it.first);
+      for (auto const bc : it.second) { //for each maximal color for sym in b...
+        //look for a maximal color in a that dominates that
+        bool has_dom = false;
+        for (auto const ac : domcand) {
+          if (po_leq(po, bc, ac)) {
+            has_dom = true;
+            break;
+          }
+        }
+        //failed to find dominating color
+        if (!has_dom)
+          return false;
+      }
+    }
+    return true;
+  };
+
+  po_type old_po; //init po_-1
+  po_type po{{0,{0}},{1,{0,1}}}; //init po_0
+  map<state_t, unsigned> old_clr; //init C_-1
+  map<state_t, unsigned> clr; //init C_0
+  for (auto const s : ba.states())
+    clr[s] = !ba.state_buchi_accepting(s);
+  map<state_t, interm_clr> expanded_clrs; //states -> tuple-colors
+
+  //iterate until fixpoint
+  while (clr != old_clr || po != old_po) {
+    //shift previous new to old
+    swap(old_po, po);
+    swap(old_clr, clr);
+
+    //new colors = old color + succ sym old colors
+    expanded_clrs.clear();
+    // cerr << "--------" << endl;
+    for (auto const s : ba.states()) {
+      expanded_clrs[s] = {old_clr.at(s), {}}; //<C^{i-1}(s),...
+      // cerr << s << " -> " << expanded_clrs.at(s).first << " | ";
+      //... N^{i-1}(s)>
+      for (auto const x : ba.state_outsyms(s)) {
+        // = for each symbol, calculate the maximal (i-1)-types
+        auto const sucs = ba.succ(s,x);
+        set<unsigned> const loclrs = sucs | ranges::view::transform([&](state_t q){ return old_clr[q]; });
+        for (auto const t : sucs) {
+          auto const ct = old_clr.at(t);
+
+          //check that ct is maximal succ color wrt po
+          //i.e. no successor for same letter has a color that dominates ct
+          bool maximal = false;
+          if (!map_has_key(old_po, ct)) {
+            maximal = true;
+          } else {
+            vector<unsigned> tmp;
+            ranges::set_intersection(old_po.at(ct), loclrs, ranges::back_inserter(tmp));
+            if (tmp.empty() || tmp==vector<unsigned>{ct})
+              maximal = true;
+          }
+
+          if (maximal && !contains(expanded_clrs.at(s).second[x], ct)) {
+            expanded_clrs.at(s).second[x].emplace(ct);
+            // cerr << "(" << (int)x << "," << ct << ") ";
+          }
+        }
+      }
+      // cerr << endl;
+    }
+
+    //normalize colorset with lex. ordering
+    vector<interm_clr> tmp = ranges::view::values(expanded_clrs);
+    ranges::action::unique(ranges::action::sort(tmp));
+    map<interm_clr, unsigned> norm_clr;
+    int i=0;
+    for (auto const& c : tmp) {
+      norm_clr[c] = i++;
+    }
+    // map states to new number-colors
+    clr.clear();
+    for (auto const s : ba.states()) {
+      clr[s] = norm_clr.at(expanded_clrs.at(s));
+    }
+
+    //new partial order
+    po.clear();
+    for (auto const s1 : ba.states()) {
+      auto const c1 = expanded_clrs.at(s1);
+      for (auto const s2 : ba.states()) {
+        auto const c2 = expanded_clrs.at(s2);
+
+        if (po_leq(old_po, c2.first, c1.first) && dominates(old_po, c1.second, c2.second)) {
+          po[clr.at(s2)].emplace(clr.at(s1));
+        }
+      }
+    }
+
+    //debug print test
+    /*
+    for (auto const s : ba.states()) {
+      cerr << s << " -> " << clr[s] << endl;
+    }
+    for (auto const it : po) {
+      cerr << it.first << " <= " << seq_to_str(it.second) << endl;
+    }
+    */
+  }
+
+  //construct quotient automaton: colors as states
+  Aut<string> ret(true, ba.get_name(), ba.get_aps(), clr.at(ba.get_init()));
+  if (ba.state_buchi_accepting(ba.get_init()))
+      ret.set_pri(ret.get_init(), 0);
+  ret.tag_to_str = default_printer<string>();
+  for (auto const s : ba.states()) {
+    auto const c = clr.at(s);
+    if (!ret.has_state(c)) {
+      ret.add_state(c);
+      if (ba.state_buchi_accepting(s))
+        ret.set_pri(c, 0);
+      // else
+      //   ret.set_pri(c, 1);
+    }
+  }
+  //edges between colors: (C(p), sym, C(q)) <=> (sym,C(q)) in N^i(p)
+  for (auto const s : ba.states()) {
+    for (auto const& it : expanded_clrs.at(s).second) {
+      for (auto const trgclr : it.second) {
+        // cerr << "edge " << clr.at(s) << " - " << (int) it.first << " > " << trgclr << endl;
+        ret.add_edge(clr.at(s), it.first, trgclr);
+      }
+    }
+  }
+
+  //decorate with info about original states in tag
+  map<unsigned, set<state_t>> tag;
+  for (auto const& it : clr) {
+    tag[it.second].emplace(it.first);
+  }
+  for (auto const c : ret.states()) {
+    ret.tag.put(seq_to_str(tag.at(c)), c);
+  }
+  //normalize and remap the PO
+  ba_trim(ret); //remove now useless states
+  auto const m = ret.normalize(); //get mapping of remaining state names (colors)
+  //transform the partial order to match new ids -> gives detected language inclusions
+  po_type norm_po;
+  for (auto const it : po) {
+    if (!map_has_key(m, it.first))
+      continue; //a removed state
+    norm_po[m.at(it.first)] =  it.second | ranges::view::filter([&m](auto v) { return map_has_key(m, v); })
+                                         | ranges::view::transform([&m](auto v){ return m.at(v); });
+  }
+
+  return make_pair(move(ret), move(norm_po));
+}
+
 //context state set -> relatively acc, rej subsets
 using Context = unordered_map<nba_bitset, pair<nba_bitset, nba_bitset>>;
 

@@ -31,6 +31,7 @@ struct Args {
 
   bool trim;
   bool asinks;
+  bool dsim;
   bool mindfa;
 
   int mergemode;
@@ -68,6 +69,8 @@ Args parse_args(int argc, char *argv[]) {
       {'k', "trim"});
   args::Flag asinks(parser, "asinks", "Detect and use accepting (pseudo)sinks.",
       {'j', "acc-sinks"});
+  args::Flag dsim(parser, "dsim", "Use direct simulation for preprocessing and optimization.",
+      {'i', "dir-sim"});
 
   // postprocessing
   args::Flag mindfa(parser, "mindfa", "First minimize number of priorities, "
@@ -152,6 +155,7 @@ Args parse_args(int argc, char *argv[]) {
 
   args.trim = trim;
   args.asinks = asinks;
+  args.dsim = dsim;
   args.mindfa = mindfa;
 
   args.psets = psets;
@@ -274,6 +278,15 @@ PA process_nba(Args const &args, auto& aut, std::shared_ptr<spdlog::logger> log)
       ba_trim(aut, log);
     // aut->normalize(); //don't do this, otherwise relationship not clear anymore
 
+    if (args.dsim) {
+      auto const simret = ba_direct_sim(aut);
+      aut = simret.first;
+      //implications. TODO: use those to optimize det.:
+      // - if two states in same reachable set and one dominates, keep dominating
+      // for (auto const it : simret.second)
+      //   cerr << it.first << " <= " << seq_to_str(it.second) << endl;
+    }
+
     auto const dc = assemble_detconf(args, aut, log);
     if (args.verbose >= 2)
       cerr << dc << endl;
@@ -285,7 +298,6 @@ PA process_nba(Args const &args, auto& aut, std::shared_ptr<spdlog::logger> log)
     log->info("#states in 2^A: {}, #SCCs in 2^A: {}", pscon.num_states(), pscon_scci.sccs.size());
     // print_aut(pscon);
 
-    // TODO: language inclusion sim stuff
 
     // -- end of preprocessing --
 
