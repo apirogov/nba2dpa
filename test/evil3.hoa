@@ -1,0 +1,27 @@
+HOA: v1
+name: "Evil(3)"
+States: 5
+Start: 0
+AP: 3 "#" "a" "b"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc
+--BODY--
+State: 0
+[t] 2
+[t] 3
+[t] 4
+State: 1 {0}
+[!0&!1&!2] 2
+[!0&!1&2] 3
+[!0&1&!2] 4
+State: 2
+[t] 2
+[!0&!1&!2] 1
+State: 3
+[t] 3
+[!0&!1&2] 1
+State: 4
+[t] 4
+[!0&1&!2] 1
+--END--

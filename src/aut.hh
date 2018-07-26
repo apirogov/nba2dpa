@@ -569,15 +569,27 @@ adj_mat get_adjmat(auto const& aut) {
   return mat;
 }
 
-inline nba_bitset powersucc(adj_mat const& mat, nba_bitset from, sym_t x, nba_bitset sinks=0) {
+//takes adj matrix, set of source states, transition symbol
+//a set of accepting sinks
+//a complete map of strict subsumptions (if bit i is set, &= with corresponding mask)
+//returns successors
+inline nba_bitset powersucc(adj_mat const& mat, nba_bitset from, sym_t x, nba_bitset sinks=0, map<unsigned,nba_bitset> impl_mask={}) {
   nba_bitset ret = 0;
   auto const& xmat = mat[x];
+  //collect all successors
   for (int const i : ranges::view::ints(0, (int)ret.size())) {
     if (from[i])
       ret |= xmat[i];
   }
   if ((ret & sinks) != 0) //reached acc sink
     return sinks;
+
+  //remove subsumed states
+  for (int const i : ranges::view::ints(0, (int)ret.size())) {
+    if (ret[i] && map_has_key(impl_mask, (unsigned)i))
+      ret &= impl_mask[i];
+  }
+
   return ret;
 }
 

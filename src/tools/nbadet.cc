@@ -214,8 +214,30 @@ DetConfSets get_detconfsets(auto const& aut, DetConf const& dc,
   return calc_detconfsets(dc, scci, sccAcc, sccDet);
 }
 
+map<unsigned, nba_bitset> sim_po_to_implmask(auto const& aut, map<unsigned, set<unsigned>> const& po) {
+  //calculate reachable states from each state
+  map<state_t, vector<state_t>> reaches;
+  for (auto const s : aut.states()) {
+    reaches[s] = reachable_states(aut, s);
+  }
+
+  map<unsigned, nba_bitset> ret;
+  for (auto const s : aut.states())
+    ret[s].set(); //mask allows everything by default
+
+  for (auto const& it : po)
+    for (auto const b : it.second) {
+      if (it.first != b && !contains(reaches.at(b), it.first)) {
+        ret[b].reset(it.first);
+      }
+    }
+
+  return ret;
+}
+
 //given args and NBA, prepare corresponding determinization config structure
 DetConf assemble_detconf(Args const& args, auto const& aut,
+                    map<unsigned,set<unsigned>> const& impl_po,
                     shared_ptr<spdlog::logger> log = nullptr) {
   auto dc = detconf_from_args(args);
   dc.aut_states = to_bitset<nba_bitset>(aut.states());
@@ -229,9 +251,12 @@ DetConf assemble_detconf(Args const& args, auto const& aut,
   if (args.asinks)
     dc.aut_asinks = to_bitset<nba_bitset>(ba_get_acc_sinks(aut, log));
 
+  //default mask for language inclusion
+  dc.impl_mask = sim_po_to_implmask(aut, impl_po);
+
   //calculate 2^AxA context structure and its sccs
   if (args.context)
-    dc.ctx = get_context(aut, dc.aut_mat, dc.aut_asinks, log);
+    dc.ctx = get_context(aut, dc.aut_mat, dc.aut_asinks, dc.impl_mask, log);
 
   //precompute lots of sets used in construction
   dc.sets = get_detconfsets(aut, dc, log);
@@ -278,26 +303,30 @@ PA process_nba(Args const &args, auto& aut, std::shared_ptr<spdlog::logger> log)
       ba_trim(aut, log);
     // aut->normalize(); //don't do this, otherwise relationship not clear anymore
 
+    map<unsigned, set<unsigned>> po;
     if (args.dsim) {
       auto const simret = ba_direct_sim(aut);
       aut = simret.first;
+      po = simret.second;
+      // print_aut(aut);
+
       //implications. TODO: use those to optimize det.:
       // - if two states in same reachable set and one dominates, keep dominating
       // for (auto const it : simret.second)
       //   cerr << it.first << " <= " << seq_to_str(it.second) << endl;
     }
 
-    auto const dc = assemble_detconf(args, aut, log);
+    auto const dc = assemble_detconf(args, aut, po, log);
+
     if (args.verbose >= 2)
       cerr << dc << endl;
 
     //calculate 2^A and its sccs
     auto const pscon = bench(log,"powerset_construction",
-                             WRAP(powerset_construction(aut, dc.aut_mat, dc.aut_asinks)));
+                             WRAP(powerset_construction(aut, dc.aut_mat, dc.aut_asinks, dc.impl_mask)));
     auto const pscon_scci = get_sccs(pscon.states(), aut_succ(pscon));
     log->info("#states in 2^A: {}, #SCCs in 2^A: {}", pscon.num_states(), pscon_scci.sccs.size());
     // print_aut(pscon);
-
 
     // -- end of preprocessing --
 

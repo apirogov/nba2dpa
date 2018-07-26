@@ -16,7 +16,7 @@ using ps_tag = nba_bitset;
 using PS = Aut<ps_tag>;
 
 // BA -> 2^BA (as reachable from initial state)
-PS powerset_construction(auto const& nba, adj_mat const& mat, nba_bitset const& sinks=0) {
+PS powerset_construction(auto const& nba, adj_mat const& mat, nba_bitset const& sinks=0, map<unsigned,nba_bitset> const& impls={}) {
   assert(nba.is_buchi());
 
   // create aut, add initial state, associate with initial states in original aut
@@ -34,7 +34,7 @@ PS powerset_construction(auto const& nba, adj_mat const& mat, nba_bitset const& 
     auto const curset = ps.tag.geti(st);
     // calculate successors and add to graph
     for (auto const i : ps.syms()) {
-      auto const sucset = powersucc(mat, curset, i, sinks);
+      auto const sucset = powersucc(mat, curset, i, sinks, impls);
       if (sucset == 0)
         continue;
 
@@ -75,7 +75,7 @@ template <>
 namespace nbautils {
 
 // BA -> 2^BA x BA, returns basically blown-up original nondet automaton with context annot
-PP powerset_product(auto const& nba, adj_mat const& mat, nba_bitset const& sinks=0) {
+PP powerset_product(auto const& nba, adj_mat const& mat, nba_bitset const& sinks=0, map<unsigned,nba_bitset> const& impls={}) {
   assert(nba.is_buchi());
 
   // create aut, add initial state, associate with initial states in original aut
@@ -102,7 +102,7 @@ PP powerset_product(auto const& nba, adj_mat const& mat, nba_bitset const& sinks
     // calculate successors
     for (auto const i : ps.syms()) {
       // calc successors of powerset
-      auto const sucset = powersucc(mat, curset, i, sinks);
+      auto const sucset = powersucc(mat, curset, i, sinks, impls);
       auto suctag = make_pair(sucset, 0);
 
       // for each successor of pointed state add successors

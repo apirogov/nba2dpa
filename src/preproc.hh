@@ -370,11 +370,11 @@ auto ba_direct_sim(Aut<T> const& ba) {
 //context state set -> relatively acc, rej subsets
 using Context = unordered_map<nba_bitset, pair<nba_bitset, nba_bitset>>;
 
-Context get_context(auto const& aut, adj_mat const& mat, nba_bitset const asinks,
+Context get_context(auto const& aut, adj_mat const& mat, nba_bitset const asinks, map<unsigned, nba_bitset> const& impl,
                     shared_ptr<spdlog::logger> log = nullptr) {
 
   auto const psp = bench(log,"powerset_product",
-                         WRAP(powerset_product(aut, mat, asinks)));
+                         WRAP(powerset_product(aut, mat, asinks, impl)));
   auto const psp_scci = get_sccs(psp.states() | ranges::to_vector, aut_succ(psp));
   auto const psp_sccAcc = ba_scc_classify_acc(psp, psp_scci);
   // print_aut(psp);

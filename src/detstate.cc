@@ -65,6 +65,10 @@ std::ostream& operator<<(std::ostream& os, DetConf const& dc) {
   os << "aut_states: " << pretty_bitset(dc.aut_states) << endl;
   os << "aut_acc: "    << pretty_bitset(dc.aut_acc) << endl;
   os << "aut_asinks: " << pretty_bitset(dc.aut_asinks) << endl;
+  os << "impl_mask:" << endl;
+  for (auto const& it : dc.impl_mask)
+    if ((~it.second) != 0)
+      os << "\t" <<  it.first << " => " << pretty_bitset(~it.second) << endl;
   os << "ctx: "        << !dc.ctx.empty() << endl;
 
   os << "nscc_states: " <<  pretty_bitset(dc.sets.nscc_states) << endl;
@@ -202,7 +206,7 @@ DetState::DetState(DetConf const& dc, nba_bitset const& qs) {
 //apply successor set function on each set separately, inplace
 void successorize_all(DetConf const& dc, DetState& s, sym_t const x) {
   auto const psucc = [&dc,x](auto const& bset){
-    return powersucc(dc.aut_mat, bset, x, dc.aut_asinks); };
+    return powersucc(dc.aut_mat, bset, x, dc.aut_asinks, dc.impl_mask); };
 
   s.powerset  = psucc(s.powerset);
   s.nsccs     = psucc(s.nsccs);
