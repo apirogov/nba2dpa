@@ -25,7 +25,7 @@ int main(int argc, char *argv[]) {
   auto auts = nbautils::AutStream<Aut<string>>("");
   while (auts.has_next()) {
     auto aut = auts.parse_next();
-    cerr << (int)aut.get_patype() << endl;
+    aut.make_colored();
     minimize_priorities(aut);
     if (aut.get_patype() != PAType::MIN_EVEN)
       change_patype(aut, PAType::MIN_EVEN);

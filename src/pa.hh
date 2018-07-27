@@ -342,6 +342,15 @@ int max_chain(unordered_map<EdgeNode,int>& newpri, Range const& p, SuccFun const
         | ranges::view::filter(target_in_scc);
       for (auto const& e : ranges::view::bounded(nonderiv_edges))
         newpri[e] = m;
+
+      //assign unset derivative edges the new prio of current SCC
+      //(as they apparently don't have cycles for any smaller restriction)
+      auto unset_edges = get_succs(s)
+        | ranges::view::take_while([&](EdgeNode const& e){return get<3>(e) < scc_pri;})
+        | ranges::view::filter(target_in_scc);
+      for (auto const& e : ranges::view::bounded(unset_edges))
+        if (!map_has_key(newpri, e))
+          newpri[e] = m;
     }
 
     maxlen = max(maxlen, m);
