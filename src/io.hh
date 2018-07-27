@@ -15,7 +15,8 @@
 
 // #include <boost/optional.hpp>
 
-#include <aut.hh>
+#include "aut.hh"
+#include "pa.hh"
 
 namespace nbautils {
 

@@ -1,0 +1,26 @@
+HOA: v1
+name: "Par red Test"
+States: 5
+Start: 0
+AP: 1 "x"
+acc-name: parity max odd 3
+Acceptance: 3 Fin(2)&(Inf(1) | Fin(0))
+properties: trans-labels explicit-labels 
+--BODY--
+State: 0
+[!0] 0 {0}
+[!0] 1 {1}
+[!0] 2 {2}
+[0] 4 {1}
+State: 1
+[!0] 0 {1}
+State: 2
+[!0] 2 {0}
+[!0] 3 {1}
+State: 3
+[!0] 2 {1}
+[!0] 4 {2}
+State: 4
+[!0] 1 {0}
+[!0] 3 {0}
+--END--

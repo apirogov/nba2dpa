@@ -1,9 +1,10 @@
+#pragma once
+
 #include <vector>
 #include <cassert>
 #include <functional>
 #include <unordered_map>
 #include "aut.hh"
-#include "io.hh"
 #include "common/scc.hh"
 #include "common/util.hh"
 #include "common/parity.hh"
@@ -378,6 +379,7 @@ bool minimize_priorities(Aut<T>& aut, shared_ptr<spdlog::logger> log = nullptr) 
     esucs[p] = {}; //init empty
     for (sym_t const& x : aut.state_outsyms(p))
       for (auto const& es : aut.succ_edges(p,x)) {
+        // cerr << es.second << " mapped to " << to_max_odd(es.second) << endl;
         esucs[p].push_back(make_tuple(p, x, es.first, to_max_odd(es.second)));
         has_edges = true;
       }
@@ -399,7 +401,8 @@ bool minimize_priorities(Aut<T>& aut, shared_ptr<spdlog::logger> log = nullptr) 
     log->info("calculating new priorities...");
 
   //calculate priority map (old edge pri -> new edge pri)
-  auto const primap = pa_minimize_priorities(aut.states(), sucs, to_max_odd(aut.pris().front()));
+  auto const strongest = pa_acc_is_min(aut.get_patype()) ? aut.pris().front() : aut.pris().back();
+  auto const primap = pa_minimize_priorities(aut.states(), sucs, to_max_odd(strongest));
 
   if (log)
     log->info("applying new priority map...");
@@ -410,7 +413,9 @@ bool minimize_priorities(Aut<T>& aut, shared_ptr<spdlog::logger> log = nullptr) 
   //map over priorities, transforming obtained to original acc. type
   for (auto const& it : esucs) {
     for (auto const& e : it.second) {
-      auto const new_edge_prio = from_max_odd(map_has_key(primap, e) ? primap.at(e) : 0);
+      auto const max_odd_prio = map_has_key(primap, e) ? primap.at(e) : 0;
+      auto const new_edge_prio = from_max_odd(max_odd_prio);
+      // cerr << max_odd_prio << " unmapped to " << new_edge_prio << endl;
       aut.mod_edge(get<0>(e), get<1>(e), get<2>(e), new_edge_prio);
     }
   }

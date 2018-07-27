@@ -5,6 +5,10 @@
 #include <vector>
 
 #include "aut.hh"
+#include "io.hh"
+#include "graph.hh"
+#include "pa.hh"
+
 #include "metrics/bench.hh"
 #include "common/util.hh"
 
@@ -17,4 +21,14 @@ using namespace nbautils;
 int main(int argc, char *argv[]) {
   (void)argv[0];
   (void)argc;
+
+  auto auts = nbautils::AutStream<Aut<string>>("");
+  while (auts.has_next()) {
+    auto aut = auts.parse_next();
+    cerr << (int)aut.get_patype() << endl;
+    minimize_priorities(aut);
+    if (aut.get_patype() != PAType::MIN_EVEN)
+      change_patype(aut, PAType::MIN_EVEN);
+    print_aut(aut);
+  }
 }
