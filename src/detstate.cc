@@ -483,6 +483,7 @@ pri_t perform_actions(DetConf const& dc, DetConfSets const& sts,
     vector<char> node_empty(mscc.size(), true);
     vector<char> node_saturated(mscc.size(), false);
     vector<int> rightmost_ne_child(mscc.size(), -1); //for müller schupp update
+    vector<int> rightmost_na_child(mscc.size(), -1); //for müller schupp update with pure leaves
 
     for (auto const i : ranges::view::ints(0, (int)mscc.size())) {
       if (dc.debug)
@@ -506,8 +507,29 @@ pri_t perform_actions(DetConf const& dc, DetConfSets const& sts,
 
           if (dc.update == UpdateMode::MUELLERSCHUPP) {
             auto const rc=rightmost_ne_child[i];
+            auto const rna=rightmost_na_child[i];
             // cerr << "rc: " << rc << " ";
-            swap(mscc[i].first, mscc[rc].first);
+            if (!dc.puretrees || rc==rna) { //classic muller/schupp update
+              swap(mscc[i].first, mscc[rc].first);
+
+            } else { //merge as much as to ensure accepting sets in leaves only
+              auto const lb = max(l[i]+1, rna);
+
+              //collect as much as necessary for pure leafs
+              nba_bitset subtree = 0;
+              for (auto j=lb; j<i; j++) {
+                subtree |= mscc[j].first;
+                mscc[j].first = 0;
+              }
+              auto const tmp_acc = subtree &  dc.aut_acc;
+              auto const tmp_rej = subtree & ~dc.aut_acc;
+              if (tmp_acc != 0 && tmp_rej != 0) {
+                mscc[i-1].first = tmp_acc;
+                mscc[i].first   = tmp_rej;
+              } else {
+                mscc[i].first = subtree;
+              }
+            }
             // cerr << "merged child" << endl;
 
           } else if (dc.update == UpdateMode::SAFRA) {
@@ -538,12 +560,16 @@ pri_t perform_actions(DetConf const& dc, DetConfSets const& sts,
       //track rightmost nonempty child for the parent
       if (mscc[i].first!=0 && p[i]!= -1)
         rightmost_ne_child[p[i]] = i;
+      //track rightmost non-accepting set child for parent
+      if ((mscc[i].first & ~dc.aut_acc)!=0 && p[i]!= -1)
+        rightmost_na_child[p[i]] = i;
 
     }
     if (dc.debug)
       cerr << endl;
   }
 
+  //now as we know the oldest active rank, we can perform aggressive collapse
   if (dc.update == UpdateMode::FULLMERGE) {
     pri_t act_rank;
     bool act_type;
@@ -551,7 +577,7 @@ pri_t perform_actions(DetConf const& dc, DetConfSets const& sts,
     if (dc.debug)
       cerr << "dominating event: " << act_rank << ", " << act_type << endl;
 
-    for (auto& dscc : s.dsccs) {
+    for (auto& dscc : s.dsccs) { //TODO: maybe not do this for det? too aggressive?
       full_merge_row(0, act_rank, dscc, cur_fresh);
     }
     for (auto& mscc : s.msccs) {

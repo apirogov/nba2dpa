@@ -345,6 +345,8 @@ int max_chain(unordered_map<EdgeNode,int>& newpri, Range const& p, SuccFun const
 
       //assign unset derivative edges the new prio of current SCC
       //(as they apparently don't have cycles for any smaller restriction)
+      //NOTE: can be left out. any priority from 0 up to current SCC prio is valid!
+      //      may lead to different minimization results...
       auto unset_edges = get_succs(s)
         | ranges::view::take_while([&](EdgeNode const& e){return get<3>(e) < scc_pri;})
         | ranges::view::filter(target_in_scc);
