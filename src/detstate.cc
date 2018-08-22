@@ -70,6 +70,7 @@ std::ostream& operator<<(std::ostream& os, DetConf const& dc) {
     if ((~it.second) != 0)
       os << "\t" <<  it.first << " => " << pretty_bitset(~it.second) << endl;
   os << "ctx: "        << !dc.ctx.empty() << endl;
+  os << "maxsets: "        << dc.maxsets << endl;
 
   os << "nscc_states: " <<  pretty_bitset(dc.sets.nscc_states) << endl;
   os << "ascc_states: " <<  pretty_bitset(dc.sets.ascc_states) << endl;
@@ -261,6 +262,37 @@ void expand_row(DetConf const& dc, vector<pair<nba_bitset, pri_t>>& row, pri_t& 
 void expand_trees(DetConf const& dc, DetState &s, pri_t& cur_fresh) {
   for (auto& mscc : s.msccs)
     expand_row(dc, mscc, cur_fresh);
+}
+
+//merge safra tree nodes with too unimportant rank and thereby also prevent them from saturation
+void underapprox_row(DetConf const& dc, vector<pair<nba_bitset, pri_t>>& row) {
+  if (row.empty())
+    return;
+
+  vector<pair<nba_bitset, pri_t>> nrow;
+  nrow.reserve(row.size());
+
+  auto it = cbegin(row);
+  auto cur = *it;
+  do {
+    ++it;
+    if (it == cend(row) || it->second < dc.maxsets || cur.second < dc.maxsets) {
+      nrow.push_back(cur);
+      if (it != cend(row))
+        cur = *it;
+    } else {
+      cur.first |= it->first;
+      cur.second = min(cur.second, it->second);
+    }
+  } while (it != cend(row));
+
+  nrow.shrink_to_fit();
+  swap(row, nrow);
+}
+
+void underapprox_trees(DetConf const& dc, DetState &s) {
+  for (auto& mscc : s.msccs)
+    underapprox_row(dc, mscc);
 }
 
 //given a ranked tuple, keep leftmost occurence of each state
@@ -643,6 +675,10 @@ pair<DetState, pri_t> DetState::succ(DetConf const& dc, sym_t x) const {
   expand_trees(dc, ret, cur_fresh);
   if (debug) {
     cerr << "expand: " << ret << endl;
+  }
+  underapprox_trees(dc, ret);
+  if (debug) {
+    cerr << "uapprox: " << ret << endl;
   }
   nba_bitset const switchers = extract_switchers(dc, cursets, ret);
   if (debug) {

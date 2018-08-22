@@ -5,6 +5,7 @@
 #include <functional>
 #include <unordered_map>
 #include "aut.hh"
+#include "graph.hh"
 #include "common/scc.hh"
 #include "common/util.hh"
 #include "common/parity.hh"
@@ -15,252 +16,6 @@
 namespace nbautils {
 using namespace std;
 using namespace nbautils;
-
-using EdgeNode = tuple<state_t, sym_t, state_t, pri_t>;
-
-struct PAProdState {
-  state_t a;
-  state_t b;
-  int prio;
-
-  //representation of <bool = original automaton (false = left, true = right), important bad, less important good neighbor = int>
-  vector<pair<bool,int>> priord;
-
-
-  // construct an initial parity product state from initial state and parity bounds
-  PAProdState(state_t l, int lmin, int lmax, state_t r, int rmin, int rmax);
-  PAProdState(PAProdState const& other);
-  PAProdState();
-
-  // get new state from current with given new component states (and their prio) and adapted priorities
-  PAProdState succ(state_t l, int pl, state_t r, int pr, bool fulldown=true) const;
-
-  string to_string() const;
-  bool operator<(PAProdState const& other) const;
-  bool operator==(PAProdState const& other) const;
-};
-}
-
-namespace std {
-using namespace nbautils;
-
-template <>
-struct hash<PAProdState> {
-  size_t operator()(PAProdState const& k) const {
-    // Compute individual hash values for first, second and third
-    // http://stackoverflow.com/a/1646913/126995
-    size_t res = 17;
-    res = res * 31 + hash<int>()( k.prio );
-    res = res * 31 + hash<state_t>()( k.a );
-    res = res * 31 + hash<state_t>()( k.b );
-    for (auto const& it : k.priord) {
-      res = res * 31 + (hash<int>()( it.second << it.first ));
-    }
-    return res;
-  }
-};
-
-template <>
-struct hash<EdgeNode> {
-  size_t operator()(EdgeNode const& k) const {
-    // Compute individual hash values for first, second and third
-    // http://stackoverflow.com/a/1646913/126995
-    size_t res = 17;
-    res = res * 31 + hash<state_t>()( get<0>(k) );
-    res = res * 31 + hash<sym_t>()( get<1>(k) );
-    res = res * 31 + hash<state_t>()( get<2>(k) );
-    res = res * 31 + hash<pri_t>()( get<3>(k) );
-    return res;
-  }
-};
-
-}
-
-namespace nbautils {
-using namespace std;
-using namespace nbautils;
-
-//return empty PA accepting nothing
-template<typename T>
-Aut<T> new_empty_pa(vector<string> const& aps) {
-  Aut<T> pa(true, "Empty", aps, 0);
-  pa.set_patype(PAType::MIN_EVEN);
-  pa.set_pri(0, 1);
-  for (auto const i : pa.syms()) {
-    pa.add_edge(0, i, 0, -1);
-  }
-  return pa;
-}
-
-//returns accepting reachable (sub)scc from which a run can be easily constructed
-/*
-template<typename T>
-vector<state_t> find_acc_pa_scc(Aut<T> const& aut) {
-  assert(aut.get_patype() == PAType::MIN_EVEN);
-
-  auto const st = aut.states();
-  function<unsigned(state_t)> const get_pri = [&](state_t v){return aut.get_accs(v).front(); };
-
-  for (auto const p : aut.get_accsets()) {
-    if (p%2==1)
-      continue;
-    // cout << "check " << p << endl;
-
-    // for each good priority, in descending importance order,
-    // try to find non-trivial SCC that never needs to visit any stronger priority
-    succ_fun<state_t> restricted_succ = [&](auto const& s){
-      auto ret = aut.succ(s);
-      ret.erase(remove_if(ret.begin(), ret.end(),
-            [&aut,p](state_t q){ return aut.get_accs(q).front()<p; }), ret.end());
-      return ret;
-    };
-
-    // get SCCs s.t. lower priorities are forbidden
-    auto const scci = get_sccs(st, restricted_succ);
-    auto const best_pri = fold_sccs<state_t,unsigned>(*scci, aut.get_accsets().back(), get_pri,
-                            [](auto a, auto b){return min(a,b);});
-    auto const triv = trivial_sccs(*scci, restricted_succ);
-    if (scci->sccs.size() == triv.size())
-      continue;
-
-    // return any non-trivial good subscc where an acc cycle can be found
-    // with current priority
-    for (int i=0; i<(int)scci->sccs.size(); i++)
-      if (!contains(triv, i) && best_pri.at(i)==p)
-        return scci->sccs.at(i);
-  }
-  return {};
-}
-
-//empty := no accepting subscc
-template<typename T, template <typename... Args> class S>
-bool pa_is_empty(SWA<T,S> const& aut) {
-  return find_acc_pa_scc(aut).empty();
-}
-
-//acc run := prefix into accepting subscc + cycle in accepting subscc
-template<typename T, template <typename... Args> class S>
-pair<vector<state_t>,vector<state_t>> get_acc_pa_run(SWA<T,S> const& aut) {
-  auto scc = find_acc_pa_scc(aut);
-  if (scc.empty())
-    return {};
-
-  sort(begin(scc), end(scc));
-  auto const succ = swa_succ(aut);
-  succ_fun<state_t> const restricted_succ = [&](auto const& p){
-    return set_intersect(succ(p), scc);
-  };
-
-  //get a good important state as cycle pivot
-  state_t pivot = scc.front();
-  for (auto s : scc)
-    if (aut.get_accs(pivot).front() > aut.get_accs(s).front() )
-      pivot = s;
-
-  // cout << "getting pref" << endl;
-  auto const ret = find_path_from_to(aut.get_init().front(), pivot, succ);
-  // cout << "getting cyc" << endl;
-  auto const cyc = find_path_from_to(pivot, pivot, restricted_succ);
-  return make_pair(move(ret),move(cyc));
-}
-
-//TODO: get run, reconstruct word by choosing edge to known successor on run
-// pair<vector<sym_t>,vector<sym_t>> get_acc_pa_word(SWA<T,S> const& aut) {
-// }
-
-using PAP = SWA<PAProdState,naive_unordered_bimap>;
-template<typename A, typename B, template <typename... Args1> class SA, template <typename... Args2> class SB>
-PAP::uptr pa_union(SWA<A, SA> const& aut_a, SWA<B, SB> const& aut_b) {
-  assert(aut_a.acond == Acceptance::PARITY);
-  assert(aut_b.acond == Acceptance::PARITY);
-  assert(aut_a.get_patype() == PAType::MIN_EVEN);
-  assert(aut_b.get_patype() == PAType::MIN_EVEN);
-  assert(aut_a.get_aps() == aut_b.get_aps());
-  assert(is_deterministic(aut_a));
-  assert(is_deterministic(aut_b));
-  assert(is_colored(aut_a));
-  assert(is_colored(aut_b));
-
-  auto pa = std::make_unique<PAP>(Acceptance::PARITY, "", aut_a.get_aps());
-  pa->set_patype(PAType::MIN_EVEN);
-  pa->tag_to_str = [](PAProdState const& s){ return s.to_string(); };
-
-  state_t l    = aut_a.get_init().front();
-  int lmin = aut_a.get_accsets().front();
-  int lmax = aut_a.get_accsets().back();
-
-  state_t r    = aut_b.get_init().front();
-  int rmin = aut_b.get_accsets().front();
-  int rmax = aut_b.get_accsets().back();
-  PAProdState inittag(l, lmin, lmax, r, rmin, rmax);
-
-  state_t myinit = 0;
-  pa->add_state(myinit);
-  pa->set_init({myinit});
-  pa->set_accs(myinit, {(unsigned)inittag.prio});
-  pa->tag->put(inittag, myinit);
-
-  int numvis=0;
-  bfs(myinit, [&](auto const& st, auto const& visit, auto const&) {
-    // get inner states of current state
-    auto const curst = pa->tag->geti(st);
-
-    ++numvis;
-    if (numvis % 100 == 0) //progress indicator
-      cerr << numvis << endl;
-
-    for (auto i = 0; i < pa->num_syms(); i++) {
-      auto const suca = aut_a.succ(curst.a, i).front();
-      auto const sucb = aut_b.succ(curst.b, i).front();
-      auto const sucprod = curst.succ(suca, aut_a.get_accs(suca).front(),
-                                      sucb, aut_b.get_accs(sucb).front());
-
-      //check whether there is already a state in the graph with this label
-      auto const sucst = pa->tag->put_or_get(sucprod, pa->num_states());
-
-      //if this is a new successor, add it to graph and enqueue it:
-      if (!pa->has_state(sucst))
-        pa->add_state(sucst);
-      // assign priority according to resulting level
-      if (!pa->has_accs(sucst))
-        pa->set_accs(sucst,{(unsigned)sucprod.prio});
-      // create edge
-      pa->set_succs(st, i, {sucst});
-      // schedule for bfs
-      visit(sucst);
-    }
-  });
-  //TODO: same topo stuff as with safra, using "raw" product
-
-  return move(pa);
-}
-
-template<typename T, typename T2>
-// vector<vector<state_t>> pa_equiv(SWA<T,S> const& aut1, SWA<T,S> const& aut2) {
-bool pa_equivalent(Aut<T> const& aut1, Aut<T2> const& aut2) {
-  auto aut_a(aut1);
-  auto aut_b(aut2);
-  complement_pa(aut_b);
-
-  auto a_times_not_b = pa_union(aut_a, aut_b);
-  complement_pa(*a_times_not_b);
-
-  if (!pa_is_empty(*a_times_not_b))
-    return false;
-
-  complement_pa(aut_a);
-  complement_pa(aut_b);
-  auto not_a_times_b = pa_union(aut_a, aut_b);
-  complement_pa(*not_a_times_b);
-
-  if (!pa_is_empty(*not_a_times_b))
-    return false;
-
-  return true;
-}
-*/
-
-// ----------------------------------------------------------------------------
 
 //map over the priorities (using a function obtained with other functions provided here)
 template<typename T>
@@ -284,6 +39,354 @@ void change_patype(Aut<T> &aut, PAType pt) {
   auto const f = priority_transformer(aut.get_patype(), pt, aut.pri_bounds());
   transform_priorities(aut, f);
   aut.set_patype(pt);
+}
+
+// ----------------------------------------------------------------------------
+
+using EdgeNode = tuple<state_t, sym_t, state_t, pri_t>;
+
+struct PAProdState {
+  state_t a;
+  state_t b;
+
+  //representation of <bool = original automaton (false = left, true = right), important bad, less important good neighbor = int>
+  vector<pair<bool,int>> priord;
+
+
+  // construct an initial parity product state from initial state and parity bounds
+  PAProdState(state_t l, int lmin, int lmax, state_t r, int rmin, int rmax);
+  PAProdState(PAProdState const& other);
+  PAProdState();
+
+  // get new state from current with given new component states (and their prio) and adapted priorities
+  pair<PAProdState, int> succ(state_t l, int pl, state_t r, int pr, bool fulldown=true) const;
+
+  string to_string() const;
+  bool operator<(PAProdState const& other) const;
+  bool operator==(PAProdState const& other) const;
+};
+}
+
+namespace std {
+using namespace nbautils;
+
+template <>
+struct hash<PAProdState> {
+  size_t operator()(PAProdState const& k) const {
+    // Compute individual hash values for first, second and third
+    // http://stackoverflow.com/a/1646913/126995
+    size_t res = 17;
+    res = res * 31 + hash<state_t>()( k.a );
+    res = res * 31 + hash<state_t>()( k.b );
+    for (auto const& it : k.priord) {
+      res = res * 31 + (hash<int>()( it.second << it.first ));
+    }
+    return res;
+  }
+};
+
+template <>
+struct hash<EdgeNode> {
+  size_t operator()(EdgeNode const& k) const {
+    // Compute individual hash values for first, second and third
+    // http://stackoverflow.com/a/1646913/126995
+    size_t res = 17;
+    res = res * 31 + hash<state_t>()( get<0>(k) );
+    res = res * 31 + hash<sym_t>()( get<1>(k) );
+    res = res * 31 + hash<state_t>()( get<2>(k) );
+    res = res * 31 + hash<pri_t>()( get<3>(k) );
+    return res;
+  }
+};
+
+template <>
+struct hash<pair<state_t, state_t>> {
+  size_t operator()(pair<state_t,state_t> const& k) const {
+    // Compute individual hash values for first, second and third
+    // http://stackoverflow.com/a/1646913/126995
+    size_t res = 17;
+    res = res * 31 + hash<state_t>()( get<0>(k) );
+    res = res * 31 + hash<sym_t>()( get<1>(k) );
+    return res;
+  }
+};
+
+}
+
+namespace nbautils {
+using namespace std;
+using namespace nbautils;
+
+//return empty PA accepting nothing
+template<typename T>
+Aut<T> new_empty_pa(vector<string> const& aps) {
+  Aut<T> pa(true, "Empty", aps, 0);
+  pa.set_patype(PAType::MIN_EVEN);
+  pa.set_pri(0, 1);
+  for (auto const i : pa.syms()) {
+    pa.add_edge(0, i, 0, -1);
+  }
+  return pa;
+}
+
+//this is the naive and straight-forward emptiness check in DTPA
+//assumes that all states are reachable
+//returns accepting (sub)scc from which a run can be easily constructed
+//returns an edge with a good priority to build a run from
+template<typename T, typename F>
+pair<vector<state_t>,EdgeNode> find_acc_pa_scc_ext(Aut<T> const& aut, F extra_predicate) {
+  assert(!aut.is_sba());
+
+  auto const stronger = stronger_op_f(aut.get_patype());
+  auto const stronger_of = stronger_priority_f(aut.get_patype());
+  auto const pris = aut.pri_bounds();
+  int const weakest = stronger(pris.first, pris.second) ? pris.second : pris.first;
+  int const lowprio = pa_acc_is_max(aut.get_patype()) ? weakest-2 : weakest+2;
+
+  // for each good priority
+  for (auto const p : aut.pris()) {
+    if (!good_priority(aut.get_patype(), p))
+      continue;
+    // cerr << "check " << p << endl;
+
+    // try to find non-trivial SCC that never needs to visit any stronger priority
+    auto const restricted_succ = [&](auto const& s){
+      vector<state_t> sucs;
+      // cerr << "suc " << s << endl;
+      for (auto const x : aut.state_outsyms(s))
+        for (auto const it : aut.succ_edges(s,x))
+          if (!stronger(it.second, p))
+            sucs.push_back(it.first);
+      sucs |= ranges::action::sort | ranges::action::unique;
+      return sucs;
+    };
+
+    // get SCCs s.t. stronger priorities are forbidden
+    auto const scci = get_sccs(aut.states(), restricted_succ);
+    auto const triv = trivial_sccs(restricted_succ, scci);
+    if (scci.sccs.size() == triv.size())
+      continue;
+
+    // return any non-trivial good subscc where
+    // an acc cycle can be found with current priority
+    for (auto const& it : scci.sccs) {
+      // cerr << seq_to_str(it.second) << endl;
+      if (contains(triv, it.first))
+        continue;
+
+      int sccprio = lowprio;
+      EdgeNode en;
+      for (auto const s : it.second)
+        for (auto const x : aut.state_outsyms(s))
+          for (auto const e : aut.succ_edges(s,x)) {
+            if (scci.scc_of.at(e.first) != scci.scc_of.at(s))
+              continue;
+            if (stronger(e.second, p))
+              continue;
+            int newprio = stronger_of(sccprio, e.second);
+            if (newprio != sccprio) {
+              en = make_tuple(s, x, e.first, e.second);
+            }
+            sccprio = newprio;
+          }
+      if (sccprio == p) {
+        // cerr << "nonempty: " << seq_to_str(it.second) << endl;
+        //
+        if (extra_predicate(it.second)) // <- for BA/DPA inclusion check
+          return make_pair(it.second, en);
+      }
+    }
+  }
+  return {};
+}
+
+template<typename T>
+pair<vector<state_t>,EdgeNode> find_acc_pa_scc(Aut<T> const& aut) {
+  return find_acc_pa_scc_ext(aut, const_true);
+}
+
+//empty := no accepting subscc
+template<typename T>
+bool pa_is_empty(Aut<T> const& aut) {
+  return find_acc_pa_scc(aut).first.empty();
+}
+
+//acc run := prefix into accepting subscc + cycle in accepting subscc
+template<typename T>
+pair<vector<state_t>,vector<state_t>> get_acc_pa_run(Aut<T> const& aut) {
+  auto ret = find_acc_pa_scc(aut);
+  auto& scc = ret.first;
+  if (scc.empty())
+    return {};
+  EdgeNode const& edge = ret.second;
+
+  // cout << "getting pref" << endl;
+  vector<state_t> const fin = find_path_from_to(aut, aut.get_init(), get<0>(edge));
+  // cout << "getting cyc" << endl;
+  vector<state_t> const cyc = find_path_from_to(aut, get<2>(edge), get<0>(edge));
+  return make_pair(move(fin),move(cyc));
+}
+
+//TODO: get run, reconstruct word by choosing edge to known successor on run
+// pair<vector<sym_t>,vector<sym_t>> get_acc_pa_word(SWA<T,S> const& aut) {
+// }
+
+// ----------------------------------------------------------------------------
+
+using PAP = Aut<PAProdState>;
+
+//TODO: same topo stuff as with determinization, using "raw" product as base
+template<typename A, typename B>
+PAP pa_union(Aut<A> const& aut_a, Aut<B> const& aut_b) {
+  assert(aut_a.get_patype() == PAType::MIN_EVEN);
+  assert(aut_b.get_patype() == PAType::MIN_EVEN);
+  assert(aut_a.get_aps() == aut_b.get_aps());
+  assert(is_colored(aut_a));
+  assert(is_colored(aut_b));
+  assert(is_deterministic(aut_a));
+  assert(is_deterministic(aut_b));
+  assert(!aut_a.is_sba());
+  assert(!aut_b.is_sba());
+
+  state_t const myinit = 0;
+  auto pa = Aut<PAProdState>(false, "PA Product (unnamed)", aut_a.get_aps(), myinit);
+  pa.set_patype(PAType::MIN_EVEN);
+  pa.tag_to_str = [](ostream& out, auto const& t){ out << t.to_string(); };
+
+  state_t const l    = aut_a.get_init();
+  int const lmin = aut_a.pri_bounds().first;
+  int const lmax = aut_a.pri_bounds().second;
+
+  state_t const r    = aut_b.get_init();
+  int const rmin = aut_b.pri_bounds().first;
+  int const rmax = aut_b.pri_bounds().second;
+
+  PAProdState const inittag(l, lmin, lmax, r, rmin, rmax);
+  pa.tag.put(inittag, myinit);
+
+  // int numvis=0;
+  bfs(myinit, [&](auto const& st, auto const& visit, auto const&) {
+    // get inner states of current state
+    auto const curst = pa.tag.geti(st);
+
+    // ++numvis;
+    // if (numvis % 100 == 0) //progress indicator
+    //   cerr << numvis << endl;
+
+    vector<sym_t> syms;
+    ranges::set_intersection( aut_a.state_outsyms(curst.a), aut_b.state_outsyms(curst.b)
+                            , ranges::back_inserter(syms) );
+
+    for (auto const i : syms) {
+      for (auto const ea : aut_a.succ_edges(curst.a,i))
+      for (auto const eb : aut_b.succ_edges(curst.b,i)) {
+        auto const tmp = curst.succ(ea.first, ea.second,
+                                    eb.first, eb.second);
+        auto const& sucprod = tmp.first;
+        auto const prio = tmp.second;
+
+        //check whether there is already a state in the graph with this label
+        auto const sucst = pa.tag.put_or_get(sucprod, pa.num_states());
+
+        //if this is a new successor, add it to graph and enqueue it:
+        if (!pa.has_state(sucst))
+          pa.add_state(sucst);
+        // create edge
+        pa.add_edge(st, i, sucst, prio);
+        // schedule for bfs
+        visit(sucst);
+      }
+    }
+  });
+
+  return move(pa);
+}
+
+//check language inclusion by emptiness test of corresp. intersection via union
+template<typename A, typename B>
+bool dpa_inclusion(Aut<A> const& a, Aut<B> const& b) {
+  auto aut_a(a);
+  auto aut_b(b);
+
+  aut_a.make_colored();
+  complement_pa(aut_a);
+  if (aut_a.is_sba())
+    aut_a.to_tba();
+
+  aut_b.make_colored();
+  if (aut_b.is_sba())
+    aut_b.to_tba();
+
+  auto prodpa = pa_union(aut_a, aut_b);
+  complement_pa(prodpa);
+  // print_aut(prodpa);
+
+  return pa_is_empty(prodpa);
+}
+
+template<typename A, typename B>
+bool dpa_equivalence(Aut<A> const& aut1, Aut<B> const& aut2) {
+  return dpa_inclusion(aut1, aut2) && dpa_inclusion(aut2, aut1);
+}
+
+// ----------------------------------------------------------------------------
+
+//product of SBA and TDPA. edge priorities = incremented prios of DPA edges
+template<typename A, typename B>
+Aut<pair<state_t, state_t>> ba_dpacomp_prod(Aut<A> const& ba, Aut<B> const& dpa) {
+  assert(ba.get_aps() == dpa.get_aps());
+  assert(is_deterministic(dpa));
+  assert(ba.is_sba());
+  assert(!dpa.is_sba());
+
+  state_t const myinit = 0;
+  auto pa = Aut<pair<state_t, state_t>>(false, "BA/DPAcomp product (unnamed)", dpa.get_aps(), myinit);
+  pa.set_patype(PAType::MIN_EVEN);
+  pa.tag_to_str = [](ostream& out, auto const& t){ out << t.first << "," << t.second; };
+  pa.tag.put(make_pair(ba.get_init(),dpa.get_init()), myinit);
+
+  // int numvis=0;
+  bfs(myinit, [&](auto const& st, auto const& visit, auto const&) {
+    auto const curst = pa.tag.geti(st);
+
+    vector<sym_t> syms;
+    ranges::set_intersection( ba.state_outsyms(curst.first), dpa.state_outsyms(curst.second)
+                            , ranges::back_inserter(syms) );
+
+    for (auto const i : syms) {
+      for (auto const ea : ba.succ_edges(curst.first,i))
+      for (auto const eb : dpa.succ_edges(curst.second,i)) {
+        auto const sucprod = make_pair(ea.first, eb.first);
+        auto const prio = eb.second + 1; //inc for complement
+
+        //check whether there is already a state in the graph with this label
+        auto const sucst = pa.tag.put_or_get(sucprod, pa.num_states());
+
+        //if this is a new successor, add it to graph and enqueue it:
+        if (!pa.has_state(sucst))
+          pa.add_state(sucst);
+        pa.add_edge(st, i, sucst, prio); // create edge
+        visit(sucst); // schedule for bfs
+      }
+    }
+  });
+  return move(pa);
+}
+
+//check that given SNBA is included (language-wise) in TDPA
+//this is a custom emptiness check in a mixed product
+//useful when the DPA is obtained by iterated underapproximation
+template<typename A, typename B>
+bool ba_dpa_inclusion(Aut<A> const& ba, Aut<B> const& dpa) {
+  auto const ppa = ba_dpacomp_prod(ba, dpa);
+  return find_acc_pa_scc_ext(ppa, [&](vector<state_t> const& scc) {
+      for (auto const st : scc) {
+        auto const pst = ppa.tag.geti(st);
+        if (ba.state_buchi_accepting(pst.first))
+          return true;
+      }
+      return false;
+    }).first.empty();
 }
 
 // ----------------------------------------------------------------------------

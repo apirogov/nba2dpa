@@ -7,17 +7,14 @@ using namespace std;
 using namespace nbautils;
 
 bool PAProdState::operator==(PAProdState const& other) const {
-  return a==other.a && b==other.b && prio==other.prio && priord==other.priord;
+  return a==other.a && b==other.b && priord==other.priord;
 }
 
 //compare lexicographically
 bool PAProdState::operator<(PAProdState const& other) const {
   if (a == other.a) {
     if (b == other.b) {
-      if (prio == other.prio) {
         return priord < other.priord;
-      }
-      return prio < other.prio;
     }
     return b < other.b;
   }
@@ -40,8 +37,6 @@ string PAProdState::to_string() const {
     if (i!=(int)priord.size()-1)
       s += ",";
   }
-  s += " : ";
-  s += std::to_string(prio);
   return s;
 }
 
@@ -49,7 +44,7 @@ PAProdState::PAProdState() {}
 
 // construct an initial parity product state from initial state and parity bounds
 // assuming min even parity!
-PAProdState::PAProdState(state_t l, int lmin, int lmax, state_t r, int rmin, int rmax) : a(l), b(r), prio(0) {
+PAProdState::PAProdState(state_t l, int lmin, int lmax, state_t r, int rmin, int rmax) : a(l), b(r) {
   if (lmin%2==1)
     ++lmin;
   if (lmax%2==1)
@@ -67,11 +62,12 @@ PAProdState::PAProdState(state_t l, int lmin, int lmax, state_t r, int rmin, int
   }
 }
 
-PAProdState::PAProdState(PAProdState const& other) : a(other.a), b(other.b), prio(other.prio), priord(other.priord) {}
+PAProdState::PAProdState(PAProdState const& other) : a(other.a), b(other.b), priord(other.priord) {}
 
 // get new state from current with given new component states (and their prio) and adapted priorities
-PAProdState PAProdState::succ(state_t l, int pl, state_t r, int pr, bool fulldown) const {
+pair<PAProdState,int> PAProdState::succ(state_t l, int pl, state_t r, int pr, bool fulldown) const {
   PAProdState s(*this);
+  int prio;
 
   //update state pair
   s.a = l;
@@ -82,10 +78,10 @@ PAProdState PAProdState::succ(state_t l, int pl, state_t r, int pr, bool fulldow
   while (it != s.priord.end()) {
     int p = it->first ? pr : pl;
     if (it->second == p) { //good priority fires -> we're done
-      s.prio = 2*(i+1); //fire good
+      prio = 2*(i+1); //fire good
       break;
     } else if (it->second-1 == p) { //bad priority fires -> need shifting stuff
-      s.prio = 2*i+1;  // fire bad
+      prio = 2*i+1;  // fire bad
 
       //reshuffle priority tuples (preserving relative order)
 
@@ -111,7 +107,7 @@ PAProdState PAProdState::succ(state_t l, int pl, state_t r, int pr, bool fulldow
     ++i;
   }
 
-  return s;
+  return make_pair(s,prio);
 }
 
 }

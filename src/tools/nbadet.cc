@@ -39,6 +39,7 @@ struct Args {
 
   bool psets;
   bool context;
+  bool approx;
 
   bool seprej;
   bool sepacc;
@@ -71,6 +72,8 @@ Args parse_args(int argc, char *argv[]) {
       {'j', "acc-sinks"});
   args::Flag dsim(parser, "dsim", "Use direct simulation for preprocessing and optimization.",
       {'i', "dir-sim"});
+  args::Flag approx(parser, "underapprox", "Iteratively underapproximate the Safra trees.",
+      {'p', "approx"});
 
   // postprocessing
   args::Flag mindfa(parser, "mindfa", "First minimize number of priorities, "
@@ -160,6 +163,7 @@ Args parse_args(int argc, char *argv[]) {
 
   args.psets = psets;
   args.context = context;
+  args.approx = approx;
 
   args.mergemode = args::get(mergemode);
   args.puretrees = puretrees;
@@ -258,6 +262,9 @@ DetConf assemble_detconf(Args const& args, auto const& aut,
   if (args.context)
     dc.ctx = get_context(aut, dc.aut_mat, dc.aut_asinks, dc.impl_mask, log);
 
+  //when under-approximation disabled, set bound so high that result is exact
+  dc.maxsets = args.approx ? 1 : aut.num_states() + 1;
+
   //precompute lots of sets used in construction
   dc.sets = get_detconfsets(aut, dc, log);
   return dc;
@@ -316,7 +323,7 @@ PA process_nba(Args const &args, auto& aut, std::shared_ptr<spdlog::logger> log)
       //   cerr << it.first << " <= " << seq_to_str(it.second) << endl;
     }
 
-    auto const dc = assemble_detconf(args, aut, po, log);
+    auto dc = assemble_detconf(args, aut, po, log);
 
     if (args.verbose >= 2)
       cerr << dc << endl;
@@ -332,31 +339,41 @@ PA process_nba(Args const &args, auto& aut, std::shared_ptr<spdlog::logger> log)
 
     //determinize (optionally using psets)
     PA pa;
-    if (!args.psets)
-      pa = bench(log, "determinize", WRAP(determinize(aut, dc)));
-    else
-      pa = bench(log, "determinize_with_psets", WRAP(determinize(aut, dc, pscon, pscon_scci)));
+    bool includeslang = !args.approx; // when we don't approximate, the language will surely be equal
+    do {
+      if (args.approx)
+        log->info("trying approximation depth {}...", dc.maxsets);
 
-    if (args.stats) { //show stats before postprocessing
-      print_stats(pa);
-    }
+      if (!args.psets)
+        pa = bench(log, "determinize", WRAP(determinize(aut, dc)));
+      else
+        pa = bench(log, "determinize_with_psets", WRAP(determinize(aut, dc, pscon, pscon_scci)));
 
-    // -- begin postprocessing --
-    if (args.mindfa) {
-      auto optlog = args.verbose>1 ? log : nullptr;
-      log->info("#priorities before: {}", pa.pris().size());
-      log->info("#states before: {}", pa.states().size());
+      if (args.stats) { //show stats before postprocessing
+        print_stats(pa);
+      }
 
-      pa.make_colored();
-      bench(log, "minimize number of priorities", WRAP(minimize_priorities(pa, optlog)));
-      log->info("#priorities after: {}", pa.pris().size());
+      // -- begin postprocessing --
+      if (args.mindfa) {
+        auto optlog = args.verbose>1 ? log : nullptr;
+        log->info("#priorities before: {}", pa.pris().size());
+        log->info("#states before: {}", pa.states().size());
 
-      pa.make_complete();
-      bench(log, "minimize number of states", WRAP(minimize_pa(pa, optlog)));
-      log->info("#states after: {}", pa.num_states());
-    }
+        pa.make_colored();
+        bench(log, "minimize number of priorities", WRAP(minimize_priorities(pa, optlog)));
+        log->info("#priorities after: {}", pa.pris().size());
 
-    // -- end of postprocessing --
+        pa.make_complete();
+        bench(log, "minimize number of states", WRAP(minimize_pa(pa, optlog)));
+        log->info("#states after: {}", pa.num_states());
+      }
+      // -- end of postprocessing --
+
+      if (args.approx) { //if approximation enabled, check language inclusion + inc bound
+        includeslang = ba_dpa_inclusion(aut, pa);
+        dc.maxsets++;
+      }
+    } while (!includeslang);
 
     //sanity checks
     assert(pa.get_name() == aut.get_name());
@@ -421,101 +438,3 @@ int main(int argc, char *argv[]) {
   log->info("total used memory: {:.3f} MB", (double)getPeakRSS() / (1024 * 1024));
 }
 
-//old code for split NBA det.
-  /*
-vector<SWA<string>::uptr> split_nba(SWA<string> const& aut, bool each_acc_separated) {
-  vector<SWA<string>::uptr> ret;
-
-  auto const aut_st = aut.states();
-  auto const aut_sucs = swa_succ(aut);
-  auto const aut_acc = swa_ba_acc(aut);
-
-  auto const aut_scc = get_sccs(aut_st, aut_sucs);
-  auto const aut_cl = ba_classify_sccs(*aut_scc, aut_acc);
-  unsigned i=0;
-  for (auto const& scc : aut_scc->sccs) {
-    if (contains(aut_cl->rejecting, i)) {
-      ++i;
-      continue;
-    }
-
-    //get accepting states of scc
-    vector<state_t> sccacc = scc;
-    auto it = partition(begin(sccacc), end(sccacc), aut_acc);
-    sccacc.erase(it, end(sccacc));
-    sort(begin(sccacc), end(sccacc));
-
-    // cerr << seq_to_str(sccacc) << endl;
-
-    //unmark all other accepting states in copy
-    auto cur = make_unique<SWA<string>>(aut);
-
-    // cerr << "copied" << endl;
-
-    for (auto const s : aut_st) {
-      // if (curaut->has_accs(s))
-        if (!contains(sccacc, s))
-          cur->set_accs(s, {});
-    }
-
-    // cerr << "unmarked" << endl;
-
-    //throw everything else away
-    trim_ba(*cur);
-    // curaut->normalize();
-
-    if (!each_acc_separated) {
-      ret.push_back(move(cur));
-    } else {
-      for (int i=0; i<(int)sccacc.size(); ++i) {
-        auto subcur = make_unique<SWA<string>>(*cur);
-        for (int j=0; j<(int)sccacc.size(); ++j) {
-          if (i!=j)
-            subcur->set_accs(sccacc[j], {});
-        }
-        // print_hoa(*subcur);
-        ret.push_back(move(subcur));
-      }
-    }
-
-    // cerr << "trimmed" << endl;
-
-    ++i;
-  }
-
-  return ret;
-}
-
-  for (auto &aut : auts) {
-      log->info("splitting NBA");
-      auto subauts = split_nba(*aut, args->split > 1);
-      log->info("number of subNBAs: {}", subauts.size());
-      SWA<PAProdState,naive_unordered_bimap>::uptr res = nullptr;
-
-      for (auto const& subaut : subauts) {
-        log->info("number of states in subA: {}", subaut->num_states());
-        auto subpa = determinize_nba(*args, *subaut, log);
-        // print_hoa(*subpa);
-
-        log->info("calculating union...");
-        if (res == nullptr) {
-          auto tmp = empty_pa<bool,naive_unordered_bimap>(subpa->get_aps());
-          res = pa_union(*tmp, *subpa);
-        } else {
-          auto tmp = pa_union(*res, *subpa);
-          res = move(tmp);
-        }
-
-        log->info("completed union. current union size: {}", res->num_states());
-        log->info("optimizing union...");
-        minimize_priorities(*res);
-        minimize_pa(*res);
-        // auto equiv = pa_equiv_states(*res);
-        // res->quotient(equiv);
-        // res->normalize();
-        log->info("optimized union. current union size: {}", res->num_states());
-
-        //check language containment to abort earlier
-      }
-  }
-    */

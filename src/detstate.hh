@@ -66,6 +66,7 @@ struct DetConf {
   nba_bitset aut_asinks = 0;  //if non-empty, will be used to stop early
   map<unsigned,nba_bitset> impl_mask; //to store implication relation
   Context ctx;                //if non-empty, context used for seperation refinement
+  int maxsets = 1;
 
   //these must be filled
   DetConfSets sets;

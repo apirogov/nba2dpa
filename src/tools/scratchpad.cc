@@ -25,10 +25,25 @@ int main(int argc, char *argv[]) {
   auto auts = nbautils::AutStream<Aut<string>>("");
   while (auts.has_next()) {
     auto aut = auts.parse_next();
+
+    //ensure its a TDPA
     aut.make_colored();
-    minimize_priorities(aut);
-    if (aut.get_patype() != PAType::MIN_EVEN)
-      change_patype(aut, PAType::MIN_EVEN);
+    aut.to_tba();
+
+    auto aut2(aut);
+    complement_pa(aut2);
+
     print_aut(aut);
+    print_aut(aut2);
+
+    auto paut = pa_union(aut, aut2);
+    complement_pa(paut);
+    print_aut(paut);
+    cout << pa_is_empty(paut) << endl;
+
+    // print_aut(aut);
+    // cout << pa_is_empty(aut) << endl;
+    // auto run = get_acc_pa_run(aut);
+    // cout << seq_to_str(run.first) << " | " << seq_to_str(run.second) << endl;
   }
 }

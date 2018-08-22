@@ -56,6 +56,10 @@ inline auto stronger_priority_f(PAType a) {
   return pa_acc_is_max(a) ? [](int p, int q){ return max(p,q); }
                           : [](int p, int q){ return min(p,q); };
 }
+inline auto stronger_op_f(PAType a) { //function returning true if left stronger than right argument
+  return pa_acc_is_max(a) ? [](int p, int q){ return p > q; }
+                          : [](int p, int q){ return p < q; };
+}
 
 // takes source and target priority acceptance conditions and a list of priorities of the
 // source type, returns function mapping source pris to semantically equiv. in target cond.
