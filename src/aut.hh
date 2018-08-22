@@ -122,7 +122,7 @@ public:
   auto pris() const { return ranges::view::keys(prio_cnt); }
   pair<pri_t,pri_t> pri_bounds() const {
     if (prio_cnt.empty())
-      return make_pair(0,0);
+      return pa_acc_is_even(get_patype()) ? make_pair(1,1) : make_pair(0,0);
     return make_pair(begin(prio_cnt)->first, rbegin(prio_cnt)->first);
   }
 
@@ -211,6 +211,7 @@ public:
     }
   }
 
+  //modify an existing edge
   void mod_edge(state_t const p, sym_t const x, state_t const q, pri_t pri=-1) {
     auto const oldpri = adj.at(p).at(x).at(q); //gives exception if does not exist
     if (oldpri>=0) {
@@ -222,6 +223,17 @@ public:
     if (pri>=0) {
       prio_cnt[pri]++;
     }
+  }
+
+  //remove an existing edge
+  void remove_edge(state_t const p, sym_t const x, state_t const q) {
+    auto const epri = adj.at(p).at(x).at(q); //gives exception if does not exist
+    if (epri>=0) {
+      prio_cnt[epri]--;
+      if (prio_cnt.at(epri) == 0)
+        prio_cnt.erase(prio_cnt.find(epri));
+    }
+    adj.at(p).at(x).erase(adj.at(p).at(x).find(q)); //kill edge
   }
 
   // return all successors with edge label (-1 means no label)
