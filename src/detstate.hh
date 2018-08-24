@@ -65,6 +65,7 @@ struct DetConf {
   //heuristics and optimisations:
   nba_bitset aut_asinks = 0;  //if non-empty, will be used to stop early
   map<unsigned,nba_bitset> impl_mask; //to store implication relation
+  map<unsigned,nba_bitset> impl_pruning_mask; //to store implication relation disregarding SCC relationship
   Context ctx;                //if non-empty, context used for seperation refinement
   int maxsets = 1;
 

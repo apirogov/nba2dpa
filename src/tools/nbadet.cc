@@ -32,6 +32,7 @@ struct Args {
   bool trim;
   bool asinks;
   bool dsim;
+  bool prunesim;
   bool mindfa;
 
   int mergemode;
@@ -46,8 +47,6 @@ struct Args {
   bool cyclicbrk;
   bool sepmix;
   bool optdet;
-
-  //not included: incremental w. locks, using external union of SCC det., simulation stuff
 };
 
 Args parse_args(int argc, char *argv[]) {
@@ -72,6 +71,8 @@ Args parse_args(int argc, char *argv[]) {
       {'j', "acc-sinks"});
   args::Flag dsim(parser, "dsim", "Use direct simulation for preprocessing and optimization.",
       {'i', "dir-sim"});
+  args::Flag prunesim(parser, "prunesim", "Use direct simulation to prune trees heuristically.",
+      {'r', "prune-sim"});
   args::Flag approx(parser, "underapprox", "Iteratively underapproximate the Safra trees.",
       {'p', "approx"});
 
@@ -159,6 +160,7 @@ Args parse_args(int argc, char *argv[]) {
   args.trim = trim;
   args.asinks = asinks;
   args.dsim = dsim;
+  args.prunesim = prunesim;
   args.mindfa = mindfa;
 
   args.psets = psets;
@@ -218,12 +220,15 @@ DetConfSets get_detconfsets(auto const& aut, DetConf const& dc,
   return calc_detconfsets(dc, scci, sccAcc, sccDet);
 }
 
-map<unsigned, nba_bitset> sim_po_to_implmask(auto const& aut, map<unsigned, set<unsigned>> const& po) {
+//take automaton and inclusion partial order and flag whether we need to enforce that
+//dominating state can not reach dominated state (required for one of the optimizations, but not for other)
+map<unsigned, nba_bitset> sim_po_to_implmask(auto const& aut, map<unsigned, set<unsigned>> const& po, bool reach_cond) {
   //calculate reachable states from each state
   map<state_t, vector<state_t>> reaches;
-  for (auto const s : aut.states()) {
-    reaches[s] = reachable_states(aut, s);
-  }
+  if (reach_cond)
+    for (auto const s : aut.states()) {
+      reaches[s] = reachable_states(aut, s);
+    }
 
   map<unsigned, nba_bitset> ret;
   for (auto const s : aut.states())
@@ -231,7 +236,7 @@ map<unsigned, nba_bitset> sim_po_to_implmask(auto const& aut, map<unsigned, set<
 
   for (auto const& it : po)
     for (auto const b : it.second) {
-      if (it.first != b && !contains(reaches.at(b), it.first)) {
+      if (it.first != b && (!reach_cond || !contains(reaches.at(b), it.first))) {
         ret[b].reset(it.first);
       }
     }
@@ -256,7 +261,8 @@ DetConf assemble_detconf(Args const& args, auto const& aut,
     dc.aut_asinks = to_bitset<nba_bitset>(ba_get_acc_sinks(aut, log));
 
   //default mask for language inclusion
-  dc.impl_mask = sim_po_to_implmask(aut, impl_po);
+  dc.impl_mask = sim_po_to_implmask(aut, impl_po, true);
+  dc.impl_pruning_mask = sim_po_to_implmask(aut, impl_po, false);
 
   //calculate 2^AxA context structure and its sccs
   if (args.context)
