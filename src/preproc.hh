@@ -151,7 +151,7 @@ void ba_trim(Aut<T>& ba, shared_ptr<spdlog::logger> log=nullptr) {
   // ----
 
   auto const ba_suc = aut_succ(ba);
-  auto const scci = get_sccs(ba.states() | ranges::to_vector, ba_suc);
+  auto const scci = get_sccs(ba.states(), ba_suc);
 
   // cerr << "#sccs: " << scci.sccs.size() << endl;
 
@@ -339,7 +339,8 @@ auto ba_direct_sim(Aut<T> const& ba) {
     for (auto const& it : expanded_clrs.at(s).second) {
       for (auto const trgclr : it.second) {
         // cerr << "edge " << clr.at(s) << " - " << (int) it.first << " > " << trgclr << endl;
-        ret.add_edge(clr.at(s), it.first, trgclr);
+        if (!ret.has_edge(clr.at(s), it.first, trgclr))
+          ret.add_edge(clr.at(s), it.first, trgclr);
       }
     }
   }
@@ -375,7 +376,7 @@ Context get_context(auto const& aut, adj_mat const& mat, nba_bitset const asinks
 
   auto const psp = bench(log,"powerset_product",
                          WRAP(powerset_product(aut, mat, asinks, impl)));
-  auto const psp_scci = get_sccs(psp.states() | ranges::to_vector, aut_succ(psp));
+  auto const psp_scci = get_sccs(psp.states(), aut_succ(psp));
   auto const psp_sccAcc = ba_scc_classify_acc(psp, psp_scci);
   // print_aut(psp);
 

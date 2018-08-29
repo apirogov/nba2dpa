@@ -61,7 +61,6 @@ struct PAProdState {
   // get new state from current with given new component states (and their prio) and adapted priorities
   pair<PAProdState, int> succ(state_t l, int pl, state_t r, int pr, bool fulldown=true) const;
 
-  string to_string() const;
   bool operator<(PAProdState const& other) const;
   bool operator==(PAProdState const& other) const;
 };
@@ -241,17 +240,17 @@ PAP pa_union(Aut<A> const& aut_a, Aut<B> const& aut_b) {
   assert(aut_a.get_patype() == PAType::MIN_EVEN);
   assert(aut_b.get_patype() == PAType::MIN_EVEN);
   assert(aut_a.get_aps() == aut_b.get_aps());
-  assert(is_colored(aut_a));
-  assert(is_colored(aut_b));
-  assert(is_deterministic(aut_a));
-  assert(is_deterministic(aut_b));
+  assert(aut_a.is_colored());
+  assert(aut_b.is_colored());
+  assert(aut_a.is_deterministic());
+  assert(aut_b.is_deterministic());
   assert(!aut_a.is_sba());
   assert(!aut_b.is_sba());
 
   state_t const myinit = 0;
   auto pa = Aut<PAProdState>(false, "PA Product (unnamed)", aut_a.get_aps(), myinit);
   pa.set_patype(PAType::MIN_EVEN);
-  pa.tag_to_str = [](ostream& out, auto const& t){ out << t.to_string(); };
+  pa.tag_to_str = default_printer<PAProdState>();
 
   state_t const l    = aut_a.get_init();
   int const lmin = aut_a.pri_bounds().first;
@@ -335,7 +334,7 @@ bool dpa_equivalence(Aut<A> const& aut1, Aut<B> const& aut2) {
 template<typename A, typename B>
 Aut<pair<state_t, state_t>> ba_dpacomp_prod(Aut<A> const& ba, Aut<B> const& dpa) {
   assert(ba.get_aps() == dpa.get_aps());
-  assert(is_deterministic(dpa));
+  assert(dpa.is_deterministic());
   assert(ba.is_sba());
   assert(!dpa.is_sba());
 
@@ -655,7 +654,7 @@ bool minimize_pa(Aut<T>& pa, shared_ptr<spdlog::logger> log = nullptr) {
 
   // remove rejecting sink (which is unique after min.) in complete automaton
   // unless it is the initial state (i.e. automaton with empty language)
-  state_t rejsink = -1;
+  int rejsink = -1;
   for (auto const v : pa.states()) {
     //must be rej. self-loop
     bool rsink = true;
@@ -670,8 +669,8 @@ bool minimize_pa(Aut<T>& pa, shared_ptr<spdlog::logger> log = nullptr) {
       break;
     }
   }
-  if (rejsink >= 0 && rejsink != pa.get_init())
-    pa.remove_states({rejsink});
+  if (rejsink >= 0 && (state_t)rejsink != pa.get_init())
+    pa.remove_states({(state_t)rejsink});
 
   pa.normalize();
   // cerr << "normalized" << endl;

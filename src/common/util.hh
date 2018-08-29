@@ -7,6 +7,7 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <unordered_set>
 #include <queue>
 #include <string>
 #include <sstream>
@@ -236,8 +237,8 @@ std::vector<std::vector<T>> group_by(std::vector<T> v, F const& f) {
 template <typename Node, typename F>
 void bfs(Node const& start, F visit) {
   std::queue<Node> bfsq;
-  std::set<Node> visited;
-  std::set<Node> discovered;
+  std::unordered_set<Node> visited;
+  std::unordered_set<Node> discovered;
 
   auto pusher = [&](Node const& st){
     if (!contains(discovered, st)) {

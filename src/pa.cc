@@ -21,23 +21,14 @@ bool PAProdState::operator<(PAProdState const& other) const {
   return a < other.a;
 }
 
-string PAProdState::to_string() const {
-  string s;
-  s += "(";
-  s += std::to_string(a);
-  s += ",";
-  s += std::to_string(b);
-  s += ") | ";
-  for (int i=0; i<(int)priord.size(); i++) {
-    s += "(";
-    s += priord[i].first ? "r" : "l";
-    s += ",";
-    s += std::to_string(priord[i].second);
-    s += ")";
-    if (i!=(int)priord.size()-1)
-      s += ",";
+std::ostream& operator<<(std::ostream& os, PAProdState const& s) {
+  os << "(" << s.a << "," << s.b << ") | ";
+  for (int i=0; i<(int)s.priord.size(); i++) {
+    os << "(" << (s.priord[i].first ? "r" : "l") << "," << s.priord[i].second << ")";
+    if (i!=(int)s.priord.size()-1)
+      os << ",";
   }
-  return s;
+  return os;
 }
 
 PAProdState::PAProdState() {}

@@ -261,8 +261,10 @@ DetConf assemble_detconf(Args const& args, auto const& aut,
     dc.aut_asinks = to_bitset<nba_bitset>(ba_get_acc_sinks(aut, log));
 
   //default mask for language inclusion
-  dc.impl_mask = sim_po_to_implmask(aut, impl_po, true);
-  dc.impl_pruning_mask = sim_po_to_implmask(aut, impl_po, false);
+  if (args.dsim)
+    dc.impl_mask = sim_po_to_implmask(aut, impl_po, true);
+  if (args.prunesim)
+    dc.impl_pruning_mask = sim_po_to_implmask(aut, impl_po, false);
 
   //calculate 2^AxA context structure and its sccs
   if (args.context)
@@ -317,7 +319,7 @@ PA process_nba(Args const &args, auto& aut, std::shared_ptr<spdlog::logger> log)
     // aut->normalize(); //don't do this, otherwise relationship not clear anymore
 
     map<unsigned, set<unsigned>> po;
-    if (args.dsim) {
+    if (args.dsim || args.prunesim) {
       auto const simret = ba_direct_sim(aut);
       aut = simret.first;
       po = simret.second;

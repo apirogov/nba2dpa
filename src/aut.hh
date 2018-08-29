@@ -196,13 +196,16 @@ public:
     return map_has_key(adj.at(p), x);
   }
 
+  bool has_edge(state_t const p, sym_t const x, state_t const q) {
+    return map_has_key(adj.at(p), x) && map_has_key(adj.at(p).at(x), q);
+  }
   void add_edge(state_t const p, sym_t const x, state_t const q, pri_t pri=-1) {
 #ifndef NDEBUG
     assert(has_state(p));
     assert(x < num_syms());
     assert(has_state(q));
     assert(pri < 0 || !sba);
-    assert(!map_has_key(adj.at(p), x) || !map_has_key(adj.at(p).at(x), q));
+    assert(!has_edge(p,x,q));
 #endif
 
     adj.at(p)[x][q] = pri;
@@ -586,6 +589,7 @@ adj_mat get_adjmat(auto const& aut) {
 //a complete map of strict subsumptions (if bit i is set, &= with corresponding mask)
 //returns successors
 inline nba_bitset powersucc(adj_mat const& mat, nba_bitset from, sym_t x, nba_bitset sinks=0, map<unsigned,nba_bitset> impl_mask={}) {
+  // cerr << pretty_bitset(from) << ", " << (int)x << endl;
   nba_bitset ret = 0;
   auto const& xmat = mat[x];
   //collect all successors
@@ -597,10 +601,11 @@ inline nba_bitset powersucc(adj_mat const& mat, nba_bitset from, sym_t x, nba_bi
     return sinks;
 
   //remove subsumed states
-  for (int const i : ranges::view::ints(0, (int)ret.size())) {
-    if (ret[i] && map_has_key(impl_mask, (unsigned)i))
-      ret &= impl_mask[i];
-  }
+  if (!impl_mask.empty())
+    for (int const i : ranges::view::ints(0, (int)ret.size())) {
+      if (ret[i] && map_has_key(impl_mask, (unsigned)i))
+        ret &= impl_mask[i];
+    }
 
   return ret;
 }

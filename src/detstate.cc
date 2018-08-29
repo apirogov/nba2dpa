@@ -69,6 +69,11 @@ std::ostream& operator<<(std::ostream& os, DetConf const& dc) {
   for (auto const& it : dc.impl_mask)
     if ((~it.second) != 0)
       os << "\t" <<  it.first << " => " << pretty_bitset(~it.second) << endl;
+  os << "impl_pruning_mask:" << endl;
+  for (auto const& it : dc.impl_pruning_mask)
+    if ((~it.second) != 0)
+      os << "\t" <<  it.first << " => " << pretty_bitset(~it.second) << endl;
+
   os << "ctx: "        << !dc.ctx.empty() << endl;
   os << "maxsets: "        << dc.maxsets << endl;
 
@@ -262,6 +267,39 @@ void expand_row(DetConf const& dc, vector<pair<nba_bitset, pri_t>>& row, pri_t& 
 void expand_trees(DetConf const& dc, DetState &s, pri_t& cur_fresh) {
   for (auto& mscc : s.msccs)
     expand_row(dc, mscc, cur_fresh);
+}
+
+//remove unnecessary states using simulation relation
+void prune_row(DetConf const& dc, vector<pair<nba_bitset, pri_t>>& row) {
+  nba_bitset allowed;
+  allowed.set();
+  for (auto& it : row) {
+    it.first &= allowed;
+    auto newallowed = allowed;
+    for (int const i : ranges::view::ints(0, (int)it.first.size())) {
+      if (it.first[i] && map_has_key(dc.impl_pruning_mask, (unsigned)i))
+        newallowed &= dc.impl_pruning_mask.at(i);
+    }
+    allowed = newallowed;
+  }
+}
+
+void prune_trees(DetConf const& dc, DetState &s) {
+  if (!dc.impl_pruning_mask.empty()) {
+    for (auto& dscc : s.dsccs)
+      prune_row(dc, dscc);
+    for (auto& mscc : s.msccs)
+      prune_row(dc, mscc);
+  }
+
+  //fix powerset tag
+  s.powerset = s.nsccs | s.asccs_buf | s.asccs;
+  for (auto& dscc : s.dsccs)
+    for (auto& it : dscc)
+      s.powerset |= it.first;
+  for (auto& mscc : s.msccs)
+    for (auto& it : mscc)
+      s.powerset |= it.first;
 }
 
 //merge safra tree nodes with too unimportant rank and thereby also prevent them from saturation
@@ -641,7 +679,7 @@ pair<DetState, pri_t> DetState::succ(DetConf const& dc, sym_t x) const {
 
   //modify sets applying current context, if one provided
   unique_ptr<DetConfSets> modsets = nullptr;
-  if (!dc.ctx.empty()) {
+  if (!dc.ctx.empty() && map_has_key(dc.ctx, ret.powerset)) {
     modsets = make_unique<DetConfSets>(dc.sets);
     auto const& curctx = dc.ctx.at(ret.powerset);
     //add relative N/A states
@@ -680,10 +718,13 @@ pair<DetState, pri_t> DetState::succ(DetConf const& dc, sym_t x) const {
   if (debug) {
     cerr << "uapprox: " << ret << endl;
   }
+  prune_trees(dc, ret);
+  if (debug) {
+    cerr << "prune: " << ret << endl;
+  }
   nba_bitset const switchers = extract_switchers(dc, cursets, ret);
   if (debug) {
     cerr << "-switchers: " << pretty_bitset(switchers) << endl;
-    cerr << "half-step: " << ret << endl;
   }
 
   // half-transition done. now check saturation stuff, get best active, kill ranks...
@@ -693,6 +734,7 @@ pair<DetState, pri_t> DetState::succ(DetConf const& dc, sym_t x) const {
   }
 
   integrate_switchers(cursets, ret, switchers, cur_fresh);
+  left_normalize(ret);
   if (debug) {
     cerr << "+switchers: " << ret << endl;
   }

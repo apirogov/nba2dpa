@@ -22,16 +22,16 @@ PS powerset_construction(auto const& nba, adj_mat const& mat, nba_bitset const& 
   // create aut, add initial state, associate with initial states in original aut
   state_t const myinit = 0;
   auto ps = PS(true, nba.get_name(), nba.get_aps(), myinit);
-  ps.tag_to_str = [](ostream& out, ps_tag const& t){
-    vector<state_t> tmp;
-    from_bitset(t, back_inserter(tmp));
-    out << "{" << seq_to_str(tmp) << "}";
-  };
-  ps.tag.put(nba_bitset(1<<nba.get_init()), myinit);
+  ps.tag_to_str = [](ostream& out, ps_tag const& t){ out << pretty_bitset(t); };
+  nba_bitset initset = 0;
+  initset[nba.get_init()] = 1; // 1<<x does not work as expected
+  ps.tag.put(initset, myinit);
 
   bfs(myinit, [&](auto const& st, auto const& visit, auto const&) {
     // get inner states of current ps state
     auto const curset = ps.tag.geti(st);
+    // cerr << "succs of " << pretty_bitset(curset) << endl;
+
     // calculate successors and add to graph
     for (auto const i : ps.syms()) {
       auto const sucset = powersucc(mat, curset, i, sinks, impls);
@@ -82,9 +82,7 @@ PP powerset_product(auto const& nba, adj_mat const& mat, nba_bitset const& sinks
   state_t const myinit = 0;
   auto ps = PP(true, nba.get_name(), nba.get_aps(), myinit);
   ps.tag_to_str = [](ostream& out, pp_tag const& t){
-    vector<state_t> tmp;
-    from_bitset(t.first, back_inserter(tmp));
-    out << "(" << t.second << ", {" << seq_to_str(tmp) << "})";
+    out << "(" << t.second << ", " << pretty_bitset(t.first) << ")";
   };
 
   auto const bainit = nba.get_init(); //take unique initial state of original system
@@ -92,7 +90,9 @@ PP powerset_product(auto const& nba, adj_mat const& mat, nba_bitset const& sinks
   if (nba.state_buchi_accepting(bainit))
     ps.set_pri(myinit, nba.get_pri(bainit));
   // associate with initial states in original aut
-  ps.tag.put(make_pair(nba_bitset(1<<bainit), bainit), myinit);
+  nba_bitset initset = 0;
+  initset[bainit] = 1; // 1<<x does not work as expected
+  ps.tag.put(make_pair(initset, bainit), myinit);
 
   bfs(myinit, [&](auto const& st, auto const& visit, auto const&) {
     // get inner states of current ps state

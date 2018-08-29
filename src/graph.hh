@@ -60,4 +60,26 @@ vector<state_t> find_path_from_to(Aut<T> const& g, state_t from, state_t to) {
   return res;
 }
 
+template <typename T>
+vector<sym_t> get_word_from_path(Aut<T> const& aut, vector<state_t> const& p) {
+  assert(p.size() >= 2);
+
+  vector<sym_t> w;
+  unsigned int i=0;
+  while (i<p.size()-1) {
+    bool found = false;
+    for (auto const x : aut.state_outsyms(p.at(i))) {
+      if (contains(aut.succ(p.at(i), x), p.at(i+1))) {
+        w.push_back(x);
+        ++i;
+        found = true;
+        break;
+      }
+    }
+    if (!found)
+      throw runtime_error("impossible event: found no word from a path!");
+  }
+  return w;
+}
+
 }

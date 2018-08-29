@@ -183,7 +183,7 @@ class MyConsumer<Aut<string>> : public HOAConsumerNull {
     if (!fixed_sbatba) { //automaton without acceptance sets can be seen as statebased
       aut.set_sba(true);
     }
-    aut.tag_to_str = [](ostream& out, string const& s){ out << s; };
+    aut.tag_to_str = default_printer<string>();
   }
   //   for (auto &it : edges) {
   //     auto state = it.first;
