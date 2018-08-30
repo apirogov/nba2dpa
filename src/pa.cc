@@ -2,6 +2,16 @@
 #include <vector>
 #include <string>
 
+std::ostream& operator<<(std::ostream& os, nbautils::PAProdState const& s) {
+  os << "(" << s.a << "," << s.b << ") | ";
+  for (int i=0; i<(int)s.priord.size(); i++) {
+    os << "(" << (s.priord[i].first ? "r" : "l") << "," << s.priord[i].second << ")";
+    if (i!=(int)s.priord.size()-1)
+      os << ",";
+  }
+  return os;
+}
+
 namespace nbautils {
 using namespace std;
 using namespace nbautils;
@@ -19,16 +29,6 @@ bool PAProdState::operator<(PAProdState const& other) const {
     return b < other.b;
   }
   return a < other.a;
-}
-
-std::ostream& operator<<(std::ostream& os, PAProdState const& s) {
-  os << "(" << s.a << "," << s.b << ") | ";
-  for (int i=0; i<(int)s.priord.size(); i++) {
-    os << "(" << (s.priord[i].first ? "r" : "l") << "," << s.priord[i].second << ")";
-    if (i!=(int)s.priord.size()-1)
-      os << ",";
-  }
-  return os;
 }
 
 PAProdState::PAProdState() {}

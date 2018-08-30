@@ -132,6 +132,12 @@ Args parse_args(int argc, char *argv[]) {
     exit(1);
   }
 
+  if (prunesim && optdet && !sepmix) {
+    //TODO: is this the only problematic combination?
+    spd::get("log")->error("-r and -d can only be used together when also using -e!");
+    exit(1);
+  }
+
   // if (cyclicbrk && context) {
   //   spd::get("log")->error("-b and -c don't work together (yet)!");
   //   exit(1);
@@ -323,12 +329,7 @@ PA process_nba(Args const &args, auto& aut, std::shared_ptr<spdlog::logger> log)
       auto const simret = ba_direct_sim(aut);
       aut = simret.first;
       po = simret.second;
-      // print_aut(aut);
-
-      //implications. TODO: use those to optimize det.:
-      // - if two states in same reachable set and one dominates, keep dominating
-      // for (auto const it : simret.second)
-      //   cerr << it.first << " <= " << seq_to_str(it.second) << endl;
+      // print_aut(aut, cerr);
     }
 
     auto dc = assemble_detconf(args, aut, po, log);
@@ -377,6 +378,7 @@ PA process_nba(Args const &args, auto& aut, std::shared_ptr<spdlog::logger> log)
       }
       // -- end of postprocessing --
 
+      //TODO: binary search for minimal maxsets value
       if (args.approx) { //if approximation enabled, check language inclusion + inc bound
         includeslang = ba_dpa_inclusion(aut, pa);
         dc.maxsets++;

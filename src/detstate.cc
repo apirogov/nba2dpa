@@ -215,6 +215,7 @@ void successorize_all(DetConf const& dc, DetState& s, sym_t const x) {
     return powersucc(dc.aut_mat, bset, x, dc.aut_asinks, dc.impl_mask); };
 
   s.powerset  = psucc(s.powerset);
+  //TODO: intersect everything with powerset to enforce implication stuff?
   s.nsccs     = psucc(s.nsccs);
   s.asccs_buf = psucc(s.asccs_buf);
   s.asccs     = psucc(s.asccs);

@@ -166,6 +166,7 @@ PA determinize(auto const& nba, DetConf const& dc, PS const& psa, SCCDat const& 
 
     //find representative in trimmed SCC PA graph (which is start for exploration)
     // cerr <<  pretty_bitset(psa.tag.get(origps.at(sccpa.get_init()))) << "->" << pretty_bitset(repps) << endl;
+    // TODO: do we even care where to start exploration?
     state_t repst = sccpa.get_init();
     state_t entry = psa.tag.get(origps.at(sccpa.get_init()));
     if (entry != rep) {

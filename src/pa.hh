@@ -64,6 +64,7 @@ struct PAProdState {
   bool operator<(PAProdState const& other) const;
   bool operator==(PAProdState const& other) const;
 };
+std::ostream& operator<<(std::ostream& os, PAProdState const& dc);
 }
 
 namespace std {
