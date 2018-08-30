@@ -8,6 +8,7 @@
 #include "io.hh"
 #include "graph.hh"
 #include "pa.hh"
+#include "preproc.hh"
 
 #include "metrics/bench.hh"
 #include "common/util.hh"
@@ -26,20 +27,30 @@ int main(int argc, char *argv[]) {
   while (auts.has_next()) {
     auto aut = auts.parse_next();
 
+    map<unsigned, set<unsigned>> po;
+    auto const simret = ba_direct_sim(aut);
+    aut = simret.first;
+    po = simret.second;
+    for (auto const it : po) {
+      cerr << it.first << " <=" << seq_to_str(it.second) << endl;
+    }
+    print_aut(aut, cerr);
+
+
     //ensure its a TDPA
-    aut.make_colored();
-    aut.to_tba();
+    // aut.make_colored();
+    // aut.to_tba();
 
-    auto aut2(aut);
-    complement_pa(aut2);
+    // auto aut2(aut);
+    // complement_pa(aut2);
 
-    print_aut(aut);
-    print_aut(aut2);
+    // print_aut(aut);
+    // print_aut(aut2);
 
-    auto paut = pa_union(aut, aut2);
-    complement_pa(paut);
-    print_aut(paut);
-    cout << pa_is_empty(paut) << endl;
+    // auto paut = pa_union(aut, aut2);
+    // complement_pa(paut);
+    // print_aut(paut);
+    // cout << pa_is_empty(paut) << endl;
 
     // print_aut(aut);
     // cout << pa_is_empty(aut) << endl;

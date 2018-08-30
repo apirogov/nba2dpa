@@ -215,16 +215,16 @@ void successorize_all(DetConf const& dc, DetState& s, sym_t const x) {
     return powersucc(dc.aut_mat, bset, x, dc.aut_asinks, dc.impl_mask); };
 
   s.powerset  = psucc(s.powerset);
-  //TODO: intersect everything with powerset to enforce implication stuff?
-  s.nsccs     = psucc(s.nsccs);
-  s.asccs_buf = psucc(s.asccs_buf);
+  //NOTE: intersect everything with powerset to enforce implication stuff
+  s.nsccs     = psucc(s.nsccs) & s.powerset;
+  s.asccs_buf = psucc(s.asccs_buf) & s.powerset;
   s.asccs     = psucc(s.asccs);
   for (auto const i : ranges::view::ints(0, (int)s.dsccs.size()))
     for (auto const j : ranges::view::ints(0, (int)s.dsccs[i].size()))
-      s.dsccs[i][j].first = psucc(s.dsccs[i][j].first);
+      s.dsccs[i][j].first = psucc(s.dsccs[i][j].first) & s.powerset;
   for (auto const i : ranges::view::ints(0, (int)s.msccs.size()))
     for (auto const j : ranges::view::ints(0, (int)s.msccs[i].size()))
-      s.msccs[i][j].first = psucc(s.msccs[i][j].first);
+      s.msccs[i][j].first = psucc(s.msccs[i][j].first) & s.powerset;
 }
 
 //remove wrong located states, return their collection

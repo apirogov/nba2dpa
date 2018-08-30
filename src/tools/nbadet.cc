@@ -132,17 +132,6 @@ Args parse_args(int argc, char *argv[]) {
     exit(1);
   }
 
-  if (prunesim && optdet && !sepmix) {
-    //TODO: is this the only problematic combination?
-    spd::get("log")->error("-r and -d can only be used together when also using -e!");
-    exit(1);
-  }
-
-  // if (cyclicbrk && context) {
-  //   spd::get("log")->error("-b and -c don't work together (yet)!");
-  //   exit(1);
-  // }
-
   if (mergemode && args::get(mergemode) >= static_cast<int>(UpdateMode::num)) {
     spd::get("log")->error("Invalid update mode provided: {}", args::get(mergemode));
     exit(1);
@@ -226,15 +215,14 @@ DetConfSets get_detconfsets(auto const& aut, DetConf const& dc,
   return calc_detconfsets(dc, scci, sccAcc, sccDet);
 }
 
-//take automaton and inclusion partial order and flag whether we need to enforce that
-//dominating state can not reach dominated state (required for one of the optimizations, but not for other)
-map<unsigned, nba_bitset> sim_po_to_implmask(auto const& aut, map<unsigned, set<unsigned>> const& po, bool reach_cond) {
+//take automaton and inclusion partial order
+//construct restricted order for optimizations
+map<unsigned, nba_bitset> sim_po_to_implmask(auto const& aut, map<unsigned, set<unsigned>> const& po, bool classic_variant) {
   //calculate reachable states from each state
   map<state_t, vector<state_t>> reaches;
-  if (reach_cond)
-    for (auto const s : aut.states()) {
-      reaches[s] = reachable_states(aut, s);
-    }
+  for (auto const s : aut.states()) {
+    reaches[s] = reachable_states(aut, s);
+  }
 
   map<unsigned, nba_bitset> ret;
   for (auto const s : aut.states())
@@ -242,8 +230,19 @@ map<unsigned, nba_bitset> sim_po_to_implmask(auto const& aut, map<unsigned, set<
 
   for (auto const& it : po)
     for (auto const b : it.second) {
-      if (it.first != b && (!reach_cond || !contains(reaches.at(b), it.first))) {
-        ret[b].reset(it.first);
+      if (it.first != b) {
+        bool areachb = contains(reaches.at(it.first), b);
+        bool breacha = contains(reaches.at(b), it.first);
+
+        bool cond = false;
+        if (classic_variant) { // a < b & !reaches(b, a)
+          cond = !breacha;
+        } else { //a < b & (reaches(b, a) <-> reaches(a, b))
+          cond = areachb == breacha;
+        }
+
+        if (cond)
+          ret[b].reset(it.first);
       }
     }
 

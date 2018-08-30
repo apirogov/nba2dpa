@@ -264,7 +264,7 @@ public:
         log->error(e.what());
       else
         std::cerr << e.what() << std::endl;
-      garbage = true; //TODO: maybe skip until next HOA token found?
+      garbage = true; //input stream is broken, we better abort
       return {};
     }
 
