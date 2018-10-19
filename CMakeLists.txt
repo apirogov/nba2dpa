@@ -92,6 +92,14 @@ set(nbautils_SOURCE
                    src/det.hh src/det.cc
                    src/detstate.hh src/detstate.cc
                    src/pa.hh src/pa.cc
+
+				   # Complementation of Buechi-automata #################
+					src/compl/compl_tag.hh
+					src/compl/compl_print.hh
+					src/compl/compl_constr1.hh
+					src/compl/compl_constr2.hh
+					src/compl/compl_constr3.hh
+				   ######################################################
                    )
 
 add_library(nbautils-lib STATIC ${nbautils_SOURCE})
@@ -112,6 +120,12 @@ target_link_libraries(permsets nbautils-lib ${CMAKE_THREAD_LIBS_INIT})
 
 add_executable(scratchpad EXCLUDE_FROM_ALL src/tools/scratchpad.cc)
 target_link_libraries(scratchpad nbautils-lib ${CMAKE_THREAD_LIBS_INIT})
+
+
+# Complementation of Buechi-automata ################################################
+add_executable(compl EXCLUDE_FROM_ALL src/tools/compl.cc)							#
+target_link_libraries(compl nbautils-lib ${CMAKE_THREAD_LIBS_INIT})					#
+#####################################################################################
 
 if (nbautils-build_tests)
     enable_testing()
