@@ -110,31 +110,12 @@ std::ostream& operator<<(std::ostream& os, DetConf const& dc) {
   return os;
 }
 
-void rows_to_str(std::ostream& os, vector<vector<pair<nba_bitset, pri_t>>> const& rows) {
-  vector<string> tmp;
-  for (auto const& mscc : rows) {
-    vector<string> tmp2;
-    for (auto const& ms : mscc) {
-      tmp2.push_back(pretty_bitset(ms.first) + ":" + to_string(ms.second));
-    }
-    tmp.push_back(seq_to_str(tmp2, ", "));
-  }
-  os << seq_to_str(tmp, " | ");
-}
-
 std::ostream& operator<<(std::ostream& os, DetState const& s) {
   os << "N: " << pretty_bitset(s.nsccs)
-    << "\t(AC: " << pretty_bitset(s.asccs)
-    << ", AB: " << pretty_bitset(s.asccs_buf) << "):" << s.asccs_pri;
-
-  os << "\tD: (";
-  rows_to_str(os, s.dsccs);
-  os << ")";
-
-  os << "\tM: (";
-  rows_to_str(os, s.msccs);
-  os << ")";
-
+     << "\t(AC: " << pretty_bitset(s.asccs)
+     << ", AB: " << pretty_bitset(s.asccs_buf) << "):" << s.asccs_pri;
+  os << "\tD: (" << s.dsccs << ")";
+  os << "\tM: (" << s.msccs << ")";
   return os;
 }
 
@@ -142,6 +123,23 @@ string DetState::to_string() const {
   stringstream ss;
   ss << *this;
   return ss.str();
+}
+
+// convert to a characteristic tree_history
+tree_history DetState::to_tree_history() const {
+  ranked_slice rs;
+  for (auto const &mscc : msccs) {
+    auto const tmp = unprune(mscc);
+    rs.insert(rs.end(), tmp.begin(), tmp.end());
+  }
+  for (auto const &dscc : dsccs) {
+    auto const tmp = unprune(dscc);
+    rs.insert(rs.end(), tmp.begin(), tmp.end());
+  }
+  rs.push_back(make_pair(asccs, asccs_pri));
+  rs.push_back(make_pair(asccs_buf,rs.size()+1));
+  rs.push_back(make_pair(nsccs,rs.size()+1));
+  return slice_to_history(rs);
 }
 
 //componentwise equality
@@ -157,27 +155,6 @@ bool DetState::operator==(DetState const& o) const {
 }
 
 // ----------------------------------------------------------------------------
-
-//returns Parent and Left-border relationship for a list of ranks
-//(left border = left sibling for the last one popped in the inner while loop)
-pair<vector<int>,vector<int>> unflatten(vector<pair<nba_bitset, pri_t>> const& rank) {
-  int const n = rank.size();
-  pair<vector<int>,vector<int>> ret = make_pair(vector<int>(n),vector<int>(n));
-  stack<int> s;
-  for (int i=n-1; i>=0; i--) {
-    while (!s.empty() && rank[i].second < rank[s.top()].second) {
-      ret.second[s.top()] = i;
-      s.pop();
-    }
-    ret.first[i] = s.empty() ? -1 : s.top();
-    s.push(i);
-  }
-  while (!s.empty()) {
-    ret.second[s.top()] = -1;
-    s.pop();
-  }
-  return ret;
-}
 
 DetState::DetState() {}
 
@@ -253,8 +230,8 @@ nba_bitset extract_switchers(DetConf const& dc, DetConfSets const& sts, DetState
 }
 
 //given a safra forest tuple, split accepting states into fresh children with fresh ranks
-void expand_row(DetConf const& dc, vector<pair<nba_bitset, pri_t>>& row, pri_t& cur_fresh) {
-  vector<pair<nba_bitset, pri_t>> nrow;
+void expand_row(DetConf const& dc, ranked_slice& row, pri_t& cur_fresh) {
+  ranked_slice nrow;
   nrow.reserve(2*row.size());
   for (auto& it : row) {
     nrow.push_back(make_pair(it.first &  dc.aut_acc, cur_fresh++));
@@ -271,7 +248,7 @@ void expand_trees(DetConf const& dc, DetState &s, pri_t& cur_fresh) {
 }
 
 //remove unnecessary states using simulation relation
-void prune_row(DetConf const& dc, vector<pair<nba_bitset, pri_t>>& row) {
+void prune_row(DetConf const& dc, ranked_slice& row) {
   nba_bitset allowed;
   allowed.set();
   for (auto& it : row) {
@@ -304,11 +281,11 @@ void prune_trees(DetConf const& dc, DetState &s) {
 }
 
 //merge safra tree nodes with too unimportant rank and thereby also prevent them from saturation
-void underapprox_row(DetConf const& dc, vector<pair<nba_bitset, pri_t>>& row) {
+void underapprox_row(DetConf const& dc, ranked_slice& row) {
   if (row.empty())
     return;
 
-  vector<pair<nba_bitset, pri_t>> nrow;
+  ranked_slice nrow;
   nrow.reserve(row.size());
 
   auto it = cbegin(row);
@@ -335,7 +312,7 @@ void underapprox_trees(DetConf const& dc, DetState &s) {
 }
 
 //given a ranked tuple, keep leftmost occurence of each state
-void left_normalize_row(vector<pair<nba_bitset, pri_t>>& row) {
+void left_normalize_row(ranked_slice& row) {
   nba_bitset seen = 0;
   for (auto& s : row) {
     s.first &= ~seen;
@@ -427,7 +404,7 @@ inline pair<pri_t, bool> prio_to_event(pri_t pri) {
 //takes accepting states (if given, they will be kept "pure"), the dominating rank,
 //current row and fresh id counter. performs (optionally pure) collapse
 void full_merge_row(nba_bitset const& acc_states, pri_t const act_rank,
-    vector<pair<nba_bitset, pri_t>>& row,pri_t& cur_fresh) {
+    ranked_slice& row, pri_t& cur_fresh) {
   if (row.size()<=1)
     return;
 

@@ -87,6 +87,7 @@ include_directories(src)
 set(nbautils_SOURCE
                    src/metrics/memusage.h src/metrics/memusage.c src/metrics/bench.hh
                    src/common/bimap.hh src/common/util.hh src/common/scc.hh
+                   src/common/types.hh src/common/types.cc
                    src/io.hh src/io.cc
                    src/aut.hh src/ps.hh
                    src/det.hh src/det.cc

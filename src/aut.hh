@@ -14,25 +14,12 @@
 
 #include <range/v3/all.hpp>
 
+#include "common/types.hh"
 #include "common/parity.hh"
 #include "common/bimap.hh"
 
 namespace nbautils {
 using namespace std;
-
-// type for "small" automata (as the input should be)
-constexpr size_t max_nba_states = 256;
-using nba_bitset = bitset<max_nba_states>;
-
-// type for alphabet (<=8 aps with all <=2^8=256 combinations)
-using sym_t = uint8_t;
-constexpr int max_nba_syms = 1 << (8 * sizeof(sym_t));
-
-// type for automata states
-using state_t = uint32_t;
-
-// type of priorities
-using pri_t = int;
 
 // parity automaton with unique initial state,
 // priorities at nodes or edges and an arbitrary label at nodes

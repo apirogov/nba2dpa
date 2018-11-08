@@ -101,10 +101,10 @@ struct DetState {
   pri_t asccs_pri=0;
 
   //deterministic mixed SCC(s) - nodes not expanded, other saturation condition
-  vector<vector<pair<nba_bitset,pri_t>>> dsccs;
+  vector<ranked_slice> dsccs;
 
   //(remaining) mixed SCC(s) - MS tuple / Safra tree(s)
-  vector<vector<pair<nba_bitset,pri_t>>> msccs;
+  vector<ranked_slice> msccs;
 
   DetState();
   DetState(DetConf const& dc, nba_bitset const& qs);
@@ -116,6 +116,7 @@ struct DetState {
   // bool operator<(DetState const& other) const;
 
   string to_string() const;
+  tree_history to_tree_history() const;
 };
 
 std::ostream& operator<<(std::ostream& os, DetState const& s);
