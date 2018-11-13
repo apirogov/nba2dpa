@@ -25,9 +25,11 @@ class trie_map {
   node_t root;
   size_t sz = 0;
 
-  // traverse trie to given node and return it. when create=false and it does
-  // not exist, return null pointer
-  node_t* traverse(vector<K> const &ks, bool create = false /*, int k=-1 */) {
+ public:
+
+  // traverse trie to given node and return it.
+  // when create=false and it does not exist, return null pointer
+  node_t* traverse(vector<K> const &ks, bool create = false) {
     // if (k<0) k=ks.size();
     auto *curr = &root;
     for (int i = 0; i < (int)ks.size(); i++) {
@@ -44,7 +46,6 @@ class trie_map {
     return curr;
   }
 
- public:
   size_t size() const { return sz; }
 
   // puts a set,value pair

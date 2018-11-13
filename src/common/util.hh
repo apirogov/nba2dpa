@@ -6,6 +6,7 @@
 #include <functional>
 #include <vector>
 #include <map>
+#include <memory>
 #include <set>
 #include <unordered_set>
 #include <queue>
@@ -258,6 +259,33 @@ void bfs(Node const& start, F visit) {
 
     visit(st, pusher, visited_f /*, discovered_f */);
   }
+}
+
+//iteratively double param, then use binary search to minimize it
+template <typename T, typename F>
+auto find_min_param(T mn, T mx, F func) {
+  T l = mn;
+  T r = mn;
+  auto ret = func(r);
+  while (!ret && r != mx) {
+    l = r;
+    r *= 2;
+    r = std::min(r, mx);
+    ret = func(r);
+  }
+  if (!ret)
+    return std::unique_ptr<std::decay_t<decltype(*ret)>>(nullptr);
+
+  while (l<r) {
+    T m = (l+r)/2;
+    auto cur = func(m);
+    if (cur) {
+      ret = move(cur);
+      r = m;
+    } else
+      l = m+1;
+  }
+  return move(ret);
 }
 
 template<typename T>

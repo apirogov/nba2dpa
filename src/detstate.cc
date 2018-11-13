@@ -125,9 +125,10 @@ string DetState::to_string() const {
   return ss.str();
 }
 
-// convert to a characteristic tree_history
+// convert to a characteristic (pseudo-)tree_history
 tree_history DetState::to_tree_history() const {
   ranked_slice rs;
+  rs.push_back(make_pair(powerset, -1)); //need FULL set as first element (virtual root)
   for (auto const &mscc : msccs) {
     auto const tmp = unprune(mscc);
     rs.insert(rs.end(), tmp.begin(), tmp.end());
@@ -136,10 +137,33 @@ tree_history DetState::to_tree_history() const {
     auto const tmp = unprune(dscc);
     rs.insert(rs.end(), tmp.begin(), tmp.end());
   }
-  rs.push_back(make_pair(asccs, asccs_pri));
-  rs.push_back(make_pair(asccs_buf,rs.size()+1));
-  rs.push_back(make_pair(nsccs,rs.size()+1));
-  return slice_to_history(rs);
+  // if (asccs != 0)
+    rs.push_back(make_pair(asccs, asccs_pri));
+  // rs.push_back(make_pair(asccs_buf,rs.size()+1));
+  // rs.push_back(make_pair(nsccs,rs.size()+1));
+  return in_rank_order(rs);
+}
+
+// assumes that same configuration (esp. partitioning) was used
+// returns true if the flexible components are a finer (or equal) state partition
+bool DetState::tuples_finer_or_equal(DetState const& o) const {
+  if (powerset != o.powerset || nsccs != o.nsccs || asccs != o.asccs)
+    return false;
+  if (msccs.size() != o.msccs.size())
+    return false;
+  if (dsccs.size() != o.dsccs.size())
+    return false;
+
+  for (int i=0; i<(int)msccs.size(); ++i) {
+    if (!finer_or_equal(msccs[i], o.msccs[i]))
+      return false;
+  }
+  for (int i=0; i<(int)dsccs.size(); ++i) {
+    if (!finer_or_equal(dsccs[i], o.dsccs[i]))
+      return false;
+  }
+
+  return true;
 }
 
 //componentwise equality
@@ -152,6 +176,9 @@ bool DetState::operator==(DetState const& o) const {
     &&      dsccs == o.dsccs
     &&      msccs == o.msccs
     ;
+}
+bool DetState::operator!=(DetState const& o) const {
+  return !(*this == o);
 }
 
 // ----------------------------------------------------------------------------
@@ -389,16 +416,6 @@ void normalize_prios(DetState &s) {
   for (auto& mscc : s.msccs)
     for (auto& it : mscc)
       update_pri(it.second);
-}
-
-//convert a rank + event to corresponding fired prio
-inline pri_t rank_to_prio(pri_t r, bool good) {
-  return 2*(r+1)-(good ? 0 : 1);
-}
-
-inline pair<pri_t, bool> prio_to_event(pri_t pri) {
-  return make_pair((pri+1)/2 - 1, pri%2==0);
-
 }
 
 //takes accepting states (if given, they will be kept "pure"), the dominating rank,

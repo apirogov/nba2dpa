@@ -80,6 +80,7 @@ struct DetConf {
   bool sep_acc_cyc = false;
   bool sep_mix = false;
   bool opt_det = false;
+  bool opt_suc = false;
 };
 
 DetConfSets calc_detconfsets(DetConf const& dc, SCCDat const& scci,
@@ -113,10 +114,13 @@ struct DetState {
   pair<DetState, pri_t> succ(DetConf const& dc, sym_t x) const;
 
   bool operator==(DetState const& other) const;
+  bool operator!=(DetState const& other) const;
   // bool operator<(DetState const& other) const;
 
   string to_string() const;
+
   tree_history to_tree_history() const;
+  bool tuples_finer_or_equal(DetState const&) const;
 };
 
 std::ostream& operator<<(std::ostream& os, DetState const& s);

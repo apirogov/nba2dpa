@@ -8,11 +8,47 @@
 #include "graph.hh"
 #include "detstate.hh"
 #include "common/scc.hh"
+#include "common/types.hh"
+#include "common/trie_map.hh"
 #include "aut.hh"
 
 namespace nbautils {
 
 using PA = Aut<DetState>;
+
+// takes: reference successor, mask for restricting candidates, valid pointer to sub-trie node,
+// prefix up to sub-trie node, the prefix length and current depth
+// returns: suitable candidate
+// TODO: has a bug
+DetState* trie_dfs(int const realk, DetState const& ref, auto const &msk, auto const nodptr, nba_bitset const pref, int const i) {
+  if (!nodptr)
+    return nullptr;
+
+  if ((nodptr->key & msk.first) != 0)
+    return nullptr;
+  if (i<(int)msk.second.size() && (msk.second[i] & ~pref) != 0)
+    return nullptr;
+
+  //try children in trie
+  for (auto const &sucnod : nodptr->suc) {
+    DetState *ret = trie_dfs(realk, ref, msk, sucnod.second.get(), pref|sucnod.first, i+1);
+    if (ret)
+      return ret;
+  }
+
+  //here is a possible candidate state. need to check tuple order
+  if (nodptr->value) {
+    DetState* cand = nodptr->value.get();
+    if (!cand)
+      return nullptr;
+
+    if (ref.tuples_finer_or_equal(*cand))
+      return cand;
+  }
+
+  //nothing suitable found
+  return nullptr;
+}
 
 // BFS-based determinization with supplied level update config
 PA determinize(auto const& nba, DetConf const& dc, nba_bitset const& startset,
@@ -24,6 +60,12 @@ PA determinize(auto const& nba, DetConf const& dc, nba_bitset const& startset,
   pa.set_patype(PAType::MIN_EVEN);
   pa.tag_to_str = default_printer<DetState>();
   pa.tag.put(DetState(dc, startset), myinit); // initial state tag
+
+  trie_map<nba_bitset, DetState> existing; //existing states organized in trie
+  // use Mueller/Schupp update for reference successor in trie query
+  auto dc2 = dc;
+  dc2.update = UpdateMode::MUELLERSCHUPP;
+  // dc2.puretrees = false;
 
   int numvis=0;
   //always track normal successor powerset and det state in parallel
@@ -58,6 +100,58 @@ PA determinize(auto const& nba, DetConf const& dc, nba_bitset const& startset,
       nba_bitset sucset = powersucc(dc.aut_mat, stp.first, i, dc.aut_asinks, dc.impl_mask);
       if (!pred(sucset)) //predicate not satisfied -> don't explore this node
         continue;
+
+      //check whether there is a (k-1) equivalent successor already
+      //and replace if some suitable is found
+      if (dc.opt_suc) {
+        auto const ev = prio_to_event(sucpri); //get dominant rank event
+
+        // Get MullerSchupp successor to span largest trie subtree possible
+        DetState refsuc;
+        pri_t refpri;
+        tie(refsuc, refpri) = cur.succ(dc2, i);
+        auto const th = refsuc.to_tree_history(); //get dual structure
+
+        //calculate k-equivalence level
+        int realk = ev.first + 1; // + (ev.second ? 1 : 0);
+        int k = realk;
+        k += 2; //+1 for powerset, +1 because first rank is 0
+        if (k > (int)th.size()) //may happen due to breakpoint component becoming empty
+          k = th.size();
+
+        // cerr << "cand: " << suclevel.to_string() << " " << ev.first << "," << ev.second << endl;
+        // cerr << "addr: " << th << endl;
+
+        auto const msk = kcut_mask(th, k-1);
+
+        // cerr << refsuc << "k=" << k << endl;
+        // cerr << " addr:" << th << " trmd:" << tht << endl;
+        // cerr << "fbdn: " << pretty_bitset(msk.first) << " msk: " << msk.second
+        //   << " pref: " << pretty_bitset(tht.back()) << endl;
+
+        auto tht = th;
+        tht.resize(k);
+        auto const ini = existing.traverse(tht);
+        DetState* cand = nullptr;
+        if (ini) //if the corresponding trie subtree exists, search for successors
+          cand = trie_dfs(realk, refsuc, msk, ini, tht.back(), 0);
+        if (cand) { // if we found a suitable successor in trie, use that
+          if (suclevel != *cand && dc.debug) {
+            cerr << "suc of:\t" << cur << " : " << ev.first << " " << (ev.second ? "+" : "-") << endl
+                 << "replcd:\t" << suclevel << endl
+                 << "with:\t" << *cand << endl;
+            cerr << "addr:\t" << suclevel.to_tree_history() << endl;
+            cerr << "naddr:\t" << cand->to_tree_history() << endl;
+          }
+          suclevel = *cand;
+        }
+
+        else // otherwise, insert and use the one we calculated using user config
+          existing.put(suclevel.to_tree_history(), suclevel);
+      }
+
+      // now suclevel definitely has some suitable successor we decided on
+      // ----
 
       //check whether there is already a state in the graph with this label
       auto const sucst = pa.tag.put_or_get(suclevel, pa.num_states());

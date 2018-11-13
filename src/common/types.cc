@@ -18,6 +18,14 @@ std::ostream& operator<<(std::ostream& os, vector<ranked_slice> const& rss) {
   return os;
 }
 
+std::ostream& operator<<(std::ostream& os, tree_history const& th) {
+  for (int i=0; i<(int)th.size(); ++i)
+    os << pretty_bitset(th[i]) << (i!=(int)th.size()-1 ? ", " : "");
+  return os;
+}
+
+// ----
+
 // takes a ranked slice, returns a "unpruned" tuple,
 // i.e., labels contain states of whole subtree
 // unpruned nodes in rank order uniquely determine a rank slice and are useful for
@@ -91,6 +99,86 @@ ranked_slice history_to_slice(tree_history const& th) {
   return prune(res);
 }
 
+// ----
+
+//rs1 <= rs2 if rs2 consists of merged neighboring sets of rs1
+//assumes valid ranked slices with same total state set
+bool finer_or_equal(ranked_slice const& rs1, ranked_slice const& rs2) {
+  if (rs1.size() == 0 && rs2.size() == 0)
+    return true;
+  if ((rs1.size()==0) != (rs2.size()==0))
+    return false;
+
+  nba_bitset pref1 = 0;
+  nba_bitset pref2 = 0;
+  int i=0;
+  int j=0;
+  while (j<(int)rs2.size()) {
+    pref2 |= rs2[j].first;
+    // cout << "j=" << j << " " << pretty_bitset(pref2) << endl;
+
+    while (i<(int)rs1.size() && ((pref1|rs1[i].first) & ~pref2) == 0) {
+      pref1 |= rs1[i].first;
+      // cout << "i=" << i << " " << pretty_bitset(pref1) << endl;
+
+      i++;
+    }
+
+    if (pref1 != pref2)
+        return false;
+
+    j++;
+  }
+  return ((i==(int)rs1.size()) == (j==(int)rs2.size()));
+}
+
+pair<nba_bitset,vector<nba_bitset>> kcut_mask(tree_history const& th, int k) {
+  nba_bitset forbidden=0;
+  vector<nba_bitset> masks;
+  nba_bitset tmp;
+
+  for (int i=k; i<(int)th.size(); ++i) {
+    tmp |= th[i];
+    masks.push_back(tmp);
+  }
+  forbidden = th[0] & ~tmp;
+
+  return make_pair(forbidden, masks);
+}
+
+// k equiv if have same k prefix in trie branch
+bool kequiv(tree_history const& th1, tree_history const& th2, int k) {
+  if (k>=(int)th1.size() || k>=(int)th2.size())
+    return false;
+  for (int i=0; i<=k; ++i)
+    if (th1[i] != th2[i])
+      return false;
+  return true;
+}
+
+// k cut not worse in t1 compared to t2
+// if in trie nodes >= k never appear states of t2 that never appear >= k in t2
+// and all states in t1 appear in nodes >= k not later than in t2
+bool not_worse(tree_history const& th1, tree_history const& th2, int k) {
+  if (!kequiv(th1, th2, k))
+    return false;
+
+  auto const msk = kcut_mask(th2, k);
+  nba_bitset tmp = 0;
+
+  for (int i=k; i<(int)th1.size(); ++i) {
+    if ((th1[i] & msk.first) != 0)
+      return false;
+
+    tmp |= th1[i];
+    if ((msk.second[i-k] & ~tmp) != 0)
+      return false;
+  }
+  return true;
+}
+
+// ----
+
 //returns Parent and Left-border relationship for a list of ranks
 //(left border = left sibling for the last one popped in the inner while loop)
 pair<vector<int>,vector<int>> unflatten(ranked_slice const& rank) {
@@ -111,5 +199,6 @@ pair<vector<int>,vector<int>> unflatten(ranked_slice const& rank) {
   }
   return ret;
 }
+
 
 }

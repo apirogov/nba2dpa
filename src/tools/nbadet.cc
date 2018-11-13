@@ -47,6 +47,7 @@ struct Args {
   bool cyclicbrk;
   bool sepmix;
   bool optdet;
+  bool optsuc;
 };
 
 Args parse_args(int argc, char *argv[]) {
@@ -75,6 +76,8 @@ Args parse_args(int argc, char *argv[]) {
       {'r', "prune-sim"});
   args::Flag approx(parser, "underapprox", "Iteratively underapproximate the Safra trees.",
       {'p', "approx"});
+  args::Flag optsuc(parser, "optsuc", "Optimize successor selection using existing states if possible.",
+      {'o', "opt-succ"});
 
   // postprocessing
   args::Flag mindfa(parser, "mindfa", "First minimize number of priorities, "
@@ -127,6 +130,11 @@ Args parse_args(int argc, char *argv[]) {
     exit(1);
   }
 
+  if (context && optsuc) {
+    spd::get("log")->error("-c does not work with -o!");
+    exit(1);
+  }
+
   if (cyclicbrk && !sepacc) {
     spd::get("log")->error("-b without -a is useless!");
     exit(1);
@@ -171,6 +179,8 @@ Args parse_args(int argc, char *argv[]) {
   args.sepmix = sepmix;
   args.optdet = optdet;
 
+  args.optsuc = optsuc;
+
   return args;
 }
 
@@ -188,6 +198,8 @@ DetConf detconf_from_args(Args const& args) {
   dc.sep_acc_cyc = args.cyclicbrk;
   dc.sep_mix = args.sepmix;
   dc.opt_det = args.optdet;
+
+  dc.opt_suc = args.optsuc;
 
   return dc;
 }
@@ -276,7 +288,7 @@ DetConf assemble_detconf(Args const& args, auto const& aut,
     dc.ctx = get_context(aut, dc.aut_mat, dc.aut_asinks, dc.impl_mask, log);
 
   //when under-approximation disabled, set bound so high that result is exact
-  dc.maxsets = args.approx ? 1 : aut.num_states() + 1;
+  dc.maxsets = aut.num_states() + 1;
 
   //precompute lots of sets used in construction
   dc.sets = get_detconfsets(aut, dc, log);
@@ -346,43 +358,46 @@ PA process_nba(Args const &args, auto& aut, std::shared_ptr<spdlog::logger> log)
     // -- end of preprocessing --
 
     //determinize (optionally using psets)
-    PA pa;
-    bool includeslang = !args.approx; // when we don't approximate, the language will surely be equal
-    do {
+    unique_ptr<PA> upa = find_min_param(args.approx ? 1 : dc.maxsets, dc.maxsets, [&](int numsets){
+      dc.maxsets = numsets;
       if (args.approx)
         log->info("trying approximation depth {}...", dc.maxsets);
 
+      unique_ptr<PA> pa;
       if (!args.psets)
-        pa = bench(log, "determinize", WRAP(determinize(aut, dc)));
+        pa = bench(log, "determinize", WRAP(make_unique<PA>(determinize(aut, dc))));
       else
-        pa = bench(log, "determinize_with_psets", WRAP(determinize(aut, dc, pscon, pscon_scci)));
+        pa = bench(log, "determinize_with_psets", WRAP(make_unique<PA>(determinize(aut, dc, pscon, pscon_scci))));
 
       if (args.stats) { //show stats before postprocessing
-        print_stats(pa);
+        print_stats(*pa);
       }
 
       // -- begin postprocessing --
       if (args.mindfa) {
         auto optlog = args.verbose>1 ? log : nullptr;
-        log->info("#priorities before: {}", pa.pris().size());
-        log->info("#states before: {}", pa.states().size());
+        log->info("#priorities before: {}", pa->pris().size());
+        log->info("#states before: {}", pa->states().size());
 
-        pa.make_colored();
-        bench(log, "minimize number of priorities", WRAP(minimize_priorities(pa, optlog)));
-        log->info("#priorities after: {}", pa.pris().size());
+        pa->make_colored();
+        bench(log, "minimize number of priorities", WRAP(minimize_priorities(*pa, optlog)));
+        log->info("#priorities after: {}", pa->pris().size());
 
-        pa.make_complete();
-        bench(log, "minimize number of states", WRAP(minimize_pa(pa, optlog)));
-        log->info("#states after: {}", pa.num_states());
+        pa->make_complete();
+        bench(log, "minimize number of states", WRAP(minimize_pa(*pa, optlog)));
+        log->info("#states after: {}", pa->num_states());
       }
       // -- end of postprocessing --
 
-      //TODO: binary search for minimal maxsets value
-      if (args.approx) { //if approximation enabled, check language inclusion + inc bound
-        includeslang = ba_dpa_inclusion(aut, pa);
-        dc.maxsets++;
-      }
-    } while (!includeslang);
+      bool includeslang = ba_dpa_inclusion(aut, *pa);
+      if (!includeslang) //this automaton is not accepting the whole language
+        return unique_ptr<PA>(nullptr);
+
+      return move(pa);
+    });
+
+    assert(upa);
+    PA& pa = *(upa.get());
 
     //sanity checks
     assert(pa.get_name() == aut.get_name());

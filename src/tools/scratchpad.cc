@@ -4,6 +4,7 @@
 #include <set>
 #include <vector>
 #include <map>
+#include <memory>
 
 #include "common/types.hh"
 #include "common/trie_map.hh"
@@ -21,14 +22,6 @@
 using namespace std;
 using namespace nbautils;
 
-
-
-
-//TODO: implement nba_bitset-labeled trie where each node can be marked.
-//a Q-slice-trie stores a set of ranked slices that have exactly Q as comlete set
-//a trie branch up to a marked node uniquely determines presence of a ranked slice
-//given trie node n on level k, all ranked slices in the subtree rooted at n are k-equivalent
-
 nba_bitset vec_to_bitset(vector<int> const& v) { return to_bitset<nba_bitset>(v); }
 
 //this is for trying stuff out. do whatever you want here.
@@ -36,11 +29,24 @@ int main(int argc, char *argv[]) {
   (void)argv[0];
   (void)argc;
 
-  auto rslice = ranked_slice{ make_pair(vec_to_bitset({3}), 5)
-                            , make_pair(vec_to_bitset({2}), 2), make_pair(vec_to_bitset({5}), 4)
-                            , make_pair(vec_to_bitset({4}), 3), make_pair(vec_to_bitset({1}), 1) };
-  auto rslice2= ranked_slice{ make_pair(vec_to_bitset({2,3}), 2)
-                            , make_pair(vec_to_bitset({4,5}), 3), make_pair(vec_to_bitset({1}), 1) };
+  /*
+  unique_ptr<int> res = find_min_param(125,125, [](int p) {
+      cout << p << endl;
+      if (p>=123)
+        return make_unique<int>(p);
+      else
+        return unique_ptr<int>(nullptr);
+  });
+  cout << "-" << endl;
+  cout << *res << endl;
+  return 0;
+  */
+
+  auto rslice = ranked_slice{ make_pair(vec_to_bitset({3}), 4)
+                            , make_pair(vec_to_bitset({2}), 1), make_pair(vec_to_bitset({5}), 3)
+                            , make_pair(vec_to_bitset({4}), 2), make_pair(vec_to_bitset({1}), 0) };
+  auto rslice2= ranked_slice{ make_pair(vec_to_bitset({2,3}), 1)
+                            , make_pair(vec_to_bitset({4,5}), 2), make_pair(vec_to_bitset({1}), 0) };
 
   auto const irslice = slice_to_history(rslice);
 
@@ -88,6 +94,40 @@ int main(int argc, char *argv[]) {
   cout << "get any:" << endl;
   ranked_slice fromtrie3 = trie.get(irslice2, true);
   cout << fromtrie3 << endl;
+
+  auto rslice4 = ranked_slice{ make_pair(vec_to_bitset({3}), 2)
+                            , make_pair(vec_to_bitset({2}), 1), make_pair(vec_to_bitset({5}), 4)
+                            , make_pair(vec_to_bitset({4}), 3), make_pair(vec_to_bitset({1}), 0) };
+  auto const irslice4 = slice_to_history(rslice4);
+
+  auto rslice5 = ranked_slice{ make_pair(vec_to_bitset({3}), 2)
+                            , make_pair(vec_to_bitset({2}), 1), make_pair(vec_to_bitset({4}), 4)
+                            , make_pair(vec_to_bitset({5}), 3), make_pair(vec_to_bitset({1}), 0) };
+  auto const irslice5 = slice_to_history(rslice5);
+  cout << irslice5 << endl;
+
+  auto masks = kcut_mask(irslice4, 1);
+  cout << pretty_bitset(masks.first) << " | " << masks.second << endl;
+  masks = kcut_mask(irslice2, 1);
+  cout << pretty_bitset(masks.first) << " | " << masks.second << endl;
+  masks = kcut_mask(irslice5, 1);
+  cout << pretty_bitset(masks.first) << " | " << masks.second << endl;
+
+  cout << not_worse(irslice2, irslice4, 1) << endl;
+  cout << not_worse(irslice5, irslice4, 1) << endl;
+
+
+  cout << "finer or equal:" << endl;
+  auto rslice6 = ranked_slice{ make_pair(vec_to_bitset({3}), 4)
+                            , make_pair(vec_to_bitset({5}), 1), make_pair(vec_to_bitset({2}), 3)
+                            , make_pair(vec_to_bitset({4}), 2), make_pair(vec_to_bitset({1}), 0) };
+  auto rslice7 = ranked_slice{ make_pair(vec_to_bitset({2,3}), 1)
+                            , make_pair(vec_to_bitset({4}), 2), make_pair(vec_to_bitset({5,1}), 0) };
+  cout << rslice << endl << rslice2 << endl << finer_or_equal(rslice, rslice2) << endl;
+  cout << rslice6 << endl << rslice2 << endl << finer_or_equal(rslice6, rslice2) << endl;
+  cout << rslice7 << endl << rslice2 << endl << finer_or_equal(rslice7, rslice2) << endl;
+
+  cout << rslice << endl << rslice << endl << finer_or_equal(rslice, rslice) << endl;
 
   /*
   auto auts = nbautils::AutStream<Aut<string>>("");
