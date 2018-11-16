@@ -18,8 +18,8 @@ using nba_bitset = bitset<max_nba_states>;
 //     }
 // };
 
-// type for alphabet (<=8 aps with all <=2^8=256 combinations)
-using sym_t = uint8_t;
+// type for alphabet (<=16 aps with all <=2^16 combinations = real symbols)
+using sym_t = uint16_t;
 constexpr int max_nba_syms = 1 << (8 * sizeof(sym_t));
 
 // type for automata states

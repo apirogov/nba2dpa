@@ -19,8 +19,9 @@ using PA = Aut<DetState>;
 // takes: reference successor, mask for restricting candidates, valid pointer to sub-trie node,
 // prefix up to sub-trie node, the prefix length and current depth
 // returns: suitable candidate
-// TODO: has a bug
-DetState* trie_dfs(int const realk, DetState const& ref, auto const &msk, auto const nodptr, nba_bitset const pref, int const i) {
+// TODO: find very rare bug (in combination with aggressive collapse)
+DetState* trie_dfs(DetState const& ref, auto const &msk,
+                   auto const nodptr, nba_bitset const pref, int const i) {
   if (!nodptr)
     return nullptr;
 
@@ -31,7 +32,7 @@ DetState* trie_dfs(int const realk, DetState const& ref, auto const &msk, auto c
 
   //try children in trie
   for (auto const &sucnod : nodptr->suc) {
-    DetState *ret = trie_dfs(realk, ref, msk, sucnod.second.get(), pref|sucnod.first, i+1);
+    DetState *ret = trie_dfs(ref, msk, sucnod.second.get(), pref|sucnod.first, i+1);
     if (ret)
       return ret;
   }
@@ -113,41 +114,33 @@ PA determinize(auto const& nba, DetConf const& dc, nba_bitset const& startset,
         auto const th = refsuc.to_tree_history(); //get dual structure
 
         //calculate k-equivalence level
-        int realk = ev.first + 1; // + (ev.second ? 1 : 0);
-        int k = realk;
-        k += 2; //+1 for powerset, +1 because first rank is 0
+        int k = ev.first + 2; //+1 for prepended powerset, +1 because first rank is 0
         if (k > (int)th.size()) //may happen due to breakpoint component becoming empty
           k = th.size();
 
-        // cerr << "cand: " << suclevel.to_string() << " " << ev.first << "," << ev.second << endl;
-        // cerr << "addr: " << th << endl;
-
-        auto const msk = kcut_mask(th, k-1);
-
-        // cerr << refsuc << "k=" << k << endl;
-        // cerr << " addr:" << th << " trmd:" << tht << endl;
-        // cerr << "fbdn: " << pretty_bitset(msk.first) << " msk: " << msk.second
-        //   << " pref: " << pretty_bitset(tht.back()) << endl;
-
         auto tht = th;
-        tht.resize(k);
+        tht.resize(k+1); //keep ranks 0 to k -> path to maximal collapsed k-equiv state in trie
+        auto const msk = kcut_mask(th, k);
         auto const ini = existing.traverse(tht);
         DetState* cand = nullptr;
         if (ini) //if the corresponding trie subtree exists, search for successors
-          cand = trie_dfs(realk, refsuc, msk, ini, tht.back(), 0);
-        if (cand) { // if we found a suitable successor in trie, use that
+          cand = trie_dfs(refsuc, msk, ini, tht.back(), 0);
+        if (cand) {
+          // if we found a suitable successor in trie, use that
           if (suclevel != *cand && dc.debug) {
             cerr << "suc of:\t" << cur << " : " << ev.first << " " << (ev.second ? "+" : "-") << endl
                  << "replcd:\t" << suclevel << endl
+                 << "via:\t" << refsuc << endl
                  << "with:\t" << *cand << endl;
             cerr << "addr:\t" << suclevel.to_tree_history() << endl;
+            cerr << "raddr:\t" << refsuc.to_tree_history() << endl;
             cerr << "naddr:\t" << cand->to_tree_history() << endl;
           }
           suclevel = *cand;
-        }
-
-        else // otherwise, insert and use the one we calculated using user config
+        } else {
+          // otherwise, insert and use the one we calculated using user config
           existing.put(suclevel.to_tree_history(), suclevel);
+        }
       }
 
       // now suclevel definitely has some suitable successor we decided on

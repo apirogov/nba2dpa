@@ -48,6 +48,8 @@ struct Args {
   bool sepmix;
   bool optdet;
   bool optsuc;
+
+  bool z; //for experimental behaviour, no fixed meaning
 };
 
 Args parse_args(int argc, char *argv[]) {
@@ -111,6 +113,26 @@ Args parse_args(int argc, char *argv[]) {
   args::Flag optdet(parser, "optdet", "Optimize deterministic SCCs by not expanding trees",
       {'d', "opt-det"});
 
+  // ----
+  // args::Flag z(parser, "z", "Surprise!", {'z', "z"}); //NOTE: this should be commented out in commits
+  bool z = false; //dummy flag, always false
+  // ----
+
+  // NOTES:
+  // strictly good and cheap optimizations are: -k, -t, -j, -i, -r
+  // mostly good, seldom bad and cheap: -n -a -b -d -e -l
+  // usually very good and sometimes slightly more expensive: -o
+  // very good and very expensive: -m
+  // usually the best update mode is: -u1
+  //
+  // some "bad" LTL formulas witnessed negative interactions of:
+  // (-e or -d) and -i (slight state increase)
+  // -l and -r (significant increase)
+  // but overall all contribute positive on average
+  //
+  // The underapproximation (-p) and context (-c) empirically have
+  // never shown positive and sometimes even negative effect
+  // and therefore should not be used.
 
   try {
     parser.ParseCLI(argc, argv);
@@ -181,6 +203,8 @@ Args parse_args(int argc, char *argv[]) {
 
   args.optsuc = optsuc;
 
+  args.z = z;
+
   return args;
 }
 
@@ -200,6 +224,8 @@ DetConf detconf_from_args(Args const& args) {
   dc.opt_det = args.optdet;
 
   dc.opt_suc = args.optsuc;
+
+  dc.z = args.z;
 
   return dc;
 }
@@ -389,8 +415,8 @@ PA process_nba(Args const &args, auto& aut, std::shared_ptr<spdlog::logger> log)
       }
       // -- end of postprocessing --
 
-      bool includeslang = ba_dpa_inclusion(aut, *pa);
-      if (!includeslang) //this automaton is not accepting the whole language
+      //this automaton is not accepting the whole language of BA
+      if (args.approx && !ba_dpa_inclusion(aut, *pa))
         return unique_ptr<PA>(nullptr);
 
       return move(pa);

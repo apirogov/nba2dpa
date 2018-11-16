@@ -81,6 +81,8 @@ struct DetConf {
   bool sep_mix = false;
   bool opt_det = false;
   bool opt_suc = false;
+
+  bool z = false; //for experiments. debugging flag to toggle some behaviour
 };
 
 DetConfSets calc_detconfsets(DetConf const& dc, SCCDat const& scci,

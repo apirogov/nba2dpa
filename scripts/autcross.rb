@@ -23,9 +23,10 @@ def compile(a); a.map(&->(l){l.map(&->(x){"-"+x}).join(" ")}); end
 
 # ----
 # compact representation of different argument combinations
-nbadet_argsets = compile([['k','j','t','n','a','d']].prod(
+# -c does not work with -o, -c,-p always bad
+nbadet_argsets = compile([['k','j','t','n','a','b','d','e','l']].prod(
                             oneof("u0","u1","u2").prod(
-                              prefs("e","b","o","l","m","i","r","p") # -c does not work with -o
+                              prefs("o","i","r","m")
                             )
                           )
                         )

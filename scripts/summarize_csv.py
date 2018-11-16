@@ -1,25 +1,37 @@
 #!/usr/bin/env python3
 import pandas as pd
-import seaborn as sns
+#import seaborn as sns
 
 import sys
 df = pd.read_csv(sys.argv[1])
 
-df.tool = df.tool.str.replace(r'cat .*ltl_','').str.replace('.sh > %O','')
-tools = ['dstar','spot','rabinizer','nbadet']
-clrs = {'dstar': 'r', 'spot': 'g', 'nbadet': 'b', 'rabinizer':'k'}
+#df = df[df['input.states'] > 6] #spot is better for smaller stuff
+df = df[['input.name','tool','exit_status','time','output.states']]
+df.tool = df.tool.str.replace(r'cat .*\| ','').str.replace(r'.*/bin/','').str.replace(' > %O','')
 
-fs = list(set(df.formula))
-fs = sorted(fs, key=lambda f: df.query("formula == '"+f+"' & tool=='nbadet'").states.sum())
+tools = df.tool.unique()
+inputs = df['input.name'].unique()
 
-ys = {}
+if (len(sys.argv)>2):
+    inputs = inputs[0:int(sys.argv[2])]
+
+print(len(tools),"tools,",len(inputs),"inputs")
+
+def numok(df, input):
+    return len(df[df['input.name']==input][df.exit_status=='ok'])
+
+goodinputs = []
+for inp in inputs:
+    if numok(df, inp) == len(tools):
+        goodinputs.append(inp)
+goodinputs = set(goodinputs)
+
+df = df[df['input.name'].isin(goodinputs)]
+
+sts = []
 for tool in tools:
-    view = df[df.tool==tool]
-    ys[tool] = []
-    for f in fs:
-        ys[tool].append(view[view.formula==f].states.sum())
-    ax = sns.pointplot(list(range(len(fs))), ys[tool], color=clrs[tool], join=False)
-    ax.set(yscale="log")
-sns.plt.show()
-# print(tool)
-# print(df[df.tool == tool].states.describe())
+    sts.append(df[df.tool == tool]['output.states'].sum())
+
+print(len(goodinputs),"complete samples. total states per tool:")
+for i in range(len(tools)):
+    print(tools[i], sts[i])
