@@ -6,7 +6,9 @@ CWD=`realpath .`.strip
 SEED=`date +%s`.strip
 DATE=`date +%Y%m%d-%H%M%S`.strip
 
-def wrap(str); 'cat %H | ' + str + ' > %O'; end
+#----
+
+#argument set combinators, e.g.: compile oneof("a","b").prod prefs("c","d","e")
 
 def oneof(*a); a.map(&->(x){[x]}); end
 
@@ -14,33 +16,33 @@ def prefs(*a); 0.upto(a.length).collect(&->(i){a[0...i]}); end
 
 #list monad
 class Array; def prod(rhs); self.product(rhs).map!(&:flatten); end; end
+class Array; def app(rhs); self.map!(& lambda { |el| el.push(rhs) }); end; end
+
+def compile(a); a.map(&->(l){l.map(&->(x){x}).join(" ")}); end
+
+#----
+
+def wrap(str); 'cat %H | ' + str + ' > %O'; end
 
 def translator_args(tarr); tarr.map(&->(s){"-t '#{wrap s}'"}).join(' '); end
-
-def compile(a); a.map(&->(l){l.map(&->(x){"-"+x}).join(" ")}); end
-#e.g.:
-#compile oneof("a","b").prod prefs("c","d","e")
 
 # ----
 # compact representation of different argument combinations
 # -c does not work with -o, -c,-p always bad
-nbadet_argsets = compile([['k','j','t','n','a','b','d','e','l']].prod(
-                            oneof("u0","u1","u2").prod(
-                              prefs("o","i","r","m")
-                            )
-                          )
-                        )
+nbadet_argsets = compile(
+  oneof("-u0","-u1","-u2").app('-k -j').prod(prefs('-t', '-i', '-r', '-m', '-o', '-n -a -b', '-d -e'))
+)
 
-translators = ["autfilt -D -P --high"]
+translators = ["autfilt -D -P --high"] #default and always present
 # translators.push("stupid.sh") #to test failure
+
+# add different nbadet configs
 nbadet_argsets.each do |s|
   translators.push("#{SCRIPTPATH}/../build/bin/nbadet #{s}")
 end
 
 output_args = "--save-bogus=failed_#{DATE}.hoa --csv=stats_#{DATE}.csv"
 cmd = "./autcrossw.rb #{translator_args translators} #{output_args} #{ARGV.join(' ')}"
-# puts cmd
-# exit
 
 # ----
 # call autcross, pass through IO

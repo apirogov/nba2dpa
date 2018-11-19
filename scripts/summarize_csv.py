@@ -5,7 +5,6 @@ import pandas as pd
 import sys
 df = pd.read_csv(sys.argv[1])
 
-#df = df[df['input.states'] > 6] #spot is better for smaller stuff
 df = df[['input.name','tool','exit_status','time','output.states']]
 df.tool = df.tool.str.replace(r'cat .*\| ','').str.replace(r'.*/bin/','').str.replace(' > %O','')
 
@@ -20,6 +19,7 @@ print(len(tools),"tools,",len(inputs),"inputs")
 def numok(df, input):
     return len(df[df['input.name']==input][df.exit_status=='ok'])
 
+print("determining complete samples...")
 goodinputs = []
 for inp in inputs:
     if numok(df, inp) == len(tools):
@@ -28,6 +28,7 @@ goodinputs = set(goodinputs)
 
 df = df[df['input.name'].isin(goodinputs)]
 
+print("calculate total sums...")
 sts = []
 for tool in tools:
     sts.append(df[df.tool == tool]['output.states'].sum())

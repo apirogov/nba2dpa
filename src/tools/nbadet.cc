@@ -124,11 +124,17 @@ Args parse_args(int argc, char *argv[]) {
   // usually very good and sometimes slightly more expensive: -o
   // very good and very expensive: -m
   // usually the best update mode is: -u1
+  // TODO: improve effect of -a/-b by making inherently weak aut. weak during trimming
   //
   // some "bad" LTL formulas witnessed negative interactions of:
   // (-e or -d) and -i (slight state increase)
   // -l and -r (significant increase)
   // but overall all contribute positive on average
+  //
+  // it may be that together -o and -t are not as effective as on their own
+  // TODO:
+  // this MAYBE can be remedied by changing the way -t works s.t. exploration
+  // is started from a "real" successor instead of just the powerset
   //
   // The underapproximation (-p) and context (-c) empirically have
   // never shown positive and sometimes even negative effect

@@ -19,7 +19,6 @@ using PA = Aut<DetState>;
 // takes: reference successor, mask for restricting candidates, valid pointer to sub-trie node,
 // prefix up to sub-trie node, the prefix length and current depth
 // returns: suitable candidate
-// TODO: find very rare bug (in combination with aggressive collapse)
 DetState* trie_dfs(DetState const& ref, auto const &msk,
                    auto const nodptr, nba_bitset const pref, int const i) {
   if (!nodptr)
@@ -37,8 +36,9 @@ DetState* trie_dfs(DetState const& ref, auto const &msk,
       return ret;
   }
 
-  //here is a possible candidate state. need to check tuple order
-  if (nodptr->value) {
+  //here is a possible candidate state. need to check that all states that should
+  //move down are actually moved down and that tuple order is weakly preserved
+  if (nodptr->value && (msk.second.back() & ~pref) == 0) {
     DetState* cand = nodptr->value.get();
     if (!cand)
       return nullptr;
@@ -119,8 +119,8 @@ PA determinize(auto const& nba, DetConf const& dc, nba_bitset const& startset,
           k = th.size();
 
         auto tht = th;
-        tht.resize(k+1); //keep ranks 0 to k -> path to maximal collapsed k-equiv state in trie
-        auto const msk = kcut_mask(th, k);
+        tht.resize(k); //keep ranks 0 to k -> path to maximal collapsed k-equiv state in trie
+        auto const msk = kcut_mask(th, k-1);
         auto const ini = existing.traverse(tht);
         DetState* cand = nullptr;
         if (ini) //if the corresponding trie subtree exists, search for successors
@@ -132,6 +132,8 @@ PA determinize(auto const& nba, DetConf const& dc, nba_bitset const& startset,
                  << "replcd:\t" << suclevel << endl
                  << "via:\t" << refsuc << endl
                  << "with:\t" << *cand << endl;
+            cerr << "node:\t" << tht << endl;
+            cerr << "msk:\t" << pretty_bitset(msk.first) << " | " << msk.second << endl;
             cerr << "addr:\t" << suclevel.to_tree_history() << endl;
             cerr << "raddr:\t" << refsuc.to_tree_history() << endl;
             cerr << "naddr:\t" << cand->to_tree_history() << endl;
@@ -255,11 +257,10 @@ PA determinize(auto const& nba, DetConf const& dc, PS const& psa, SCCDat const& 
     // cerr <<  pretty_bitset(psa.tag.get(origps.at(sccpa.get_init()))) << "->" << pretty_bitset(repps) << endl;
     // TODO: do we even care where to start exploration?
     state_t repst = sccpa.get_init();
-    state_t entry = psa.tag.get(origps.at(sccpa.get_init()));
+    state_t const entry = psa.tag.get(origps.at(sccpa.get_init()));
     if (entry != rep) {
-      vector<state_t> path = find_path_from_to(psa, entry, rep);
-      // cerr << seq_to_str(path) << endl;
-      vector<sym_t> word = get_word_from_path(psa, path);
+      vector<state_t> const path = find_path_from_to(psa, entry, rep);
+      vector<sym_t> const word = get_word_from_path(psa, path);
       for (auto const x : word) {
         repst = sccpa.succ(repst, x).front();
       }

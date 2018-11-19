@@ -135,14 +135,12 @@ bool finer_or_equal(ranked_slice const& rs1, ranked_slice const& rs2) {
 pair<nba_bitset,vector<nba_bitset>> kcut_mask(tree_history const& th, int k) {
   nba_bitset forbidden=0;
   vector<nba_bitset> masks;
-  nba_bitset tmp;
-
+  nba_bitset tmp=0;
   for (int i=k; i<(int)th.size(); ++i) {
     tmp |= th[i];
     masks.push_back(tmp);
   }
   forbidden = th[0] & ~tmp;
-
   return make_pair(forbidden, masks);
 }
 

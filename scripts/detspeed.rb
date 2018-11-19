@@ -3,19 +3,22 @@
 require 'open3'
 tout = ARGV[0].to_i
 slowdet_out = ARGV[1]
-cmd = "timeout #{tout} autfilt -D -P"
+cmd = "timeout #{tout} autfilt -D -P --high"
 
-auts = []
-aut = ""
-STDIN.read.split("\n").each do |a|
-  aut += a + "\n"
-  if a == "--END--"
-    auts.push(aut)
-    aut = ""
+def each_aut(file, &fun)
+  aut = ""
+  file.each_line do |l|
+    aut += l
+    l.strip!
+    aut = "" if l == "--ABORT--"
+    if l == "--END--"
+      fun.call(aut)
+      aut = ""
+    end
   end
 end
 
-auts.each do |a|
+each_aut(STDIN) do |a|
   Open3.popen3(cmd) do |stdin, stdout, stderr, wait_thr|
     stdin.puts a
     stdin.close
