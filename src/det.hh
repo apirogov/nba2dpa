@@ -63,6 +63,7 @@ PA determinize(auto const& nba, DetConf const& dc, nba_bitset const& startset,
   pa.tag.put(DetState(dc, startset), myinit); // initial state tag
 
   trie_map<nba_bitset, DetState> existing; //existing states organized in trie
+  existing.put(pa.tag.geti(myinit).to_tree_history(), pa.tag.geti(myinit));
   // use Mueller/Schupp update for reference successor in trie query
   auto dc2 = dc;
   dc2.update = UpdateMode::MUELLERSCHUPP;
