@@ -29,5 +29,5 @@ df = df[df['input.name'].isin(goodinputs)]
 
 print(len(goodinputs),"complete samples. total states per tool:")
 toollist = df.groupby('tool')
-for t in toollist.groups:
+for t in sorted(toollist.groups):
     print(t, toollist.get_group(t)['output.states'].sum())

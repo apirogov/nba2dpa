@@ -138,6 +138,7 @@ detdone:
 
 // find and purge unreachable and dead states from automaton
 // (but keeps initial states, even when they are dead)
+// unmark accepting trivial states, mark nonaccepting states in inherently weak SCCs
 template <typename T>
 void ba_trim(Aut<T>& ba, shared_ptr<spdlog::logger> log=nullptr) {
   assert(ba.is_buchi());
@@ -168,6 +169,31 @@ void ba_trim(Aut<T>& ba, shared_ptr<spdlog::logger> log=nullptr) {
 
   //now classify (to get rejecting SCCs)
   auto const sccAcl = ba_scc_classify_acc(ba, scci);
+
+  //mark all states in inherently weak SCCs accepting
+  for (auto const scc : scci.sccs) {
+    if (sccAcl.at(scc.first) != 0)
+      continue; //rejecting component anyway
+
+    // forbid accepting states
+    auto const nacc_suc = [&](state_t v) {
+      auto const filt = [&](state_t const p){ return !ba.has_pri(v) && !ba.has_pri(p); };
+      auto const sucs = ba_suc(v);
+      // non-accepting can go to non-accepting
+      return sucs | ranges::view::filter(filt) | ranges::to_vector;
+    };
+    // check for non-trivial SCCs
+    auto const innerscci = get_sccs(scc.second, nacc_suc);
+    auto const innerTrv = trivial_sccs(nacc_suc, innerscci);
+
+    if (innerTrv.size() == innerscci.sccs.size()) {
+      //all trivial -> inherently weak -> mark all as accepting
+      if (log)
+      log->info("inherently weak component {} made weak", seq_to_str(scc.second));
+      for (auto const s : scc.second)
+        ba.set_pri(s, 0); //mark accepting
+    }
+  }
 
   //now detect dead SCCs (rejecting that do not reach non-rej SCCs)
   auto const deadscc = ba_get_dead_sccs(ba, scci, sccAcl);
