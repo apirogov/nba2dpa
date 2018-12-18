@@ -1,0 +1,62 @@
+HOA: v1
+name: "SCC heuristics blowup"
+States: 8
+Start: 0
+AP: 3 "x0" "x1" "x2"
+Alias: @a !0&!1&!2
+Alias: @b !0&!1&2
+Alias: @c !0&1&!2
+Alias: @d !0&1&2
+Alias: @e 0&!1&!2
+Alias: @f 0&!1&2
+Alias: @g 0&1&!2
+Alias: @h 0&1&2
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc
+--BODY--
+State: 0
+[!@a] 0
+[@a] 1
+[@b] 2
+[@c] 3
+[@d] 4
+[@e] 5
+[@f] 6
+[@g] 7
+State: 1 {0}
+[!@h] 1
+State: 2
+[!@b] 2
+[@b] 1
+[@c] 3
+[@d] 4
+[@e] 5
+[@f] 6
+[@g] 7
+State: 3
+[!@c] 3
+[@c] 1
+[@d] 4
+[@e] 5
+[@f] 6
+[@g] 7
+State: 4
+[!@d] 4
+[@d] 1
+[@e] 5
+[@f] 6
+[@g] 7
+State: 5
+[!@e] 5
+[@e] 1
+[@f] 6
+[@g] 7
+State: 6
+[!@f] 6
+[@f] 1
+[@g] 7
+State: 7
+[!@g] 7
+[@g] 1
+--END--

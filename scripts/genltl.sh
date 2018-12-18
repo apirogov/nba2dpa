@@ -1,27 +1,34 @@
 #!/bin/sh
 # generate nondeterministic Büchi automata
 # for determinisation benching
-  # --fxg-or=..5 \
 genltl \
-  --gf-equiv=..6 \
-  --gf-implies=..5 \
-  --gh-r=..4 \
-  --go-theta=..6 \
-  --ms-example=..7 \
-  --ms-phi-h=..5 \
-  --ms-phi-r=..3 \
-  --ms-phi-s=..3 \
-  --or-fg=..7 \
-  --or-g=..11 \
-  --r-left=..8 \
-  --tv-uu=..6 \
-  --kr-n=..3 \
-  --kr-nlogn=..2 \
-  --kv-psi=..3 \
+  --ms-phi-h=..4 \
+  --sejk-f=1..3,1 \
+  --kr-n=1 \
+  --kr-nlogn=1 \
+  --kv-psi=1 \
+  --
 
 #or-g might be already minimal by spot? ("clean" growth)
 
 # spot is used with autfilt -D -P
+
+#following are stutter invariant
+  # --fxg-or=..5 \
+  # --gf-equiv=..6 \
+  # --gf-implies=..5 \
+  # --gh-r=..4 \
+  # --go-theta=..6 \
+  # --ms-example=..7 \
+  # --ms-phi-r=..3 \
+  # --ms-phi-s=..3 \
+  # --or-fg=..7 \
+  # --or-g=..11 \
+  # --r-left=..8 \
+  # --sejk-j= \
+  # --sejk-k= \
+  # --sejk-patterns= \
+  # --tv-uu=..6 \
 
 #following yield det. BA already and hence are useless:
   # --and-f=..8 \

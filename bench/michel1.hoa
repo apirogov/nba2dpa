@@ -1,22 +1,15 @@
 HOA: v1
-name: "Evil(2)"
-States: 4
+name: "Michel(1)"
+States: 2
 Start: 0
-AP: 2 "#" "a"
+AP: 1 "p"
 acc-name: Buchi
 Acceptance: 1 Inf(0)
 properties: trans-labels explicit-labels state-acc
 --BODY--
 State: 0
-[t] 2
-[t] 3
+[t] 0
+[0] 1
 State: 1 {0}
-[!0&!1] 2
-[!0&1] 3
-State: 2
-[t] 2
-[!0&!1] 1
-State: 3
-[t] 3
-[!0&1] 1
+[0] 0
 --END--

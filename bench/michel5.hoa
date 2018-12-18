@@ -1,0 +1,36 @@
+HOA: v1
+name: "Michel(5)"
+States: 6
+Start: 0
+AP: 3 "x0" "x1" "x2"
+Alias: @a !0&!1&!2
+Alias: @b !0&!1&2
+Alias: @c !0&1&!2
+Alias: @d !0&1&2
+Alias: @e 0&!1&!2
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc
+--BODY--
+State: 0 {0}
+[@a] 1
+[@b] 2
+[@c] 3
+[@d] 4
+[@e] 5
+State: 1
+[t] 1
+[@a] 0
+State: 2
+[t] 2
+[@b] 0
+State: 3
+[t] 3
+[@c] 0
+State: 4
+[t] 4
+[@d] 0
+State: 5
+[t] 5
+[@e] 0
+--END--

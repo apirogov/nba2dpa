@@ -1,0 +1,68 @@
+HOA: v1
+name: "Topo test"
+States: 12
+Start: 0
+AP: 4 "x0" "x1" "x2" "x3"
+Alias: @a !0&!1&!2&!3
+Alias: @b !0&!1&!2&3
+Alias: @c !0&!1&2&!3
+Alias: @d !0&!1&2&3
+Alias: @e !0&1&!2&!3
+Alias: @f !0&1&!2&3
+Alias: @x !(@a | @b | @c | @d | @e)
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc
+--BODY--
+State: 0
+[!@a] 0
+[@a] 1
+[@b] 2
+[@c] 4
+[@d] 6
+[@e] 8
+[@f] 10
+State: 2
+[!@b] 2
+[@b] 3
+[@c] 4
+[@d] 6
+[@e] 8
+[@f] 10
+State: 4
+[!@c] 4
+[@c] 5
+[@d] 6
+[@e] 8
+[@f] 10
+State: 6
+[!@d] 6
+[@d] 7
+[@e] 8
+[@f] 10
+State: 8
+[!@e] 8
+[@e] 9
+[@f] 10
+State: 10
+[!@f] 10
+[@f] 11
+State: 1 {0}
+[@a] 11
+[@a] 3
+State: 3
+[@b] 1
+[@b] 5
+State: 5
+[@c] 3
+[@c] 7
+State: 7
+[@d] 5
+[@d] 9
+State: 9
+[@e] 7
+[@e] 11
+State: 11
+[@e] 9
+[@e] 1
+--END--
