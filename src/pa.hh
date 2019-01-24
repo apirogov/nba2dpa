@@ -516,7 +516,81 @@ bool minimize_priorities(Aut<T>& aut, shared_ptr<spdlog::logger> log = nullptr) 
 
   //calculate priority map (old edge pri -> new edge pri)
   auto const strongest = pa_acc_is_min(aut.get_patype()) ? aut.pris().front() : aut.pris().back();
-  auto const primap = pa_minimize_priorities(aut.states(), sucs, to_max_odd(strongest));
+  auto primap = pa_minimize_priorities(aut.states(), sucs, to_max_odd(strongest));
+
+  // --------
+  //heuristic: calculate new priority for edges between SCCs of automaton
+  //set prio to dominating prio of target SCC. this empirically seems to improve results
+  //and also detects blown up accepting sinks etc.
+
+  //first calculate for each SCC new dominating priority
+  auto const scci = get_sccs(aut.states(), aut_succ(aut));
+  // auto const triv = trivial_sccs(aut_succ(aut), scci);
+  auto const scc_succ = [&](unsigned const scc){ return succ_sccs(aut_succ(aut), scci, scc); };
+  map<unsigned, int> dom_new_scc_pri;
+
+  function<void(unsigned)> const get_dom_pri = [&](unsigned const scc) {
+    // cerr << scc << " entered" << endl;
+
+    if (map_has_key(dom_new_scc_pri, scc)) { //already done
+      // cerr << scc << " is already done" << endl;
+      return;
+    }
+
+    //first calculate for successor sccs
+    auto const succ_sccs = scc_succ(scc);
+    for (auto const succscc : succ_sccs)
+      get_dom_pri(succscc);
+
+    int dompri = -1;
+    //then take most important inner-scc edge
+    for (auto const s : scci.sccs.at(scc)) {
+      for (auto const e : esucs.at(s)) {
+          if (scci.scc_of.at(get<2>(e)) != scc)
+            continue;
+          if (map_has_key(primap, e))
+            dompri = max(dompri, primap.at(e));
+      }
+      // for (auto const x : aut.state_outsyms(s)) {
+      //   for (auto const e : aut.succ_edges(s,x)) {
+      //     if (scci.scc_of.at(e.first) != scc)
+      //       continue;
+
+      //     auto const et = make_tuple(s, x, e.first, e.second);
+      //     if (map_has_key(primap, et))
+      //       dompri = max(dompri, primap.at(et));
+      //   }
+      // }
+    }
+
+    //if it is not existing, pick successor SCC with highest dom. priority
+    if (dompri == -1 && !succ_sccs.empty()) {
+      for (auto const sscc : succ_sccs)
+        dompri = max(dompri, dom_new_scc_pri.at(sscc)); //should be defined for succs already
+    }
+
+    if (dompri >= 0) {
+      dom_new_scc_pri[scc] = dompri;
+    } else {
+      //should not happen.
+      cerr << "Warning: Weirdly, there seems to be a trivial bottom SCC in the DPA!" << endl;
+      dom_new_scc_pri[scc] = 0;
+    }
+
+    // cerr << scc << " done" << endl;
+  };
+  get_dom_pri(scci.scc_of.at(aut.get_init()));
+
+  //then set every yet unset edge to that priority
+  for (auto const& it : esucs) {
+    for (auto const& e : it.second) {
+      if (!map_has_key(primap, e)) {
+        // cout << get<0>(e) << " " << get<1>(e) << " " << get<2>(e) << endl;
+        primap[e] = dom_new_scc_pri.at(scci.scc_of.at(get<2>(e)));
+      }
+    }
+  }
+  // --------
 
   if (log)
     log->info("applying new priority map...");
@@ -678,6 +752,10 @@ bool minimize_pa(Aut<T>& pa, shared_ptr<spdlog::logger> log = nullptr) {
 
   return true;
 }
+
+//IDEA: syntactic detection of accepting/rejecting sinks that are blown up (complete
+//bottom SCCs with only acc/rej. priorities) without running full minimization
+//(which subsumes this but is more expensive)?
 
 
 }
