@@ -1,0 +1,27 @@
+HOA: v1
+name: "Topo_MS(2)"
+States: 5
+Start: 0
+AP: 1 "x0"
+Alias: @a !0
+Alias: @b 0
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels state-acc
+--BODY--
+State: 0
+[t] 1
+[t] 3
+State: 1
+[!@a] 1
+[@a] 2
+State: 2 {0}
+[t] 1
+[@a] 2
+State: 3
+[!@b] 3
+[@b] 4
+State: 4 {0}
+[t] 3
+[@b] 4
+--END--
