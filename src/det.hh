@@ -18,21 +18,24 @@ using PA = Aut<DetState>;
 
 // takes: reference successor, mask for restricting candidates, valid pointer to sub-trie node,
 // prefix up to sub-trie node, the prefix length and current depth
-// returns: suitable candidate
-DetState* trie_dfs(DetState const& ref, auto const &msk,
-                   auto const nodptr, nba_bitset const pref, int const i) {
+// returns: suitable candidate(s)
+vector<DetState*> trie_dfs(DetState const& ref, auto const &msk,
+                   auto const nodptr, nba_bitset const pref, int const i,
+                   bool getAll=false) {
   if (!nodptr)
-    return nullptr;
+    return {};
 
   if ((nodptr->key & msk.first) != 0)
-    return nullptr;
+    return {};
   if (i<(int)msk.second.size() && (msk.second[i] & ~pref) != 0)
-    return nullptr;
+    return {};
 
   //try children in trie
+  vector<DetState*> ret;
   for (auto const &sucnod : nodptr->suc) {
-    DetState *ret = trie_dfs(ref, msk, sucnod.second.get(), pref|sucnod.first, i+1);
-    if (ret)
+    auto cret = trie_dfs(ref, msk, sucnod.second.get(), pref|sucnod.first, i+1, getAll);
+    ret.insert(end(ret),begin(cret),end(cret));
+    if (!getAll && !ret.empty())
       return ret;
   }
 
@@ -40,20 +43,48 @@ DetState* trie_dfs(DetState const& ref, auto const &msk,
   //move down are actually moved down and that tuple order is weakly preserved
   if (nodptr->value && (msk.second.back() & ~pref) == 0) {
     DetState* cand = nodptr->value.get();
-    if (!cand)
-      return nullptr;
 
-    if (ref.tuples_finer_or_equal(*cand))
-      return cand;
+    if (cand && ref.tuples_finer_or_equal(*cand))
+      ret.push_back(cand);
   }
 
-  //nothing suitable found
-  return nullptr;
+  return ret;
+}
+
+vector<DetState*> existing_succ(DetConf const& dc, trie_map<nba_bitset, DetState>& existing,
+    DetState const& cur, sym_t i, bool getAll=false) {
+  // use Mueller/Schupp update for reference successor in trie query
+  // TODO: make some override without replicating the whole thing
+  auto dc2 = dc;
+  dc2.update = UpdateMode::MUELLERSCHUPP;
+
+  // Get MullerSchupp successor to span largest trie subtree possible
+  DetState refsuc;
+  pri_t refpri;
+  tie(refsuc, refpri) = cur.succ(dc2, i);
+  auto const ev = prio_to_event(refpri); //get dominant rank event
+  auto const th = refsuc.to_tree_history(); //get dual structure
+
+  //calculate k-equivalence level
+  int k = ev.first + 2; //+1 for prepended powerset, +1 because first rank is 0
+  if (k > (int)th.size()) //may happen due to breakpoint component becoming empty
+    k = th.size();
+
+  auto tht = th;
+  tht.resize(k); //keep ranks 0 to k -> path to maximal collapsed k-equiv state in trie
+  auto const msk = kcut_mask(th, k-1);
+  auto const ini = existing.traverse(tht);
+  vector<DetState*> cands;
+
+  if (ini) //if the corresponding trie subtree exists, search for successors
+    cands = trie_dfs(refsuc, msk, ini, tht.back(), 0, getAll);
+  return cands;
 }
 
 // BFS-based determinization with supplied level update config
 PA determinize(auto const& nba, DetConf const& dc, nba_bitset const& startset,
-    auto const& pred, map<state_t, nba_bitset>* backmap = nullptr) {
+    auto const& pred, map<state_t, nba_bitset>* backmap = nullptr, 
+    map<state_t,map<sym_t, vector<state_t>>>* altmap = nullptr) {
   assert(nba.is_buchi());
   // create automaton with same letters etc
   state_t const myinit = 0;
@@ -64,9 +95,6 @@ PA determinize(auto const& nba, DetConf const& dc, nba_bitset const& startset,
 
   trie_map<nba_bitset, DetState> existing; //existing states organized in trie
   existing.put(pa.tag.geti(myinit).to_tree_history(), pa.tag.geti(myinit));
-  // use Mueller/Schupp update for reference successor in trie query
-  auto dc2 = dc;
-  dc2.update = UpdateMode::MUELLERSCHUPP;
   // dc2.puretrees = false;
 
   int numvis=0;
@@ -106,28 +134,11 @@ PA determinize(auto const& nba, DetConf const& dc, nba_bitset const& startset,
       //check whether there is a (k-1) equivalent successor already
       //and replace if some suitable is found
       if (dc.opt_suc) {
-        auto const ev = prio_to_event(sucpri); //get dominant rank event
-
-        // Get MullerSchupp successor to span largest trie subtree possible
-        DetState refsuc;
-        pri_t refpri;
-        tie(refsuc, refpri) = cur.succ(dc2, i);
-        auto const th = refsuc.to_tree_history(); //get dual structure
-
-        //calculate k-equivalence level
-        int k = ev.first + 2; //+1 for prepended powerset, +1 because first rank is 0
-        if (k > (int)th.size()) //may happen due to breakpoint component becoming empty
-          k = th.size();
-
-        auto tht = th;
-        tht.resize(k); //keep ranks 0 to k -> path to maximal collapsed k-equiv state in trie
-        auto const msk = kcut_mask(th, k-1);
-        auto const ini = existing.traverse(tht);
-        DetState* cand = nullptr;
-        if (ini) //if the corresponding trie subtree exists, search for successors
-          cand = trie_dfs(refsuc, msk, ini, tht.back(), 0);
+        vector<DetState*> cands = existing_succ(dc, existing, cur, i);
+        DetState* cand = cands.empty() ? nullptr : cands.front();
         if (cand) {
           // if we found a suitable successor in trie, use that
+          /*
           if (suclevel != *cand && dc.debug) {
             cerr << "suc of:\t" << cur << " : " << ev.first << " " << (ev.second ? "+" : "-") << endl
                  << "replcd:\t" << suclevel << endl
@@ -139,6 +150,7 @@ PA determinize(auto const& nba, DetConf const& dc, nba_bitset const& startset,
             cerr << "raddr:\t" << refsuc.to_tree_history() << endl;
             cerr << "naddr:\t" << cand->to_tree_history() << endl;
           }
+          */
           suclevel = *cand;
         } else {
           // otherwise, insert and use the one we calculated using user config
@@ -164,6 +176,18 @@ PA determinize(auto const& nba, DetConf const& dc, nba_bitset const& startset,
       visit(make_pair(sucset, sucst));
     }
   });
+
+  // cerr << "In trie: " << existing.size() << endl;
+  if (altmap) {
+    auto& alts = *altmap;
+    for (state_t const st : pa.states()) {
+      DetState cur = pa.tag.geti(st);
+      alts[st] = {};
+      for (sym_t const i : pa.state_outsyms(st))
+        for (DetState* const pst : existing_succ(dc, existing, cur, i, true))
+          alts[st][i].push_back(pa.tag.get(*pst));
+    }
+  }
 
   // cerr << "determinized to " << pa->num_states() << " states" << endl;
   return pa;
@@ -215,6 +239,7 @@ PA determinize(auto const& nba, DetConf const& dc, PS const& psa, SCCDat const& 
 
     //this map will map tuples with weird optimizations to the powerset states they represent
     auto backmap = map<state_t, nba_bitset>();
+    auto altmap = map<state_t, map<sym_t, vector<state_t>>>();
     auto sccpa = determinize(nba, dc, repps, [&psa,&psai,&scc](nba_bitset const& ds){
         if (!psa.tag.has(ds)) {
           // cerr << "reached " << pretty_bitset(ds) << endl;
@@ -225,7 +250,7 @@ PA determinize(auto const& nba, DetConf const& dc, PS const& psa, SCCDat const& 
         if (psai.scc_of.at(s) != scc)
           return false;
         return true;
-      }, &backmap);
+      }, &backmap, &altmap);
 
     // for (auto const it : backmap) {
     //   cerr << pretty_bitset(sccpa.tag.geti(it.first).powerset) << " -> "
@@ -238,9 +263,32 @@ PA determinize(auto const& nba, DetConf const& dc, PS const& psa, SCCDat const& 
     auto const mintermscc = get_min_term_scc(sccpa, sccpai);
     auto sccstates = sccpai.sccs.at(mintermscc);
     vec_to_set(sccstates);
+    // cerr << "SCC states pre norm: " << sccpa.num_states() << endl;
+    // cerr << "altmap states pre norm: " << altmap.size() << endl;
 
-    //trim to that bottom SCC, normalize and insert into result automaton
+    //trim to that bottom SCC
     sccpa.remove_states(set_diff(sccpa.states() | ranges::to_vector, sccstates));
+
+    //also trim constraint map of alternative edge targets
+    set<state_t> sccsts(sccstates.begin(), sccstates.end());
+    // cerr << "Keeping: " << sccsts.size() << endl;
+    auto altit = altmap.begin();
+    while (altit != end(altmap)) {
+      auto const tmp = altit++;
+      //state removed -> remove constraints
+      if (sccsts.find(tmp->first) == end(sccsts)) 
+        altmap.erase(tmp);
+    }
+
+    // cerr << "SCC states after norm: " << sccpa.num_states() << endl;
+    // cerr << "altmap states after norm: " << altmap.size() << endl;
+    // for (auto it : altmap) {
+    //   for (auto jt : it.second)
+    //     if (jt.second.size()>1)
+    //       cerr << it.first << "," << jt.first << " -> alts: " << jt.second.size() << endl;
+    // }
+
+    //normalize and insert into result automaton
     auto const normmap = sccpa.normalize(ret.num_states());
     for (auto const st : sccstates) {
       //map detstate to the semantic/original powerset
