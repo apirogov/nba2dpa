@@ -7,20 +7,21 @@
 
 //input: list of sets. output: a hitting set
 //(i.e., set containing at least one element from each set in the list)
-std::set<int> greedy_hitting_set(std::map<int,std::set<int>> const& s2u) {
+template <typename A>
+std::set<A> greedy_hitting_set(std::map<A,std::set<A>> const& s2u) {
   // auto s2u = sets; //copy, as we will modify it
   // now we need the reverse mapping from "universe" to sets
   // (we conceptually have a bipartite graph)
 
   //map elements of universe to sets they appear in
-  std::map<int,std::set<int>> u2s;
+  std::map<A,std::set<A>> u2s;
   for (auto const& s : s2u) {
     for (auto const e : s.second) {
       u2s[e].emplace(s.first);
     }
   }
 
-  std::set<int> h; //hitting set
+  std::set<A> h; //hitting set
 
   //each loop iteration starts with remaining uncovered sets on the left as reachable sets from right
   //and useful hitting set candidates on the right which reach at least one uncovered set on left
@@ -28,11 +29,11 @@ std::set<int> greedy_hitting_set(std::map<int,std::set<int>> const& s2u) {
   //invariant: el has edge to set -> set has edge to el, and every remaining el has an edge to some set
   while (!u2s.empty()) {
     //sort candidates by how many yet uncovered sets they would cover
-    std::vector<int> cands;
+    std::vector<A> cands;
     for (auto const& it : u2s)
       cands.push_back(it.first);
 
-    std::sort(std::begin(cands), std::end(cands), [&u2s](int a, int b){
+    std::sort(std::begin(cands), std::end(cands), [&u2s](A a, A b){
         auto const sza = u2s.at(a).size();
         auto const szb = u2s.at(b).size();
         //sort desc. by # of touched sets, then asc. by val

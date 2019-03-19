@@ -10,6 +10,7 @@
 #include "common/scc.hh"
 #include "common/types.hh"
 #include "common/trie_map.hh"
+#include "common/hitset.hh"
 #include "aut.hh"
 
 namespace nbautils {
@@ -83,7 +84,7 @@ vector<DetState*> existing_succ(DetConf const& dc, trie_map<nba_bitset, DetState
 
 // BFS-based determinization with supplied level update config
 PA determinize(auto const& nba, DetConf const& dc, nba_bitset const& startset,
-    auto const& pred, map<state_t, nba_bitset>* backmap = nullptr, 
+    auto const& pred, map<state_t, nba_bitset>* backmap = nullptr,
     map<state_t,map<sym_t, vector<state_t>>>* altmap = nullptr) {
   assert(nba.is_buchi());
   // create automaton with same letters etc
@@ -131,31 +132,42 @@ PA determinize(auto const& nba, DetConf const& dc, nba_bitset const& startset,
       if (!pred(sucset)) //predicate not satisfied -> don't explore this node
         continue;
 
-      //check whether there is a (k-1) equivalent successor already
-      //and replace if some suitable is found
-      if (dc.opt_suc) {
-        vector<DetState*> cands = existing_succ(dc, existing, cur, i);
-        DetState* cand = cands.empty() ? nullptr : cands.front();
-        if (cand) {
-          // if we found a suitable successor in trie, use that
-          /*
-          if (suclevel != *cand && dc.debug) {
-            cerr << "suc of:\t" << cur << " : " << ev.first << " " << (ev.second ? "+" : "-") << endl
-                 << "replcd:\t" << suclevel << endl
-                 << "via:\t" << refsuc << endl
-                 << "with:\t" << *cand << endl;
-            cerr << "node:\t" << tht << endl;
-            cerr << "msk:\t" << pretty_bitset(msk.first) << " | " << msk.second << endl;
-            cerr << "addr:\t" << suclevel.to_tree_history() << endl;
-            cerr << "raddr:\t" << refsuc.to_tree_history() << endl;
-            cerr << "naddr:\t" << cand->to_tree_history() << endl;
+      if (dc.opt_suc || dc.hitset) {
+        // if we try to reuse states during construction (smart successor selection)
+        if (dc.opt_suc) {
+          //check whether there is a (k-1) equivalent successor already
+          //and replace if some suitable is found
+          vector<DetState*> cands = existing_succ(dc, existing, cur, i);
+          DetState* cand = cands.empty() ? nullptr : cands.front();
+          if (cand) {
+            // if we found a suitable successor in trie, use that
+            /*
+            if (suclevel != *cand && dc.debug) {
+              cerr << "suc of:\t" << cur << " : " << ev.first << " " << (ev.second ? "+" : "-") << endl
+                  << "replcd:\t" << suclevel << endl
+                  << "via:\t" << refsuc << endl
+                  << "with:\t" << *cand << endl;
+              cerr << "node:\t" << tht << endl;
+              cerr << "msk:\t" << pretty_bitset(msk.first) << " | " << msk.second << endl;
+              cerr << "addr:\t" << suclevel.to_tree_history() << endl;
+              cerr << "raddr:\t" << refsuc.to_tree_history() << endl;
+              cerr << "naddr:\t" << cand->to_tree_history() << endl;
+            }
+            */
+            suclevel = *cand;
           }
-          */
-          suclevel = *cand;
-        } else {
-          // otherwise, insert and use the one we calculated using user config
-          existing.put(suclevel.to_tree_history(), suclevel);
         }
+        //insert the corresponding successor if we use smart succ selection or postproc trie opt
+        existing.put(suclevel.to_tree_history(), suclevel);
+
+        //TODO: find bug
+        /*
+        auto tmp = existing.traverse(suclevel.to_tree_history());
+        auto tmp2 = existing_succ(dc, existing, cur, i);
+        assert(tmp != nullptr);
+        assert(tmp->value != nullptr);
+        assert(!tmp2.empty());
+        */
       }
 
       // now suclevel definitely has some suitable successor we decided on
@@ -178,14 +190,20 @@ PA determinize(auto const& nba, DetConf const& dc, nba_bitset const& startset,
   });
 
   // cerr << "In trie: " << existing.size() << endl;
+  // collect alternative edge targets from trie
   if (altmap) {
     auto& alts = *altmap;
     for (state_t const st : pa.states()) {
       DetState cur = pa.tag.geti(st);
       alts[st] = {};
-      for (sym_t const i : pa.state_outsyms(st))
-        for (DetState* const pst : existing_succ(dc, existing, cur, i, true))
+      for (sym_t const i : pa.state_outsyms(st)) {
+        alts[st][i] = pa.succ(st,i); //we definitely have the assigned succ.
+        // and we possibly could have chosen another existing successor state
+        for (DetState* const pst : existing_succ(dc, existing, cur, i, true)) {
           alts[st][i].push_back(pa.tag.get(*pst));
+        }
+        vec_to_set(alts[st][i]);
+      }
     }
   }
 
@@ -201,15 +219,15 @@ PA determinize(auto const& nba, DetConf const& dc) {
 }
 
 //find smallest bottom SCC (bottom ensures that all powersets in PS SCC are reachable)
-int get_min_term_scc(PA const& pa, SCCDat const& pai) {
+int get_min_term_scc(auto const& succfun, SCCDat const& pai) {
     int mintermscc = -1;
-    size_t mintermsz = pa.num_states()+1;
+    int mintermsz = -1;
     for (auto const it : pai.sccs) {
       auto const& sccnum = it.first;
       auto const ssccsz = it.second.size();
-      auto const sucsccs = succ_sccs(aut_succ(pa), pai, sccnum);
+      auto const sucsccs = succ_sccs(succfun, pai, sccnum);
 
-      if (sucsccs.empty() && ssccsz < mintermsz) {
+      if (sucsccs.empty() && (mintermsz<0 || ((int)ssccsz) < mintermsz)) {
         mintermscc = sccnum;
         mintermsz  = ssccsz;
       }
@@ -250,7 +268,7 @@ PA determinize(auto const& nba, DetConf const& dc, PS const& psa, SCCDat const& 
         if (psai.scc_of.at(s) != scc)
           return false;
         return true;
-      }, &backmap, &altmap);
+      }, &backmap, dc.hitset ? &altmap : nullptr);
 
     // for (auto const it : backmap) {
     //   cerr << pretty_bitset(sccpa.tag.geti(it.first).powerset) << " -> "
@@ -260,26 +278,127 @@ PA determinize(auto const& nba, DetConf const& dc, PS const& psa, SCCDat const& 
     auto const sccpai = get_sccs(sccpa.states(), aut_succ(sccpa));
 
     //get states that belong to bottom SCC containing current powerset SCC rep
-    auto const mintermscc = get_min_term_scc(sccpa, sccpai);
+    auto const sccpa_succ = aut_succ(sccpa);
+    auto const mintermscc = get_min_term_scc(sccpa_succ, sccpai);
     auto sccstates = sccpai.sccs.at(mintermscc);
     vec_to_set(sccstates);
+
     // cerr << "SCC states pre norm: " << sccpa.num_states() << endl;
     // cerr << "altmap states pre norm: " << altmap.size() << endl;
 
     //trim to that bottom SCC
     sccpa.remove_states(set_diff(sccpa.states() | ranges::to_vector, sccstates));
 
-    //also trim constraint map of alternative edge targets
-    set<state_t> sccsts(sccstates.begin(), sccstates.end());
-    // cerr << "Keeping: " << sccsts.size() << endl;
-    auto altit = altmap.begin();
-    while (altit != end(altmap)) {
-      auto const tmp = altit++;
-      //state removed -> remove constraints
-      if (sccsts.find(tmp->first) == end(sccsts)) 
-        altmap.erase(tmp);
-    }
+    if (dc.hitset) {
+      //also trim constraint map of alternative edge targets
+      set<state_t> sccsts(sccstates.begin(), sccstates.end());
+      size_t szbefore = sccsts.size();
+      int hitsetround = 0;
 
+      // cerr << "processing bottom SCC: " << sccsts.size();
+
+      size_t oldsz = 0;
+      while (oldsz != sccsts.size()) {
+        hitsetround++;
+        oldsz = sccsts.size();
+
+        // remove useless mappings
+        // first remove outgoing
+        auto altit = altmap.begin();
+        while (altit != end(altmap)) {
+          auto const tmp = altit++;
+          //state removed -> remove constraints
+          if (sccsts.find(tmp->first) == end(sccsts))
+            altmap.erase(tmp);
+        }
+        // next remove incoming
+        for (auto& altit : altmap) {
+          for (auto &symtoes : altit.second) {
+            vector<state_t> tmp;
+            // assert(!symtoes.second.empty());
+            set_intersection(begin(symtoes.second),end(symtoes.second),
+                             begin(sccsts),end(sccsts),back_inserter(tmp));
+            // assert(!tmp.empty());
+            symtoes.second.swap(tmp);
+          }
+        }
+
+        // collect constraints
+        map<state_t,set<state_t>> constraints;
+        for (auto const& altmaps : altmap) {
+          for (auto const& symtoes : altmaps.second) {
+            constraints[constraints.size()] = set<state_t>(begin(symtoes.second), end(symtoes.second));
+          }
+        }
+        // get a hitset
+        // cerr << "before hitset: " << sccsts.size() << " - " << seq_to_str(sccsts) << endl;
+        sccsts = greedy_hitting_set(constraints);
+        // cerr << "after hitset: " << sccsts.size() << " - " << seq_to_str(sccsts) << endl;
+
+        // shrink hitset by computing another bottom SCC in rest
+        auto const hitset_succ = [&](state_t s){
+          set<state_t> sucs;
+          for (auto const symtoes : altmap.at(s)) {
+            set_intersection(begin(symtoes.second),end(symtoes.second),
+                             begin(sccsts),end(sccsts),inserter(sucs,sucs.begin()));
+          }
+          return sucs;
+        };
+        auto const hitsetsccs = get_sccs(ranges::view::keys(altmap), hitset_succ);
+        auto const minterm = get_min_term_scc(hitset_succ, hitsetsccs);
+        sccsts = set<state_t>(begin(hitsetsccs.sccs.at(minterm)),end(hitsetsccs.sccs.at(minterm)));
+        // cerr << "after botscc: " << sccsts.size() << " - " << seq_to_str(sccsts) << endl;
+      }
+
+      if (szbefore != sccsts.size()) {
+        cerr << "performed " << hitsetround << " hitset rounds" << endl;
+        cerr << "hitset reduction: " << szbefore << " " << sccsts.size() << endl;
+      }
+
+      // now altmap also only contains the hitset successors, we can redirect edges and remove useless
+      int redirected = 0;
+      for (auto const& altit : altmap) {
+        //for all kept states
+        state_t const st = altit.first;
+        for (auto const& symtoes : altit.second) {
+          sym_t const sym = symtoes.first;
+          //remap edges to other alternative state, preserving priority
+          auto const tmp = sccpa.succ_edges_raw(st, sym).cbegin();
+
+          // assert(sccpa.succ(st,sym).size()==1);
+
+          state_t const trg = tmp->first;
+          pri_t const pri = tmp->second;
+
+          if (find(begin(symtoes.second),end(symtoes.second),trg) == end(symtoes.second)) {
+            state_t const ntrg = *(symtoes.second.cbegin());
+
+            if (trg != ntrg)
+              redirected++;
+              // cerr << "redirecting " << st << "," << sym << " from " << trg << " to " << ntrg << endl;
+
+            sccpa.remove_edge(st, sym, trg);
+            sccpa.add_edge(st, sym, ntrg, pri);
+
+            // assert(sccpa.succ(st,sym).size()==1);
+          }
+        }
+      }
+      if (redirected > 0)
+        cerr << "redirected " << redirected << " edges" << endl;
+
+      //remove useless
+      sccstates.clear();
+      copy(begin(sccsts),end(sccsts),back_inserter(sccstates));
+      vec_to_set(sccstates);
+      // cerr << "sccstates size: " << sccstates.size() << endl;
+      auto const tokill = set_diff(sccpa.states() | ranges::to_vector, sccstates);
+      sccpa.remove_states(tokill);
+      // cerr << "killed: " << seq_to_str(tokill) << endl;
+      // cerr << "sccpa size after remove: " << sccpa.num_states() << endl;
+      // cerr << "initial: " << sccpa.get_init() << endl;
+
+      // cerr << "Keeping: " << sccsts.size() << endl;
     // cerr << "SCC states after norm: " << sccpa.num_states() << endl;
     // cerr << "altmap states after norm: " << altmap.size() << endl;
     // for (auto it : altmap) {
@@ -287,6 +406,7 @@ PA determinize(auto const& nba, DetConf const& dc, PS const& psa, SCCDat const& 
     //     if (jt.second.size()>1)
     //       cerr << it.first << "," << jt.first << " -> alts: " << jt.second.size() << endl;
     // }
+    }
 
     //normalize and insert into result automaton
     auto const normmap = sccpa.normalize(ret.num_states());
@@ -305,7 +425,10 @@ PA determinize(auto const& nba, DetConf const& dc, PS const& psa, SCCDat const& 
     //find representative in trimmed SCC PA graph (which is start for exploration)
     // cerr <<  pretty_bitset(psa.tag.get(origps.at(sccpa.get_init()))) << "->" << pretty_bitset(repps) << endl;
     // TODO: do we even care where to start exploration?
+
     state_t repst = sccpa.get_init();
+    // cerr << "repst before: " << repst << endl;
+
     state_t const entry = psa.tag.get(origps.at(sccpa.get_init()));
     if (entry != rep) {
       vector<state_t> const path = find_path_from_to(psa, entry, rep);
@@ -314,6 +437,8 @@ PA determinize(auto const& nba, DetConf const& dc, PS const& psa, SCCDat const& 
         repst = sccpa.succ(repst, x).front();
       }
     }
+
+    // cerr << "repst after: " << repst << endl;
 
     // int repst=-1;
     //     for (auto const st : sccpa.states()) {
@@ -324,6 +449,8 @@ PA determinize(auto const& nba, DetConf const& dc, PS const& psa, SCCDat const& 
     // }
     assert(repst>=0);
     ps2pa[rep] = repst;
+
+    // assert(sccpa.is_deterministic());
 
     //update PS State -> PA State inter-SCC map
     //by exploring the scc of PS and simulating it in PA
@@ -336,6 +463,9 @@ PA determinize(auto const& nba, DetConf const& dc, PS const& psa, SCCDat const& 
               continue;
 
             auto const psucst = sccpa.succ(pst, sym);
+
+            // cerr << pst << ", " << sym  << endl; //<< " -> " << seq_to_str(psucst) << endl;
+
             assert(psucst.size() == 1); //PA SCC subautomaton must be deterministic!
             ps2pa[sucst] = psucst.front();
 

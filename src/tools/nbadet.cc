@@ -48,6 +48,7 @@ struct Args {
   bool sepmix;
   bool optdet;
   bool optsuc;
+  bool hitset;
 
   bool z; //for experimental behaviour, no fixed meaning
 };
@@ -80,6 +81,8 @@ Args parse_args(int argc, char *argv[]) {
       {'p', "approx"});
   args::Flag optsuc(parser, "optsuc", "Optimize successor selection using existing states if possible.",
       {'o', "opt-succ"});
+  args::Flag hitset(parser, "hitset-opt", "Optimize using hitset calculation.",
+      {'q', "hitset"});
 
   // postprocessing
   args::Flag mindfa(parser, "mindfa", "First minimize number of priorities, "
@@ -208,6 +211,7 @@ Args parse_args(int argc, char *argv[]) {
   args.optdet = optdet;
 
   args.optsuc = optsuc;
+  args.hitset = hitset;
 
   args.z = z;
 
@@ -230,6 +234,7 @@ DetConf detconf_from_args(Args const& args) {
   dc.opt_det = args.optdet;
 
   dc.opt_suc = args.optsuc;
+  dc.hitset = args.hitset;
 
   dc.z = args.z;
 

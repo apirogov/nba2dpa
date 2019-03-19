@@ -81,6 +81,7 @@ struct DetConf {
   bool sep_mix = false;
   bool opt_det = false;
   bool opt_suc = false;
+  bool hitset = false;
 
   bool z = false; //for experiments. debugging flag to toggle some behaviour
 };

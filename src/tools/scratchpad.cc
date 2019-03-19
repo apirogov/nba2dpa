@@ -30,7 +30,7 @@ int main(int argc, char *argv[]) {
   (void)argc;
   auto const log = spd::stderr_logger_mt("log");
 
-  greedy_hitting_set({});
+  greedy_hitting_set(map<int,set<int>>{});
 
   auto test1 = map<int,set<int>>{{0,{0,1,2}},{1,{0,3,4}},{2,{3,5}}};
   auto test2 = map<int,set<int>>{{0,{1,2,5}},{1,{2,3,4}},{2,{1,3}}};
