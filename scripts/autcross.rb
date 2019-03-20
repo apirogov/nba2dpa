@@ -30,7 +30,7 @@ def translator_args(tarr); tarr.map(&->(s){"-t '#{wrap s}'"}).join(' '); end
 # compact representation of different argument combinations
 # -c does not work with -o, -c,-p always bad
 nbadet_argsets = compile(
-  oneof("-u0","-u1","-u2").app('-k -j').prod(prefs('-t', '-i', '-r', '-m', '-o', '-n -a -b', '-d -e'))
+  oneof("-u0","-u1","-u2").app('-k -j').prod(prefs('-t', '-i', '-r', '-m', '-o', '-q', '-n -a -b', '-d -e'))
 )
 
 translators = ["autfilt -D -P --high"] #default and always present

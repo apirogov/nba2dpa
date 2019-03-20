@@ -279,7 +279,7 @@ PA determinize(auto const& nba, DetConf const& dc, PS const& psa, SCCDat const& 
 
     //get states that belong to bottom SCC containing current powerset SCC rep
     auto const sccpa_succ = aut_succ(sccpa);
-    auto const mintermscc = get_min_term_scc(sccpa_succ, sccpai);
+    auto mintermscc = get_min_term_scc(sccpa_succ, sccpai);
     auto sccstates = sccpai.sccs.at(mintermscc);
     vec_to_set(sccstates);
 
@@ -291,7 +291,8 @@ PA determinize(auto const& nba, DetConf const& dc, PS const& psa, SCCDat const& 
 
     if (dc.hitset) {
       //also trim constraint map of alternative edge targets
-      set<state_t> sccsts(sccstates.begin(), sccstates.end());
+      vector<state_t> hitset; //holds hitset in greedy order
+      set<state_t> sccsts(sccstates.begin(), sccstates.end()); //holds hitset as set
       size_t szbefore = sccsts.size();
       int hitsetround = 0;
 
@@ -332,7 +333,8 @@ PA determinize(auto const& nba, DetConf const& dc, PS const& psa, SCCDat const& 
         }
         // get a hitset
         // cerr << "before hitset: " << sccsts.size() << " - " << seq_to_str(sccsts) << endl;
-        sccsts = greedy_hitting_set(constraints);
+        hitset = greedy_hitting_set(constraints);
+        sccsts = set<state_t>(begin(hitset),end(hitset));
         // cerr << "after hitset: " << sccsts.size() << " - " << seq_to_str(sccsts) << endl;
 
         // shrink hitset by computing another bottom SCC in rest
@@ -352,7 +354,7 @@ PA determinize(auto const& nba, DetConf const& dc, PS const& psa, SCCDat const& 
 
       if (szbefore != sccsts.size()) {
         cerr << "performed " << hitsetround << " hitset rounds" << endl;
-        cerr << "hitset reduction: " << szbefore << " " << sccsts.size() << endl;
+        cerr << "hitset state reduction: " << szbefore << " to " << sccsts.size() << endl;
       }
 
       // now altmap also only contains the hitset successors, we can redirect edges and remove useless
@@ -367,30 +369,47 @@ PA determinize(auto const& nba, DetConf const& dc, PS const& psa, SCCDat const& 
 
           // assert(sccpa.succ(st,sym).size()==1);
 
+          //old edge target and its priority (latter must be preserved)
           state_t const trg = tmp->first;
           pri_t const pri = tmp->second;
 
-          if (find(begin(symtoes.second),end(symtoes.second),trg) == end(symtoes.second)) {
-            state_t const ntrg = *(symtoes.second.cbegin());
+          // if (find(begin(symtoes.second),end(symtoes.second),trg) == end(symtoes.second)) {
 
-            if (trg != ntrg)
-              redirected++;
+            //pick some valid successor from hitset
+            state_t ntrg = *(symtoes.second.cbegin());
+            //improvement:
+            //take earliest in hitset (as they are sorted by how "good" they are)
+            //-> makes most happy, makes more paths "same", can improve Hopcroft minimization later
+            for (state_t const hst : hitset) {
+              if (sorted_contains(symtoes.second, hst)) {
+                ntrg = hst;
+                break;
+              }
+            }
+
+            if (trg != ntrg) { //count edges that were effectively redirected
               // cerr << "redirecting " << st << "," << sym << " from " << trg << " to " << ntrg << endl;
-
-            sccpa.remove_edge(st, sym, trg);
-            sccpa.add_edge(st, sym, ntrg, pri);
-
+              sccpa.remove_edge(st, sym, trg);
+              sccpa.add_edge(st, sym, ntrg, pri);
+              redirected++;
+            }
             // assert(sccpa.succ(st,sym).size()==1);
-          }
+
+          // }
         }
       }
       if (redirected > 0)
         cerr << "redirected " << redirected << " edges" << endl;
 
-      //remove useless
-      sccstates.clear();
-      copy(begin(sccsts),end(sccsts),back_inserter(sccstates));
+      //remove useless - again calculate a minimal bottom SCC after redirection and trim
+      auto const sccpai2 = get_sccs(sccpa.states(), aut_succ(sccpa));
+      mintermscc = get_min_term_scc(sccpa_succ, sccpai2);
+      sccstates = sccpai2.sccs.at(mintermscc);
       vec_to_set(sccstates);
+
+      // sccstates.clear();
+      // copy(begin(sccsts),end(sccsts),back_inserter(sccstates));
+      // vec_to_set(sccstates);
       // cerr << "sccstates size: " << sccstates.size() << endl;
       auto const tokill = set_diff(sccpa.states() | ranges::to_vector, sccstates);
       sccpa.remove_states(tokill);

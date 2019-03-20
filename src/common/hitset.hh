@@ -8,7 +8,7 @@
 //input: list of sets. output: a hitting set
 //(i.e., set containing at least one element from each set in the list)
 template <typename A>
-std::set<A> greedy_hitting_set(std::map<A,std::set<A>> const& s2u) {
+std::vector<A> greedy_hitting_set(std::map<A,std::set<A>> const& s2u) {
   // auto s2u = sets; //copy, as we will modify it
   // now we need the reverse mapping from "universe" to sets
   // (we conceptually have a bipartite graph)
@@ -21,7 +21,7 @@ std::set<A> greedy_hitting_set(std::map<A,std::set<A>> const& s2u) {
     }
   }
 
-  std::set<A> h; //hitting set
+  std::vector<A> h; //hitting set, in greedy order (i.e. "best" first)
 
   //each loop iteration starts with remaining uncovered sets on the left as reachable sets from right
   //and useful hitting set candidates on the right which reach at least one uncovered set on left
@@ -42,7 +42,7 @@ std::set<A> greedy_hitting_set(std::map<A,std::set<A>> const& s2u) {
 
     //take greedily a candidate that covers as many uncovered sets as possible
     auto const newel = cands.front();
-    h.emplace(newel); //add it to hitting set
+    h.push_back(newel); //add it to hitting set
     auto const curcovered = u2s.at(newel); //get newly covered sets
 
     // cerr << "picked " << newel << " freshly covering " << seq_to_str(curcovered) << endl;

@@ -585,7 +585,7 @@ bool minimize_priorities(Aut<T>& aut, shared_ptr<spdlog::logger> log = nullptr) 
   for (auto const& it : esucs) {
     for (auto const& e : it.second) {
       if (!map_has_key(primap, e)) {
-        // cout << get<0>(e) << " " << get<1>(e) << " " << get<2>(e) << endl;
+        // cerr << get<0>(e) << " " << get<1>(e) << " " << get<2>(e) << endl;
         primap[e] = dom_new_scc_pri.at(scci.scc_of.at(get<2>(e)));
       }
     }

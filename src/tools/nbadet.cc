@@ -124,10 +124,9 @@ Args parse_args(int argc, char *argv[]) {
   // NOTES:
   // strictly good and cheap optimizations are: -k, -t, -j, -i, -r
   // mostly good, seldom bad and cheap: -n -a -b -d -e -l
-  // usually very good and sometimes slightly more expensive: -o
+  // usually very good and sometimes slightly more expensive: -o -q
   // very good and very expensive: -m
   // usually the best update mode is: -u1
-  // TODO: improve effect of -a/-b by making inherently weak aut. weak during trimming
   //
   // some "bad" LTL formulas witnessed negative interactions of:
   // (-e or -d) and -i (slight state increase)
