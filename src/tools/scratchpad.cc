@@ -21,8 +21,11 @@
 
 #include "range/v3/all.hpp"
 
+#include <common/maxsat.hh>
+
 using namespace std;
 using namespace nbautils;
+
 
 //this is for trying stuff out. do whatever you want here.
 int main(int argc, char *argv[]) {
@@ -30,7 +33,13 @@ int main(int argc, char *argv[]) {
   (void)argc;
   auto const log = spd::stderr_logger_mt("log");
 
+
   greedy_hitting_set(map<int,set<int>>{});
+  auto sol = solve_maxsat("p wcnf 1 1 2\n2 1 0\n2 -1 0\n");
+  cerr << seq_to_str(sol) << endl;
+
+  sol = solve_maxsat("p wcnf 4 5 16\n16 1 -2 4 0\n16 -1 -2 3 0\n8 -2 -4 0\n4 -3 2 0\n3 1 3 0\n");
+  cerr << seq_to_str(sol) << endl;
 
   auto test1 = map<int,set<int>>{{0,{0,1,2}},{1,{0,3,4}},{2,{3,5}}};
   auto test2 = map<int,set<int>>{{0,{1,2,5}},{1,{2,3,4}},{2,{1,3}}};

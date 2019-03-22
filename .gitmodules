@@ -7,12 +7,12 @@
 [submodule "vendor/args"]
 	path = vendor/args
 	url = https://github.com/Taywee/args
-[submodule "vendor/autocheck"]
-	path = vendor/autocheck
-	url = https://github.com/thejohnfreeman/autocheck
 [submodule "vendor/rapidcheck"]
 	path = vendor/rapidcheck
 	url = https://github.com/emil-e/rapidcheck
 [submodule "vendor/range-v3"]
 	path = vendor/range-v3
 	url = https://github.com/ericniebler/range-v3.git
+[submodule "vendor/procxx"]
+	path = vendor/procxx
+	url = https://github.com/skystrife/procxx.git

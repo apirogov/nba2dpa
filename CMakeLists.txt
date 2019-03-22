@@ -52,6 +52,10 @@ include_directories(${spdlog_SOURCE_DIR}/include)
 set(args_SOURCE_DIR vendor/args)
 include_directories(${args_SOURCE_DIR})
 
+# process lib
+set(procxx_SOURCE_DIR vendor/procxx)
+include_directories(${procxx_SOURCE_DIR}/include)
+
 # cpphoafparser
 #the following is used to prevent re-downloading on clean build, adapted from:
 #https://github.com/anton-sergeev/cmake_externalproject/blob/b3ef26fe616ac98a3b3eeb86a6b33add0765cacf/CMakeLists.txt

@@ -11,6 +11,7 @@
 #include "common/types.hh"
 #include "common/trie_map.hh"
 #include "common/hitset.hh"
+#include "common/maxsat.hh"
 #include "aut.hh"
 
 namespace nbautils {
@@ -236,6 +237,29 @@ int get_min_term_scc(auto const& succfun, SCCDat const& pai) {
     return mintermscc;
 }
 
+// remove useless mappings, i.e. restrict to states in keep set
+void restrict_altmap(map<state_t, map<sym_t, vector<state_t>>>& altmap, set<state_t> const& keep) {
+  // first remove outgoing
+  auto altit = altmap.begin();
+  while (altit != end(altmap)) {
+    auto const tmp = altit++;
+    //state removed -> remove constraints
+    if (keep.find(tmp->first) == end(keep))
+      altmap.erase(tmp);
+  }
+  // next remove incoming
+  for (auto& altit : altmap) {
+    for (auto& symtoes : altit.second) {
+      vector<state_t> tmp;
+      // assert(!symtoes.second.empty());
+      set_intersection(begin(symtoes.second),end(symtoes.second),
+                        begin(keep),end(keep),back_inserter(tmp));
+      // assert(!tmp.empty());
+      symtoes.second.swap(tmp);
+    }
+  }
+}
+
 // determinization of each powerset component separately, then fusing
 PA determinize(auto const& nba, DetConf const& dc, PS const& psa, SCCDat const& psai) {
   map<state_t, state_t> ps2pa;
@@ -283,11 +307,9 @@ PA determinize(auto const& nba, DetConf const& dc, PS const& psa, SCCDat const& 
     auto sccstates = sccpai.sccs.at(mintermscc);
     vec_to_set(sccstates);
 
-    // cerr << "SCC states pre norm: " << sccpa.num_states() << endl;
-    // cerr << "altmap states pre norm: " << altmap.size() << endl;
-
     //trim to that bottom SCC
     sccpa.remove_states(set_diff(sccpa.states() | ranges::to_vector, sccstates));
+    // restrict_altmap(altmap, set<state_t>(begin(sccstates),end(sccstates)));
 
     if (dc.hitset) {
       //also trim constraint map of alternative edge targets
@@ -304,26 +326,21 @@ PA determinize(auto const& nba, DetConf const& dc, PS const& psa, SCCDat const& 
         oldsz = sccsts.size();
 
         // remove useless mappings
-        // first remove outgoing
-        auto altit = altmap.begin();
-        while (altit != end(altmap)) {
-          auto const tmp = altit++;
-          //state removed -> remove constraints
-          if (sccsts.find(tmp->first) == end(sccsts))
-            altmap.erase(tmp);
-        }
-        // next remove incoming
-        for (auto& altit : altmap) {
-          for (auto &symtoes : altit.second) {
-            vector<state_t> tmp;
-            // assert(!symtoes.second.empty());
-            set_intersection(begin(symtoes.second),end(symtoes.second),
-                             begin(sccsts),end(sccsts),back_inserter(tmp));
-            // assert(!tmp.empty());
-            symtoes.second.swap(tmp);
-          }
-        }
+        restrict_altmap(altmap, sccsts);
 
+        /*
+        // DEBUG OUTPUT
+        print_aut(sccpa);
+        cerr << "curr sccsts: " << seq_to_str(sccsts) << endl;
+        cerr << "curr altmap:" << endl;
+        for (auto const& xxx : altmap)
+          for (auto const& yyy : xxx.second)
+            cerr << xxx.first << "," << yyy.first << " -> " << seq_to_str(yyy.second) << endl;
+        */
+
+        // ----
+        // GREEDY HITSET CALCULATION (can profit from iteration)
+        /*
         // collect constraints
         map<state_t,set<state_t>> constraints;
         for (auto const& altmaps : altmap) {
@@ -331,10 +348,21 @@ PA determinize(auto const& nba, DetConf const& dc, PS const& psa, SCCDat const& 
             constraints[constraints.size()] = set<state_t>(begin(symtoes.second), end(symtoes.second));
           }
         }
+
         // get a hitset
         // cerr << "before hitset: " << sccsts.size() << " - " << seq_to_str(sccsts) << endl;
         hitset = greedy_hitting_set(constraints);
+        */
+        // ----
+
+        //TODO: add another flag for this variant, make this neat
+        hitset = altmap_to_maxsat(altmap);
+        // cerr << "calculated hitset: " << seq_to_str(hitset) << endl;
+
+        // ----
         sccsts = set<state_t>(begin(hitset),end(hitset));
+
+        restrict_altmap(altmap, sccsts);
         // cerr << "after hitset: " << sccsts.size() << " - " << seq_to_str(sccsts) << endl;
 
         // shrink hitset by computing another bottom SCC in rest
