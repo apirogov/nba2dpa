@@ -340,7 +340,7 @@ PA determinize(auto const& nba, DetConf const& dc, PS const& psa, SCCDat const& 
 
         // ----
         // GREEDY HITSET CALCULATION (can profit from iteration)
-        /*
+
         // collect constraints
         map<state_t,set<state_t>> constraints;
         for (auto const& altmaps : altmap) {
@@ -352,17 +352,19 @@ PA determinize(auto const& nba, DetConf const& dc, PS const& psa, SCCDat const& 
         // get a hitset
         // cerr << "before hitset: " << sccsts.size() << " - " << seq_to_str(sccsts) << endl;
         hitset = greedy_hitting_set(constraints);
-        */
+
         // ----
 
-        //TODO: add another flag for this variant, make this neat
-        hitset = altmap_to_maxsat(altmap);
+        // PERFECT RESULT USING MAXSAT. but this is hardly better, so we just use greedy.
+        //hitset = altmap_to_maxsat(altmap);
         // cerr << "calculated hitset: " << seq_to_str(hitset) << endl;
 
         // ----
         sccsts = set<state_t>(begin(hitset),end(hitset));
 
-        restrict_altmap(altmap, sccsts);
+        //for perfect maxsat:
+        //restrict_altmap(altmap, sccsts);
+
         // cerr << "after hitset: " << sccsts.size() << " - " << seq_to_str(sccsts) << endl;
 
         // shrink hitset by computing another bottom SCC in rest

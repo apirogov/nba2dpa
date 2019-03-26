@@ -5,7 +5,7 @@
 #include <set>
 #include <algorithm>
 #include <sstream>
-// #include <string>
+#include <string>
 
 #include "common/types.hh"
 
@@ -108,6 +108,8 @@ std::vector<nbautils::state_t> altmap_to_maxsat(
   }
 
   //hard clause: if all predecessors dead -> cur dead (useless state, not part of bottom SCC)
+  //useless!
+  /*
   for (auto const& it : preds) {
     state_t const cur = it.first;
     std::vector<int> tmp;
@@ -118,6 +120,7 @@ std::vector<nbautils::state_t> altmap_to_maxsat(
 
     hclauses.push_back(tmp);
   }
+  */
 
   //we actually optimize number of set variables encoded as partial max(Horn)SAT problem
   //hard constraints have topval weight, topval > sum of weights of soft constr.
