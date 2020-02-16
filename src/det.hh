@@ -11,7 +11,7 @@
 #include "common/types.hh"
 #include "common/trie_map.hh"
 #include "common/hitset.hh"
-#include "common/maxsat.hh"
+// #include "common/maxsat.hh"
 #include "aut.hh"
 
 namespace nbautils {
