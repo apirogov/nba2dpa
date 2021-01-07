@@ -496,7 +496,7 @@ PA determinize(auto const& nba, DetConf const& dc, PS const& psa, SCCDat const& 
     //         break;
     //       }
     // }
-    assert(repst>=0);
+    /* assert(repst>=0); */
     ps2pa[rep] = repst;
 
     // assert(sccpa.is_deterministic());

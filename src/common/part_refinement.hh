@@ -114,7 +114,7 @@ private:
     //   set_of[*it] = *newset; //update element -> set mapping
 
     set->first = mid;
-    return move(newset);
+    return newset;
   }
 
 public:

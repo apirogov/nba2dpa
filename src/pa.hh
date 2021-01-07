@@ -370,7 +370,7 @@ Aut<pair<state_t, state_t>> ba_dpacomp_prod(Aut<A> const& ba, Aut<B> const& dpa)
       }
     }
   });
-  return move(pa);
+  return pa;
 }
 
 //check that given SNBA is included (language-wise) in TDPA

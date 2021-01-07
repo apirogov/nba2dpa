@@ -34,5 +34,5 @@ auto bench(std::shared_ptr<spdlog::logger> log, std::string name, F f, bool enab
               , name, get_secs_since(starttime));
   }
 
-  return std::move(r);
+  return r;
 }

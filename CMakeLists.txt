@@ -8,7 +8,7 @@ project(nbautils)
 set(nbautils-build_tests OFF CACHE BOOL "Whether to build tests")
 
 # Enable C++14
-set (CMAKE_CXX_STANDARD 14)
+set (CMAKE_CXX_STANDARD 17)
 
 include(CheckCXXCompilerFlag)
 check_cxx_compiler_flag(-fconcepts HAS_FCONCEPTS)

@@ -13,11 +13,14 @@ git submodule update --init --recursive --remote
 cd vendor/range-v3
 git checkout 0.4.0
 cd ../..
+cd vendor/spdlog
+git checkout v0.16.3
+ch ../..
 ```
 
 ## Building nbautils
 
-When all dependencies are satisfied, building is easy:
+When all dependencies are satisfied, building is easy (tested with CMake 3.19 and g++ 10.2):
 
 ```
 cmake CMakeLists.txt

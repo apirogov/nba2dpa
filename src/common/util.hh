@@ -16,16 +16,12 @@
 #include <bitset>
 
 // gives identity function for any type
-auto identity = [](auto const& t){ return t; };
+inline auto identity = [](auto const& t){ return t; };
 
 // gives function that returns fixed value for arbitrary parameter
 // template <typename T, T V>
 // auto return_const = [](auto const&){ return V; };
-auto const_true = [](auto const&){ return true; };
-
-// useful to compare on some mapping function, e.g.
-// sort(some_seq, on(less<int>(), [](auto x){return -x;}));
-auto on = [](auto f, auto g){ return [f, g](auto a, auto b){ return f(g(a),g(b)); }; };
+inline auto const_true = [](auto const&){ return true; };
 
 // is sorted + unique vector?
 template<typename T>
@@ -285,7 +281,7 @@ auto find_min_param(T mn, T mx, F func) {
     } else
       l = m+1;
   }
-  return move(ret);
+  return ret;
 }
 
 template<typename T>

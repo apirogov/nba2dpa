@@ -429,7 +429,7 @@ PA process_nba(Args const &args, auto& aut, std::shared_ptr<spdlog::logger> log)
       if (args.approx && !ba_dpa_inclusion(aut, *pa))
         return unique_ptr<PA>(nullptr);
 
-      return move(pa);
+      return pa;
     });
 
     assert(upa);
